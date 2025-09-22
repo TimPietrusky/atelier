@@ -1,6 +1,12 @@
 export interface WorkflowNode {
   id: string;
-  type: "prompt" | "image-gen" | "video-gen" | "background-replace" | "output";
+  type:
+    | "prompt"
+    | "image-gen"
+    | "image-edit"
+    | "video-gen"
+    | "background-replace"
+    | "output";
   title: string;
   status: "idle" | "running" | "complete" | "error";
   position: { x: number; y: number };
@@ -151,6 +157,9 @@ export class WorkflowEngine {
       case "image-gen":
         await this.executeImageGenNode(node);
         break;
+      case "image-edit":
+        await this.executeImageEditNode(node);
+        break;
       case "video-gen":
         await this.executeVideoGenNode(node);
         break;
@@ -228,10 +237,100 @@ export class WorkflowEngine {
         id: `asset_${Date.now()}`,
         type: "image",
         url: result.imageUrl,
-        title: (node.config?.prompt as string) || "Image Output",
+        title: (prompt as string) || "Image Output",
         tags: [],
         createdAt: new Date().toISOString(),
         modelId: node.config?.model || "black-forest-labs/flux-1-schnell",
+        width: node.config?.width,
+        height: node.config?.height,
+        workflowId: "" + (node as any).workflowId,
+        nodeId: node.id,
+        executionId: result.executionId,
+      });
+    } catch (_) {
+      // ignore store errors
+    }
+
+    // Notify workflow store so UI updates
+    try {
+      const { workflowStore } = await import("@/lib/store/workflows");
+      const wfId = (node as any).workflowId as string | undefined;
+      if (wfId) {
+        workflowStore.updateNodeResult(wfId, node.id, node.result);
+      }
+    } catch {}
+  }
+
+  private async executeImageEditNode(node: WorkflowNode) {
+    // Get prompt from connected prompt node or node config
+    let prompt: string | undefined = node.config?.prompt;
+    if (!prompt) {
+      const wfId = (node as any).workflowId as string | undefined;
+      if (wfId) {
+        const wf = this.getWorkflowById(wfId) as { nodes?: any[] } | undefined;
+        const p = wf?.nodes?.find((n: any) => n.type === "prompt");
+        prompt = p?.config?.prompt || p?.result?.data;
+      }
+    }
+
+    // Get input image from connected image node
+    let inputImageUrl: string | undefined;
+    const wfId = (node as any).workflowId as string | undefined;
+    if (wfId) {
+      const wf = this.getWorkflowById(wfId) as { nodes?: any[] } | undefined;
+      const imageNode = wf?.nodes?.find(
+        (n: any) => n.type === "image-gen" && n.result?.type === "image"
+      );
+      inputImageUrl = imageNode?.result?.data;
+    }
+
+    if (!inputImageUrl) {
+      throw new Error("Image edit requires an input image from another node");
+    }
+
+    const response = await fetch("/api/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: prompt || "Edit this image",
+        model: node.config?.model || "bytedance/seedream-4.0-edit",
+        ratio: node.config?.ratio || "1:1",
+        width: node.config?.width,
+        height: node.config?.height,
+        steps: node.config?.steps,
+        guidance: node.config?.guidance,
+        seed: node.config?.seed,
+        inputs: { imageUrl: inputImageUrl },
+      }),
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error("Image edit failed");
+    }
+
+    node.result = {
+      type: "image",
+      data: result.imageUrl,
+      metadata: {
+        executionId: result.executionId,
+        model: node.config?.model || "bytedance/seedream-4.0-edit",
+        inputImage: inputImageUrl,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    // Save to media manager
+    try {
+      const { mediaStore } = await import("@/lib/store/media");
+      mediaStore.add({
+        id: `asset_${Date.now()}`,
+        type: "image",
+        url: result.imageUrl,
+        title: `Edited: ${prompt || "Image"}`,
+        tags: ["edited"],
+        createdAt: new Date().toISOString(),
+        modelId: node.config?.model || "bytedance/seedream-4.0-edit",
         width: node.config?.width,
         height: node.config?.height,
         workflowId: "" + (node as any).workflowId,

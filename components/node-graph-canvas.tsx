@@ -80,9 +80,7 @@ const PromptNode = ({ data, id }: { data: any; id: string }) => {
       <div className="flex items-center gap-2 mb-3">
         <div className="w-3 h-3 rounded-full bg-green-500" />
         <MessageSquare className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-card-foreground">
-          Prompt Input
-        </span>
+        <span className="text-sm font-medium text-card-foreground">Prompt</span>
       </div>
 
       <div className="space-y-2">
@@ -101,14 +99,9 @@ const PromptNode = ({ data, id }: { data: any; id: string }) => {
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-between h-6 text-xs"
+              className="w-full justify-center h-6 text-xs"
             >
-              Advanced Settings
-              {isExpanded ? (
-                <ChevronDown className="w-3 h-3" />
-              ) : (
-                <ChevronRight className="w-3 h-3" />
-              )}
+              <Settings2 className="w-3 h-3" />
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 mt-2">
@@ -166,9 +159,7 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
       <div className="flex items-center gap-2 mb-3">
         <div className="w-3 h-3 rounded-full bg-rainbow animate-pulse" />
         <ImageIcon className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-card-foreground">
-          Image Generation
-        </span>
+        <span className="text-sm font-medium text-card-foreground">Image</span>
       </div>
 
       <div className="space-y-2">
@@ -221,14 +212,9 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-between h-6 text-xs"
+              className="w-full justify-center h-6 text-xs"
             >
-              Advanced Settings
-              {isExpanded ? (
-                <ChevronDown className="w-3 h-3" />
-              ) : (
-                <ChevronRight className="w-3 h-3" />
-              )}
+              <Settings2 className="w-3 h-3" />
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 mt-2">
@@ -445,13 +431,18 @@ export function NodeGraphCanvas({
       const nodeTypeMap = {
         prompt: {
           type: "promptNode",
-          title: "Prompt Input",
+          title: "Prompt",
           config: { prompt: "" },
         },
         "image-gen": {
           type: "imageGenNode",
-          title: "Image Generation",
-          config: { model: "sdxl", steps: 50 },
+          title: "Image",
+          config: { model: "black-forest-labs/flux-1-schnell", steps: 30 },
+        },
+        "image-edit": {
+          type: "imageGenNode",
+          title: "Image Edit",
+          config: { model: "bytedance/seedream-4.0-edit", steps: 30 },
         },
         "video-gen": {
           type: "customNode",
@@ -510,15 +501,21 @@ export function NodeGraphCanvas({
   const nodeTypeConfig = [
     {
       id: "prompt",
-      title: "Prompt Input",
+      title: "Prompt",
       icon: MessageSquare,
       description: "Text input for AI generation",
     },
     {
       id: "image-gen",
-      title: "Image Generation",
+      title: "Image",
       icon: ImageIcon,
       description: "Generate images from text prompts",
+    },
+    {
+      id: "image-edit",
+      title: "Image Edit",
+      icon: ImageIcon,
+      description: "Edit images using text prompts and input images",
     },
     {
       id: "video-gen",
@@ -582,7 +579,7 @@ export function NodeGraphCanvas({
         type:
           n.type === "prompt"
             ? "promptNode"
-            : n.type === "image-gen"
+            : n.type === "image-gen" || n.type === "image-edit"
             ? "imageGenNode"
             : "customNode",
         position: n.position,

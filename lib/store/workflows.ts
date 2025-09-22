@@ -246,9 +246,11 @@ class WorkflowStore {
   private titleForType(type: WorkflowNode["type"]): string {
     switch (type) {
       case "prompt":
-        return "Prompt Input";
+        return "Prompt";
       case "image-gen":
-        return "Image Generation";
+        return "Image";
+      case "image-edit":
+        return "Image Edit";
       case "video-gen":
         return "Video Generation";
       case "background-replace":
