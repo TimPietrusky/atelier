@@ -1,23 +1,24 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Send, Bot, User, ImageIcon, Video, Sparkles } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Send, Bot, User, ImageIcon, Video, Sparkles } from "lucide-react";
+import { workflowStore } from "@/lib/store/workflows";
 
 interface Message {
-  id: string
-  type: "user" | "agent"
-  content: string
-  timestamp: Date
+  id: string;
+  type: "user" | "agent";
+  content: string;
+  timestamp: Date;
   preview?: {
-    type: "image" | "video"
-    url: string
-    description: string
-  }
+    type: "image" | "video";
+    url: string;
+    description: string;
+  };
 }
 
 export function ChatAgent() {
@@ -29,24 +30,34 @@ export function ChatAgent() {
         "Hi! I'm your AI workflow assistant. Describe what you want to create and I'll build the node graph for you.",
       timestamp: new Date(),
     },
-  ])
-  const [inputValue, setInputValue] = useState("")
-  const [isTyping, setIsTyping] = useState(false)
+  ]);
+  const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string>(
+    typeof window !== "undefined"
+      ? window.sessionStorage.getItem("active-workflow-id") || "workflow-a"
+      : "workflow-a"
+  );
+
+  useEffect(() => {
+    const unsub = workflowStore.subscribe(() => {});
+    return () => unsub();
+  }, []);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return
+    if (!inputValue.trim()) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       type: "user",
       content: inputValue,
       timestamp: new Date(),
-    }
+    };
 
-    setMessages((prev) => [...prev, userMessage])
-    const currentInput = inputValue
-    setInputValue("")
-    setIsTyping(true)
+    setMessages((prev) => [...prev, userMessage]);
+    const currentInput = inputValue;
+    setInputValue("");
+    setIsTyping(true);
 
     try {
       const response = await fetch("/api/chat", {
@@ -54,11 +65,11 @@ export function ChatAgent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: currentInput,
-          workflowContext: { currentWorkflow: "workflow-a" },
+          workflowContext: { currentWorkflow: activeWorkflowId },
         }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       const agentMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -66,43 +77,50 @@ export function ChatAgent() {
         content: result.message,
         timestamp: new Date(),
         preview: generatePreviewFromUpdates(result.workflowUpdates),
-      }
+      };
 
-      setMessages((prev) => [...prev, agentMessage])
+      setMessages((prev) => [...prev, agentMessage]);
+      if (
+        Array.isArray(result.workflowUpdates) &&
+        result.workflowUpdates.length > 0
+      ) {
+        workflowStore.applyUpdates(activeWorkflowId, result.workflowUpdates);
+      }
     } catch (error) {
-      console.error("Chat error:", error)
+      console.error("Chat error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: "agent",
-        content: "Sorry, I encountered an error processing your request. Please try again.",
+        content:
+          "Sorry, I encountered an error processing your request. Please try again.",
         timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, errorMessage])
+      };
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
-      setIsTyping(false)
+      setIsTyping(false);
     }
-  }
+  };
 
   const generatePreviewFromUpdates = (updates: any[]) => {
-    const imageUpdate = updates.find((u) => u.nodeType === "image-gen")
-    const videoUpdate = updates.find((u) => u.nodeType === "video-gen")
+    const imageUpdate = updates.find((u) => u.nodeType === "image-gen");
+    const videoUpdate = updates.find((u) => u.nodeType === "video-gen");
 
     if (videoUpdate) {
       return {
         type: "video" as const,
         url: "/cyberpunk-video-animation.jpg",
         description: "Video generation preview",
-      }
+      };
     } else if (imageUpdate) {
       return {
         type: "image" as const,
         url: "/cyberpunk-portrait-neon.png",
         description: "Image generation preview",
-      }
+      };
     }
 
-    return undefined
-  }
+    return undefined;
+  };
 
   return (
     <div className="h-full flex flex-col bg-card">
@@ -123,17 +141,28 @@ export function ChatAgent() {
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.map((message) => (
-            <div key={message.id} className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"}`}>
+            <div
+              key={message.id}
+              className={`flex gap-3 ${
+                message.type === "user" ? "justify-end" : "justify-start"
+              }`}
+            >
               {message.type === "agent" && (
                 <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                   <Bot className="w-3 h-3 text-primary-foreground" />
                 </div>
               )}
 
-              <div className={`max-w-[80%] ${message.type === "user" ? "order-first" : ""}`}>
+              <div
+                className={`max-w-[80%] ${
+                  message.type === "user" ? "order-first" : ""
+                }`}
+              >
                 <Card
                   className={`p-3 ${
-                    message.type === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted"
+                    message.type === "user"
+                      ? "bg-primary text-primary-foreground ml-auto"
+                      : "bg-muted"
                   }`}
                 >
                   <p className="text-sm">{message.content}</p>
@@ -146,7 +175,9 @@ export function ChatAgent() {
                         ) : (
                           <Video className="w-4 h-4 text-primary" />
                         )}
-                        <span className="text-xs text-muted-foreground">{message.preview.description}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {message.preview.description}
+                        </span>
                       </div>
                       <img
                         src={message.preview.url || "/placeholder.svg"}
@@ -157,7 +188,23 @@ export function ChatAgent() {
                   )}
                 </Card>
 
-                <p className="text-xs text-muted-foreground mt-1 px-1">{message.timestamp.toLocaleTimeString()}</p>
+                {(() => {
+                  const formatter = new Intl.DateTimeFormat("en-GB", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: false,
+                    timeZone: "UTC",
+                  });
+                  return (
+                    <p
+                      className="text-xs text-muted-foreground mt-1 px-1"
+                      suppressHydrationWarning
+                    >
+                      {formatter.format(message.timestamp)}
+                    </p>
+                  );
+                })()}
               </div>
 
               {message.type === "user" && (
@@ -176,8 +223,14 @@ export function ChatAgent() {
               <Card className="p-3 bg-muted">
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                  <div
+                    className="w-2 h-2 bg-primary rounded-full animate-bounce"
+                    style={{ animationDelay: "0.1s" }}
+                  />
+                  <div
+                    className="w-2 h-2 bg-primary rounded-full animate-bounce"
+                    style={{ animationDelay: "0.2s" }}
+                  />
                 </div>
               </Card>
             </div>
@@ -201,16 +254,22 @@ export function ChatAgent() {
         </div>
 
         <div className="flex gap-2 mt-2">
-          <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent">
+          <Badge
+            variant="outline"
+            className="text-xs cursor-pointer hover:bg-accent"
+          >
             <Sparkles className="w-3 h-3 mr-1" />
             Generate image
           </Badge>
-          <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent">
+          <Badge
+            variant="outline"
+            className="text-xs cursor-pointer hover:bg-accent"
+          >
             <Video className="w-3 h-3 mr-1" />
             Create video
           </Badge>
         </div>
       </div>
     </div>
-  )
+  );
 }

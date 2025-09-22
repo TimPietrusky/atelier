@@ -1,30 +1,42 @@
-# AI Agent Co-pilot
+# Agent-Graph Studio (MVP)
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+An AI-first media generation studio where a chat agent builds and edits a visual node graph. Backed by RunPod (LLM and image models).
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/timpietruskys-projects/v0-ai-agent-co-pilot)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/jBTEOGodHW4)
+## Setup
 
-## Overview
+1. Install deps
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+```bash
+pnpm i
+```
 
-## Deployment
+2. Env vars
 
-Your project is live at:
+Create `.env.local`:
 
-**[https://vercel.com/timpietruskys-projects/v0-ai-agent-co-pilot](https://vercel.com/timpietruskys-projects/v0-ai-agent-co-pilot)**
+```bash
+RUNPOD_API_KEY=your_runpod_api_key
+```
 
-## Build your app
+## Models
 
-Continue building your app on:
+- LLM: `qwen/qwen3-32b-awq`
+- Images:
+  - `bytedance/seedream-3.0`, `bytedance/seedream-4.0`, `bytedance/seedream-4.0-edit`
+  - `black-forest-labs/flux-1-schnell`, `black-forest-labs/flux-1-dev`, `black-forest-labs/flux-1-kontext-dev`
+  - `qwen/qwen-image`, `qwen/qwen-image-edit`
 
-**[https://v0.app/chat/projects/jBTEOGodHW4](https://v0.app/chat/projects/jBTEOGodHW4)**
+Aspect ratios: 1:1, 4:3, 3:4 (Seedream 4.0 and edit: 1:1 only with sizes 1024/1536/2048/4096).
 
-## How It Works
+## Endpoints
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+- POST `/api/chat` → Qwen3 instruct LLM (RunPod) returns explanation + graph diffs.
+- POST `/api/generate-image` → supports all listed image models with ratio/size validation.
+
+## UI
+
+- Graph: add nodes, edit params; auto-layout; manual rewiring.
+- Chat: shows agent messages and previews; applies graph diffs.
+- Media Manager: grid, basic search/tags (MVP local persistence).
+- Execution Queue: queued runs with status/ETA/cost (simulated costs).
+- Connect Provider: local key storage for UI; server uses env.

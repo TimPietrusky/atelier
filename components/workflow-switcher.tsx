@@ -1,31 +1,56 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Plus, Workflow } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus, Workflow } from "lucide-react";
+import { workflowStore, type Workflow } from "@/lib/store/workflows";
 
 interface WorkflowSwitcherProps {
-  activeWorkflow: string
-  onWorkflowChange: (workflow: string) => void
+  activeWorkflow: string;
+  onWorkflowChange: (workflow: string) => void;
 }
 
-export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowSwitcherProps) {
-  const [workflows] = useState(["Workflow A", "Cyberpunk Portrait", "Fantasy Map Generator"])
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [newWorkflowName, setNewWorkflowName] = useState("")
+export function WorkflowSwitcher({
+  activeWorkflow,
+  onWorkflowChange,
+}: WorkflowSwitcherProps) {
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newWorkflowName, setNewWorkflowName] = useState("");
 
   const handleCreateWorkflow = () => {
     if (newWorkflowName.trim()) {
-      // In a real app, this would create a new workflow
-      onWorkflowChange(newWorkflowName)
-      setNewWorkflowName("")
-      setIsCreateDialogOpen(false)
+      const wf = workflowStore.create(newWorkflowName);
+      setNewWorkflowName("");
+      setIsCreateDialogOpen(false);
+      setWorkflows(workflowStore.list());
+      onWorkflowChange(wf.id);
     }
-  }
+  };
+
+  useEffect(() => {
+    setWorkflows(workflowStore.list());
+    const unsub = workflowStore.subscribe(() =>
+      setWorkflows(workflowStore.list())
+    );
+    return () => unsub();
+  }, []);
 
   return (
     <div className="flex items-center gap-2">
@@ -38,8 +63,8 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
         </SelectTrigger>
         <SelectContent>
           {workflows.map((workflow) => (
-            <SelectItem key={workflow} value={workflow}>
-              {workflow}
+            <SelectItem key={workflow.id} value={workflow.id}>
+              {workflow.name}
             </SelectItem>
           ))}
         </SelectContent>
@@ -68,7 +93,10 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button onClick={handleCreateWorkflow}>Create Workflow</Button>
@@ -77,5 +105,5 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

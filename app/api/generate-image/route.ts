@@ -1,40 +1,63 @@
-import { type NextRequest, NextResponse } from "next/server"
+// Using Web Fetch API types to avoid depending on Next type declarations in lints
+import { generateImageWithRunpod } from "@/lib/providers/runpod";
+import { getImageModelMeta } from "@/lib/config";
 
-export async function POST(req: NextRequest) {
+function json(body: unknown, init?: number | ResponseInit) {
+  const responseInit: ResponseInit =
+    typeof init === "number"
+      ? { status: init, headers: { "Content-Type": "application/json" } }
+      : {
+          ...init,
+          headers: {
+            "Content-Type": "application/json",
+            ...(init as ResponseInit)?.headers,
+          },
+        };
+  return new Response(JSON.stringify(body), responseInit);
+}
+
+export async function POST(req: Request) {
   try {
-    const { prompt, model = "sdxl", width = 1024, height = 1024 } = await req.json()
+    const {
+      prompt,
+      model = "sdxl",
+      width,
+      height,
+      ratio,
+      steps,
+      guidance,
+      seed,
+      inputs,
+    } = await req.json();
 
-    const response = await fetch("https://api.runpod.ai/v2/sdxl/run", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.RUNPOD_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        input: {
-          prompt,
-          width,
-          height,
-          num_inference_steps: 30,
-          guidance_scale: 7.5,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`RunPod API error: ${response.statusText}`)
+    // Validate model and delegate to provider adapter
+    const meta = getImageModelMeta(model);
+    if (!meta) {
+      throw new Error(`Unsupported image model: ${model}`);
     }
 
-    const result = await response.json()
+    const result = await generateImageWithRunpod({
+      modelId: meta.id,
+      prompt,
+      width,
+      height,
+      ratio,
+      num_inference_steps: steps,
+      guidance_scale: guidance,
+      seed,
+      inputs,
+      apiKey: process.env.RUNPOD_API_KEY,
+    });
 
-    return NextResponse.json({
+    return json({
       success: true,
-      imageUrl: result.output?.image_url,
+      imageUrl: result.imageUrl,
       executionId: result.id,
       status: result.status,
-    })
+      metadata: { model },
+    });
   } catch (error) {
-    console.error("Image generation error:", error)
-    return NextResponse.json({ error: "Failed to generate image" }, { status: 500 })
+    console.error("Image generation error:", error);
+    return json({ error: "Failed to generate image" }, 500);
   }
 }
