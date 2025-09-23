@@ -319,10 +319,21 @@ export class WorkflowEngine {
 
   private async executeImageGenNode(node: WorkflowNode) {
     // Short-circuit: if user loaded a local image on this node, don't generate.
-    const localImageUrl: string | undefined =
+    let localImageUrl: string | undefined =
       typeof node.config?.localImage === "string"
         ? (node.config!.localImage as string)
         : undefined;
+    if (!localImageUrl && typeof node.config?.localImageRef === "string") {
+      // Resolve from IndexedDB if available (client-side only)
+      if (typeof window !== "undefined") {
+        try {
+          const { idbGetImage } = await import("@/lib/store/idb");
+          localImageUrl = await idbGetImage(
+            node.config!.localImageRef as string
+          );
+        } catch {}
+      }
+    }
     if (localImageUrl) {
       node.result = {
         type: "image",
@@ -514,10 +525,20 @@ export class WorkflowEngine {
 
   private async executeImageEditNode(node: WorkflowNode) {
     // Short-circuit: if this node has a user-loaded image, act as a passthrough
-    const localImageUrl: string | undefined =
+    let localImageUrl: string | undefined =
       typeof node.config?.localImage === "string"
         ? (node.config!.localImage as string)
         : undefined;
+    if (!localImageUrl && typeof node.config?.localImageRef === "string") {
+      if (typeof window !== "undefined") {
+        try {
+          const { idbGetImage } = await import("@/lib/store/idb");
+          localImageUrl = await idbGetImage(
+            node.config!.localImageRef as string
+          );
+        } catch {}
+      }
+    }
     if (localImageUrl) {
       node.result = {
         type: "image",

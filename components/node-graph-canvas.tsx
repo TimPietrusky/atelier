@@ -37,6 +37,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { getImageModelMeta } from "@/lib/config";
+import { idbPutImage, idbGetImage, idbDeleteImage } from "@/lib/store/idb";
 import {
   Dialog,
   DialogContent,
@@ -196,6 +197,37 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
   const [localImage, setLocalImage] = useState<string | undefined>(
     data.config?.localImage || undefined
   );
+  const hasLocalImage = !!localImage || !!data.config?.localImageRef;
+
+  // Hydrate local image from IndexedDB if we only have a ref
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (
+          !localImage &&
+          data.config?.localImageRef &&
+          typeof indexedDB !== "undefined"
+        ) {
+          const url = await idbGetImage(data.config.localImageRef);
+          if (!cancelled && url) setLocalImage(url);
+        } else if (
+          data.config?.localImage &&
+          !data.config?.localImageRef &&
+          typeof indexedDB !== "undefined"
+        ) {
+          // Migrate existing inline data URL into IDB to avoid localStorage bloat
+          const key = `img_${id}`;
+          await idbPutImage(key, data.config.localImage);
+          if (!cancelled) setLocalImage(data.config.localImage);
+          data?.onChange?.({ localImageRef: key, localImage: undefined });
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, data.config?.localImageRef, data.config?.localImage]);
 
   return (
     <Card
@@ -245,24 +277,50 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
               const file = e.target.files?.[0];
               if (!file) return;
               const reader = new FileReader();
-              reader.onload = () => {
+              reader.onload = async () => {
                 const url = String(reader.result);
                 setLocalImage(url);
-                data?.onChange?.({ localImage: url });
+                try {
+                  if (typeof indexedDB !== "undefined") {
+                    const key = `img_${id}`;
+                    await idbPutImage(key, url);
+                    data?.onChange?.({
+                      localImageRef: key,
+                      localImage: undefined,
+                    });
+                  } else {
+                    data?.onChange?.({ localImage: url });
+                  }
+                } catch {
+                  data?.onChange?.({ localImage: url });
+                }
               };
               reader.readAsDataURL(file);
             }}
           />
           <ImagePlus className="w-4 h-4 text-primary" title="Load image" />
         </label>
-        {localImage && (
+        {hasLocalImage && (
           <Button
             variant="ghost"
             size="sm"
             className="h-6 w-6 p-0 ml-1"
             onClick={() => {
-              setLocalImage(undefined);
-              data?.onChange?.({ localImage: undefined });
+              (async () => {
+                try {
+                  if (
+                    data.config?.localImageRef &&
+                    typeof indexedDB !== "undefined"
+                  ) {
+                    await idbDeleteImage(data.config.localImageRef);
+                  }
+                } catch {}
+                setLocalImage(undefined);
+                data?.onChange?.({
+                  localImage: undefined,
+                  localImageRef: undefined,
+                });
+              })();
             }}
             title="Remove image"
           >
@@ -290,7 +348,7 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
             />
           </div>
         )}
-        {!localImage && (
+        {!hasLocalImage && (
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">
               Model
