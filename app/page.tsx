@@ -63,10 +63,7 @@ export default function StudioDashboard() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-rainbow rounded-lg flex items-center justify-center shadow-rainbow">
-              <Grid3X3 className="w-4 h-4 text-white" />
-            </div>
-            <h1 className="text-xl font-bold text-rainbow">AI Studio</h1>
+            <h1 className="text-xl font-bold text-rainbow">atelier</h1>
           </div>
 
           <WorkflowSwitcher

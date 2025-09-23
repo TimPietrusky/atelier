@@ -88,9 +88,9 @@ const PromptNode = ({ data, id }: { data: any; id: string }) => {
         style={{ background: "#ff0080" }}
       />
 
-      <div className="flex items-center gap-2 mb-3">
-        <MessageSquare className="w-4 h-4 text-blue-500" />
-        <span className="text-sm font-medium text-card-foreground">Prompt</span>
+      <div className="flex items-center gap-2">
+        <MessageSquare className="w-3 h-3 text-blue-500" />
+        <span className="text-xs font-medium text-card-foreground">prompt</span>
         <div className="flex items-center gap-1 ml-auto">
           <Button
             variant="ghost"
@@ -261,9 +261,9 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
       <div className="space-y-3">
         {/* Title and Buttons Row */}
         <div className="flex items-center gap-2">
-          <ImageIcon className="w-4 h-4 text-purple-500" />
-          <span className="text-sm font-medium text-card-foreground">
-            Image
+          <ImageIcon className="w-3 h-3 text-purple-500" />
+          <span className="text-xs font-medium text-card-foreground">
+            image
           </span>
           <div className="flex items-center gap-1 ml-auto">
             <label className="h-6 w-6 p-0 flex items-center justify-center cursor-pointer hover:bg-accent/20 rounded">
@@ -312,7 +312,7 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
         </div>
 
         {mode !== "uploaded" && (
-          <div className="bg-muted/30 rounded-md px-3 py-2 border border-border/30">
+          <div className="bg-muted/30 rounded-md px-2 border border-border/30">
             <Select
               value={model}
               onValueChange={(v) => {
@@ -320,7 +320,7 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
                 if (data?.onChange) data.onChange({ model: v });
               }}
             >
-              <SelectTrigger className="w-full h-7 text-xs border-none bg-transparent p-0 hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
+              <SelectTrigger className="w-full h-7 border-none bg-transparent p-0 hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1023,7 +1023,7 @@ export function NodeGraphCanvas({
             className="gap-2 px-6 py-2 rounded-md font-medium transition-all duration-300 bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
           >
             <Play className="w-4 h-4" />
-            Run
+            run
           </Button>
 
           {queueCount > 0 && (
@@ -1046,7 +1046,7 @@ export function NodeGraphCanvas({
                 className="gap-2 px-4 py-2 rounded-md border border-border/50 hover:border-white/70 hover:bg-white/10 hover:text-white transition-all duration-200 bg-transparent text-white"
               >
                 <Plus className="w-4 h-4" />
-                Add Node
+                add
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-md border border-border/50">

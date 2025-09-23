@@ -74,7 +74,7 @@ export function WorkflowSwitcher({
         <DialogTrigger asChild>
           <Button variant="outline" size="sm" className="gap-2 bg-transparent">
             <Plus className="w-4 h-4" />
-            New Workflow
+            new
           </Button>
         </DialogTrigger>
         <DialogContent>
