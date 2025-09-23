@@ -67,6 +67,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Show execution status by node highlighting (`data.status`).
 - Each node header includes a chevron to toggle a metadata panel (schema, config, result, inputs).
 - Images render inline in the Image node (no separate output node required).
+- The historical "Output" node is removed for now to keep code lean. Reintroduce later if we add sinks (export/webhook/publish).
 - Remove visual noise (no animated edges; no round status dot in titles).
 - Run button is stateless; queue count in footer updates instantly.
 - Image node:

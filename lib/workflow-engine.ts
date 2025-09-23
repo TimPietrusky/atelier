@@ -7,8 +7,7 @@ export interface WorkflowNode {
     | "image-gen"
     | "image-edit"
     | "video-gen"
-    | "background-replace"
-    | "output";
+    | "background-replace";
   title: string;
   status: "idle" | "running" | "complete" | "error";
   position: { x: number; y: number };

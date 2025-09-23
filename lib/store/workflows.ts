@@ -262,8 +262,7 @@ class WorkflowStore {
         return "Video Generation";
       case "background-replace":
         return "Background Replace";
-      case "output":
-        return "Output";
+      // 'output' node removed for now
     }
   }
 

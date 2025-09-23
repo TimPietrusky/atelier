@@ -471,8 +471,7 @@ const CustomNode = ({ data }: { data: any }) => {
         return Video;
       case "background-replace":
         return Wand2;
-      case "output":
-        return ArrowRight;
+      // 'output' node type removed for now
       default:
         return Settings2;
     }
@@ -508,12 +507,7 @@ const CustomNode = ({ data }: { data: any }) => {
         id={`${data.type}-input`}
         className="w-3 h-3 bg-accent border-2 border-background"
       />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id={`${data.type}-output`}
-        className="w-3 h-3 bg-primary border-2 border-background"
-      />
+      {/* generic output handle kept for custom types; removed 'output' type */}
 
       <div className="flex items-center gap-2 mb-3">
         <div
@@ -689,12 +683,6 @@ export function NodeGraphCanvas({
       title: "Background Replace",
       icon: Wand2,
       description: "Replace image backgrounds",
-    },
-    {
-      id: "output",
-      title: "Output",
-      icon: ArrowRight,
-      description: "Final output node",
     },
   ];
 
