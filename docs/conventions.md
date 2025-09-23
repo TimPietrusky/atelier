@@ -28,6 +28,13 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Node results via `workflowStore.updateNodeResult`.
 - Use `JsonStorage`—do not write to `localStorage` directly elsewhere.
 - Seed default workflows on the client only (avoid SSR hydration mismatch).
+- Local images:
+  - Persist large local images in IndexedDB with a stable key stored as `config.localImageRef`.
+  - Avoid persisting base64 images in `localStorage` when IDB is available; fall back to `config.localImage` only if needed.
+- Deletions:
+  - When nodes are deleted, persist the updated node list and prune edges referencing removed nodes.
+- Statuses:
+  - Transient `running` status is never persisted; on write it is coerced to `idle`, and on load any persisted `running` becomes `idle`.
 
 ## Workflow execution
 
@@ -40,7 +47,10 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 - Prompt node: pass-through of `config.prompt` to `result.data` (text).
 - Image node (unified):
-  - If `config.localImage` exists, short-circuit: output that image; no API call.
+  - Mode sub-type via `config.mode`:
+    - `generate` (default): acts as a generator; model selector visible.
+    - `uploaded`: user-loaded image; model selector hidden; generation short-circuits.
+  - Short-circuit in `uploaded` mode (or when `localImage`/`localImageRef` present): output the image without API calls.
   - Otherwise resolves inputs from edges:
     - Prompt: most recent upstream prompt.
     - Image: most recent upstream image when the `image-input` handle is connected.
@@ -72,9 +82,10 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Run button is stateless; queue count in footer updates instantly.
 - Image node:
   - Model selector includes edit models.
-  - “Load image” button stores a data URL in `config.localImage` and persists.
-  - When `localImage` exists, node won’t generate and the model selector is hidden until cleared.
+  - “Load image” stores into IndexedDB (`localImageRef`) when available; otherwise `localImage`.
+  - Model selector is hidden only in `mode: "uploaded"` (not just because a result image exists).
   - When an upstream image is connected and a non-edit model is selected, show a subtle hint to switch.
+- Edges use a solid off-white stroke; gradient removed. Existing edges are normalized on load.
 
 ## React & performance patterns
 
