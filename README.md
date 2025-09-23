@@ -6,17 +6,17 @@ An AI-first media generation studio where a chat agent builds and edits a visual
 
 1. Install deps
 
-```bash
+\`\`\`bash
 pnpm i
-```
+\`\`\`
 
 2. Env vars
 
 Create `.env.local`:
 
-```bash
+\`\`\`bash
 RUNPOD_API_KEY=your_runpod_api_key
-```
+\`\`\`
 
 ## Models
 
