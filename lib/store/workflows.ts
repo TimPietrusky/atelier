@@ -49,7 +49,16 @@ class WorkflowStore {
     try {
       const storedArr = storage.read([]);
       if (Array.isArray(storedArr) && storedArr.length > 0) {
-        storedArr.forEach((wf) => this.workflows.set(wf.id, wf));
+        storedArr.forEach((wf) => {
+          // Sanitize any lingering 'running' statuses from previous sessions
+          if (Array.isArray(wf.nodes)) {
+            wf.nodes = wf.nodes.map((n: any) => ({
+              ...n,
+              status: n?.status === "running" ? "idle" : n?.status || "idle",
+            }));
+          }
+          this.workflows.set(wf.id, wf);
+        });
       } else {
         // Only seed defaults on the client to avoid SSR hydration mismatch
         if (typeof window !== "undefined") {
@@ -106,7 +115,19 @@ class WorkflowStore {
   }
 
   private notify() {
-    this.persist();
+    // Never persist transient 'running' statuses; coerce to 'idle' before write
+    const arr = Array.from(this.workflows.values()).map((wf) => ({
+      ...wf,
+      nodes: wf.nodes.map((n) => ({
+        ...n,
+        status: n.status === "running" ? "idle" : n.status,
+      })),
+    }));
+    const storage = new JsonStorage<Workflow[]>(
+      new LocalStorageAdapter(),
+      "workflows"
+    );
+    storage.write(arr);
     this.listeners.forEach((l) => l());
   }
 

@@ -632,7 +632,7 @@ export function NodeGraphCanvas({
       const newEdge = {
         ...params,
         id: params.id || `edge-${params.source}-${params.target}-${Date.now()}`,
-        style: { stroke: "url(#rainbow-gradient)", strokeWidth: 3 },
+        style: { stroke: "#e5e7eb", strokeWidth: 2 },
         animated: false,
       } as any;
       setEdges((eds) => addEdge(newEdge, eds));
@@ -672,7 +672,6 @@ export function NodeGraphCanvas({
           title: "Background Replace",
           config: { background_prompt: "" },
         },
-        output: { type: "customNode", title: "Output", config: {} },
       };
 
       const nodeConfig = nodeTypeMap[nodeType as keyof typeof nodeTypeMap];
@@ -776,6 +775,27 @@ export function NodeGraphCanvas({
           }
         }, 0);
       }
+
+      // Persist removals (nodes deleted via UI)
+      const removed = changes
+        .filter((c) => c.type === "remove")
+        .map((c) => c.id as string);
+      if (removed.length > 0) {
+        setTimeout(() => {
+          const wf = workflowStore.get(activeWorkflow);
+          if (!wf) return;
+          const remainingNodes = wf.nodes.filter(
+            (n) => !removed.includes(n.id)
+          );
+          const remainingNodeIds = new Set(remainingNodes.map((n) => n.id));
+          const remainingEdges = (wf.edges || []).filter(
+            (e) =>
+              remainingNodeIds.has(e.source) && remainingNodeIds.has(e.target)
+          );
+          workflowStore.setNodes(activeWorkflow, remainingNodes as any);
+          workflowStore.setEdges(activeWorkflow, remainingEdges as any);
+        }, 0);
+      }
     },
     [onNodesChange, activeWorkflow]
   );
@@ -804,7 +824,14 @@ export function NodeGraphCanvas({
         },
       }));
       setNodes(mapped);
-      if (wf.edges) setEdges(wf.edges as any);
+      if (wf.edges)
+        setEdges(
+          (wf.edges as any).map((e: any) => ({
+            ...e,
+            style: { stroke: "#e5e7eb", strokeWidth: 2 },
+            animated: false,
+          }))
+        );
     });
     // Hydrate initial state on mount (CSR only) to avoid SSR mismatch
     const wf0 = workflowStore.get(activeWorkflow);
@@ -829,7 +856,14 @@ export function NodeGraphCanvas({
         },
       }));
       setNodes(mapped0);
-      if (wf0.edges) setEdges(wf0.edges as any);
+      if (wf0.edges)
+        setEdges(
+          (wf0.edges as any).map((e: any) => ({
+            ...e,
+            style: { stroke: "#e5e7eb", strokeWidth: 2 },
+            animated: false,
+          }))
+        );
     }
     const handleError = (event: ErrorEvent) => {
       if (
@@ -972,32 +1006,13 @@ export function NodeGraphCanvas({
         fitView={false}
         className="bg-background"
         connectionLineType="smoothstep"
-        connectionLineStyle={{ stroke: "#ff0080", strokeWidth: 2 }}
+        connectionLineStyle={{ stroke: "#e5e7eb", strokeWidth: 2 }}
         proOptions={proOptions}
         colorMode="dark"
         onMoveEnd={(_, viewport) => onMoveEnd(viewport)}
         onError={() => {}}
       >
-        {/* Rainbow gradient definition for edges */}
-        <svg
-          style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0 }}
-        >
-          <defs>
-            <linearGradient
-              id="rainbow-gradient"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="0%"
-            >
-              <stop offset="0%" stopColor="#ff0080" />
-              <stop offset="25%" stopColor="#ff8c00" />
-              <stop offset="50%" stopColor="#40e0d0" />
-              <stop offset="75%" stopColor="#9370db" />
-              <stop offset="100%" stopColor="#ff1493" />
-            </linearGradient>
-          </defs>
-        </svg>
+        {/* Solid edges; gradient removed */}
 
         <Controls className="bg-background/90 backdrop-blur-sm border border-border/50 rounded-md [&>button]:text-foreground [&>button]:hover:bg-muted [&>button]:bg-transparent [&>button]:border-border/50 [&>button>svg]:text-foreground" />
         <MiniMap
