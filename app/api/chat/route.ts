@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const { message, workflowContext } = await req.json();
+    console.log("[api/chat] request", { message, workflowContext });
     const clientKey = typeof window === "undefined" ? undefined : undefined;
     const envKey = process.env.RUNPOD_API_KEY;
 
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest) {
       workflowUpdates: extractWorkflowUpdates(text, message),
       timestamp: new Date().toISOString(),
     };
+
+    console.log("[api/chat] response", response);
 
     return NextResponse.json(response);
   } catch (error) {

@@ -26,19 +26,29 @@ export default function StudioDashboard() {
     const wf = workflowStore.get(activeWorkflow);
     if (wf) {
       workflowEngine.executeWorkflow(wf.id, wf.nodes);
-      // do not open modal; just increment counter based on engine state
+      // update immediately after enqueue so footer shows correct count instantly
       setQueueCount(workflowEngine.getQueue().length);
+      // force a small UI tick to refresh node statuses quickly
+      try {
+        const next = workflowStore.get(activeWorkflow);
+        workflowStore.upsert({ ...(next as any) });
+      } catch {}
     }
-    // button is stateless for queueing
   };
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    // Faster polling for snappy UI; also update on visibilitychange instantly
+    const update = () => {
       try {
         setQueueCount(workflowEngine.getQueue().length);
       } catch {}
-    }, 500);
-    return () => clearInterval(interval);
+    };
+    const interval = setInterval(update, 250);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", update);
+    };
   }, []);
 
   useEffect(() => {

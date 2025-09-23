@@ -46,53 +46,47 @@ class WorkflowStore {
       new LocalStorageAdapter(),
       "workflows"
     );
-    const fromStorage = JSON.stringify(storage.read([]));
-    if (fromStorage) {
-      try {
-        const arr: Workflow[] = JSON.parse(fromStorage);
-        arr.forEach((wf) => this.workflows.set(wf.id, wf));
-      } catch {
-        // ignore
+    try {
+      const storedArr = storage.read([]);
+      if (Array.isArray(storedArr) && storedArr.length > 0) {
+        storedArr.forEach((wf) => this.workflows.set(wf.id, wf));
+      } else {
+        // Only seed defaults on the client to avoid SSR hydration mismatch
+        if (typeof window !== "undefined") {
+          const defaultWorkflow: Workflow = {
+            id: "workflow-a",
+            name: "Workflow A",
+            nodes: [
+              {
+                id: "prompt-1",
+                type: "prompt",
+                title: "Prompt",
+                status: "idle",
+                position: { x: 100, y: 200 },
+                config: { prompt: "Create a cinematic cyberpunk portrait" },
+              },
+              {
+                id: "image-gen-1",
+                type: "image-gen",
+                title: "Image",
+                status: "idle",
+                position: { x: 400, y: 200 },
+                config: {
+                  model: "black-forest-labs/flux-1-schnell",
+                  ratio: "3:4",
+                  steps: 30,
+                  guidance: 7.5,
+                },
+              },
+            ],
+            history: [],
+            chat: [],
+          };
+          this.workflows.set(defaultWorkflow.id, defaultWorkflow);
+        }
       }
-    }
-    if (this.workflows.size === 0) {
-      const defaultWorkflow: Workflow = {
-        id: "workflow-a",
-        name: "Workflow A",
-        nodes: [
-          {
-            id: "prompt-1",
-            type: "prompt",
-            title: "Prompt Input",
-            status: "idle",
-            position: { x: 100, y: 200 },
-            config: { prompt: "Create a cinematic cyberpunk portrait" },
-          },
-          {
-            id: "image-gen-1",
-            type: "image-gen",
-            title: "Image Generation",
-            status: "idle",
-            position: { x: 400, y: 200 },
-            config: {
-              model: "black-forest-labs/flux-1-schnell",
-              ratio: "3:4",
-              steps: 30,
-              guidance: 7.5,
-            },
-          },
-          {
-            id: "output-1",
-            type: "output",
-            title: "Output",
-            status: "idle",
-            position: { x: 700, y: 200 },
-          },
-        ],
-        history: [],
-        chat: [],
-      };
-      this.workflows.set(defaultWorkflow.id, defaultWorkflow);
+    } catch {
+      // ignore
     }
     this.initialized = true;
   }
@@ -198,6 +192,19 @@ class WorkflowStore {
     if (!n) return;
     n.result = result;
     n.status = "complete";
+    this.notify();
+  }
+
+  updateNodeStatus(
+    workflowId: string,
+    nodeId: string,
+    status: WorkflowNode["status"]
+  ) {
+    const wf = this.get(workflowId);
+    if (!wf) return;
+    const n = wf.nodes.find((x) => x.id === nodeId);
+    if (!n) return;
+    n.status = status;
     this.notify();
   }
 

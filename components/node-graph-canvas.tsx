@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -35,6 +36,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { getImageModelMeta } from "@/lib/config";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +48,8 @@ import {
 import {
   MessageSquare,
   ImageIcon,
+  ImagePlus,
+  X,
   Video,
   Wand2,
   ArrowRight,
@@ -60,9 +64,22 @@ import {
 const PromptNode = ({ data, id }: { data: any; id: string }) => {
   const [prompt, setPrompt] = useState(data.config?.prompt || "");
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
 
+  // Keep local state in sync with store updates
+  useEffect(() => {
+    setPrompt(data.config?.prompt || "");
+  }, [data.config?.prompt]);
+
+  const isRunning = data.status === "running";
   return (
-    <Card className="w-64 p-3 border border-border/50 hover:border-primary bg-card/90 backdrop-blur-sm hover:shadow-rainbow transition-all duration-300 relative">
+    <Card
+      className={`w-64 p-3 border ${
+        isRunning
+          ? "border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.35)]"
+          : "border-border/50 hover:border-primary"
+      } bg-card/90 backdrop-blur-sm transition-all duration-300 relative`}
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -78,9 +95,21 @@ const PromptNode = ({ data, id }: { data: any; id: string }) => {
       />
 
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-3 h-3 rounded-full bg-green-500" />
         <MessageSquare className="w-4 h-4 text-primary" />
         <span className="text-sm font-medium text-card-foreground">Prompt</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 ml-auto"
+          onClick={() => setShowMeta((v) => !v)}
+          title="Show metadata"
+        >
+          <ChevronDown
+            className={`w-3 h-3 transition-transform ${
+              showMeta ? "rotate-180" : ""
+            }`}
+          />
+        </Button>
       </div>
 
       <div className="space-y-2">
@@ -88,8 +117,12 @@ const PromptNode = ({ data, id }: { data: any; id: string }) => {
           placeholder="Enter your prompt..."
           value={prompt}
           onChange={(e) => {
-            setPrompt(e.target.value);
-            if (data?.onChange) data.onChange({ prompt: e.target.value });
+            const val = e.target.value;
+            setPrompt(val);
+            // Persist immediately to workflow store/localStorage
+            try {
+              if (data?.onChange) data.onChange({ prompt: val });
+            } catch {}
           }}
           className="min-h-[60px] text-xs bg-input border-border/50"
         />
@@ -126,6 +159,25 @@ const PromptNode = ({ data, id }: { data: any; id: string }) => {
             </div>
           </CollapsibleContent>
         </Collapsible>
+        {showMeta && (
+          <pre className="text-[10px] bg-muted/40 p-2 rounded border border-border/50 overflow-auto max-h-40">
+            {JSON.stringify(
+              {
+                id,
+                type: data.type,
+                schema: {
+                  inputs: [],
+                  outputs: [{ name: "text", type: "text" }],
+                },
+                inputs: data.result?.metadata?.inputsUsed,
+                config: data.config,
+                result: data.result,
+              },
+              null,
+              2
+            )}
+          </pre>
+        )}
       </div>
     </Card>
   );
@@ -135,12 +187,24 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
   const [model, setModel] = useState(
     data.config?.model || "black-forest-labs/flux-1-schnell"
   );
+  const meta = getImageModelMeta(model);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
   const imageUrl: string | undefined =
     data?.result?.type === "image" ? data?.result?.data : undefined;
+  const isRunning = data.status === "running";
+  const [localImage, setLocalImage] = useState<string | undefined>(
+    data.config?.localImage || undefined
+  );
 
   return (
-    <Card className="w-64 p-3 border border-border/50 hover:border-primary bg-card/90 backdrop-blur-sm hover:shadow-rainbow transition-all duration-300 relative">
+    <Card
+      className={`w-64 p-3 border ${
+        isRunning
+          ? "border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.35)]"
+          : "border-border/50 hover:border-primary"
+      } bg-card/90 backdrop-blur-sm transition-all duration-300 relative`}
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -157,9 +221,54 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
       />
 
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-3 h-3 rounded-full bg-rainbow animate-pulse" />
         <ImageIcon className="w-4 h-4 text-primary" />
         <span className="text-sm font-medium text-card-foreground">Image</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 ml-auto"
+          onClick={() => setShowMeta((v) => !v)}
+          title="Show metadata"
+        >
+          <ChevronDown
+            className={`w-3 h-3 transition-transform ${
+              showMeta ? "rotate-180" : ""
+            }`}
+          />
+        </Button>
+        <label className="h-6 w-6 p-0 ml-1 flex items-center justify-center cursor-pointer">
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                const url = String(reader.result);
+                setLocalImage(url);
+                data?.onChange?.({ localImage: url });
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
+          <ImagePlus className="w-4 h-4 text-primary" title="Load image" />
+        </label>
+        {localImage && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 ml-1"
+            onClick={() => {
+              setLocalImage(undefined);
+              data?.onChange?.({ localImage: undefined });
+            }}
+            title="Remove image"
+          >
+            <X className="w-4 h-4 text-destructive" />
+          </Button>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -172,40 +281,62 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
             />
           </div>
         )}
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">
-            Model
-          </label>
-          <Select
-            value={model}
-            onValueChange={(v) => {
-              setModel(v);
-              if (data?.onChange) data.onChange({ model: v });
-            }}
-          >
-            <SelectTrigger className="h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="black-forest-labs/flux-1-schnell">
-                FLUX 1 Schnell
-              </SelectItem>
-              <SelectItem value="black-forest-labs/flux-1-dev">
-                FLUX 1 Dev
-              </SelectItem>
-              <SelectItem value="black-forest-labs/flux-1-kontext-dev">
-                FLUX 1 Kontext Dev
-              </SelectItem>
-              <SelectItem value="bytedance/seedream-3.0">
-                Seedream 3.0
-              </SelectItem>
-              <SelectItem value="bytedance/seedream-4.0">
-                Seedream 4.0
-              </SelectItem>
-              <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {!imageUrl && localImage && (
+          <div className="overflow-hidden rounded border">
+            <img
+              src={localImage}
+              alt="Local image"
+              className="w-full h-auto object-contain"
+            />
+          </div>
+        )}
+        {!localImage && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">
+              Model
+            </label>
+            <Select
+              value={model}
+              onValueChange={(v) => {
+                setModel(v);
+                if (data?.onChange) data.onChange({ model: v });
+              }}
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="black-forest-labs/flux-1-schnell">
+                  FLUX 1 Schnell
+                </SelectItem>
+                <SelectItem value="black-forest-labs/flux-1-dev">
+                  FLUX 1 Dev
+                </SelectItem>
+                <SelectItem value="black-forest-labs/flux-1-kontext-dev">
+                  FLUX 1 Kontext Dev
+                </SelectItem>
+                <SelectItem value="bytedance/seedream-3.0">
+                  Seedream 3.0
+                </SelectItem>
+                <SelectItem value="bytedance/seedream-4.0">
+                  Seedream 4.0
+                </SelectItem>
+                <SelectItem value="bytedance/seedream-4.0-edit">
+                  Seedream 4.0 Edit
+                </SelectItem>
+                <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
+                <SelectItem value="qwen/qwen-image-edit">
+                  Qwen Image Edit
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {data?.hasImageInput && meta && meta.kind !== "img2img" && (
+              <div className="mt-1 text-[10px] text-muted-foreground">
+                An input image is connected — consider selecting an edit model.
+              </div>
+            )}
+          </div>
+        )}
 
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
           <CollapsibleTrigger asChild>
@@ -219,6 +350,27 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 mt-2">
             <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Load local image
+              </Label>
+              <Input
+                type="file"
+                accept="image/*"
+                className="h-7 text-xs"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const url = String(reader.result);
+                    setLocalImage(url);
+                    data?.onChange?.({ localImage: url });
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground">Steps</label>
               <Input
                 type="number"
@@ -231,20 +383,24 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
                 }
               />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground">CFG Scale</label>
-              <Input
-                type="number"
-                defaultValue="7.5"
-                step="0.5"
-                min="1"
-                max="20"
-                className="h-6 text-xs"
-                onChange={(e) =>
-                  data?.onChange?.({ guidance: Number(e.target.value) })
-                }
-              />
-            </div>
+            {meta?.supportsGuidance && (
+              <div>
+                <label className="text-xs text-muted-foreground">
+                  CFG Scale
+                </label>
+                <Input
+                  type="number"
+                  defaultValue="7.5"
+                  step="0.5"
+                  min="1"
+                  max="20"
+                  className="h-6 text-xs"
+                  onChange={(e) =>
+                    data?.onChange?.({ guidance: Number(e.target.value) })
+                  }
+                />
+              </div>
+            )}
             <div>
               <label className="text-xs text-muted-foreground">
                 Resolution
@@ -281,6 +437,28 @@ const ImageGenNode = ({ data, id }: { data: any; id: string }) => {
             </div>
           </CollapsibleContent>
         </Collapsible>
+        {showMeta && (
+          <pre className="text-[10px] bg-muted/40 p-2 rounded border border-border/50 overflow-auto max-h-40">
+            {JSON.stringify(
+              {
+                id,
+                type: data.type,
+                schema: {
+                  inputs: [
+                    { name: "prompt", type: "text", optional: true },
+                    { name: "image", type: "image", optional: true },
+                  ],
+                  outputs: [{ name: "image", type: "image" }],
+                },
+                inputs: data.result?.metadata?.inputsUsed,
+                config: data.config,
+                result: data.result,
+              },
+              null,
+              2
+            )}
+          </pre>
+        )}
       </div>
     </Card>
   );
@@ -305,7 +483,7 @@ const CustomNode = ({ data }: { data: any }) => {
       case "complete":
         return "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]";
       case "running":
-        return "bg-rainbow animate-pulse shadow-rainbow";
+        return "bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.6)]";
       case "error":
         return "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]";
       default:
@@ -315,8 +493,15 @@ const CustomNode = ({ data }: { data: any }) => {
 
   const Icon = getNodeIcon(data.type);
 
+  const isRunning = data.status === "running";
   return (
-    <Card className="w-52 p-3 border border-border/50 hover:border-primary bg-card/90 backdrop-blur-sm hover:shadow-rainbow transition-all duration-300">
+    <Card
+      className={`w-52 p-3 border ${
+        isRunning
+          ? "border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.35)]"
+          : "border-border/50 hover:border-primary"
+      } bg-card/90 backdrop-blur-sm transition-all duration-300`}
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -383,47 +568,32 @@ export function NodeGraphCanvas({
   onStatusChange,
   queueCount = 0,
 }: NodeGraphCanvasProps) {
-  const wf = workflowStore.get(activeWorkflow);
-  const initialNodes: Node[] = (wf?.nodes || []).map((n) => ({
-    id: n.id,
-    type:
-      n.type === "prompt"
-        ? "promptNode"
-        : n.type === "image-gen"
-        ? "imageGenNode"
-        : "customNode",
-    position: n.position,
-    data: {
-      type: n.type,
-      title: n.title,
-      status: n.status,
-      config: n.config,
-      onChange: (cfg: Record<string, any>) => {
-        workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg);
-      },
-    },
-  }));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  const initialEdges: Edge[] = [];
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(() => {
-    const wf = workflowStore.get(activeWorkflow);
-    return (wf?.edges as any) || [];
-  });
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
   const [isAddNodeModalOpen, setIsAddNodeModalOpen] = useState(false);
 
   const onConnect = useCallback(
     (params: Connection) => {
       const newEdge = {
         ...params,
-        id: `edge-${params.source}-${params.target}`,
+        id: params.id || `edge-${params.source}-${params.target}-${Date.now()}`,
         style: { stroke: "url(#rainbow-gradient)", strokeWidth: 3 },
         animated: false,
-      };
+      } as any;
       setEdges((eds) => addEdge(newEdge, eds));
+      // Persist in a microtask to avoid cross-component update during render
+      queueMicrotask(() => {
+        const wf = workflowStore.get(activeWorkflow);
+        if (wf) {
+          const updated = [...((wf.edges as any) || []), newEdge] as any;
+          workflowStore.setEdges(activeWorkflow, updated);
+        }
+      });
     },
-    [setEdges]
+    [setEdges, activeWorkflow]
   );
 
   const addNewNode = useCallback(
@@ -439,11 +609,7 @@ export function NodeGraphCanvas({
           title: "Image",
           config: { model: "black-forest-labs/flux-1-schnell", steps: 30 },
         },
-        "image-edit": {
-          type: "imageGenNode",
-          title: "Image Edit",
-          config: { model: "bytedance/seedream-4.0-edit", steps: 30 },
-        },
+        // image-edit node intentionally hidden – single Image node handles both
         "video-gen": {
           type: "customNode",
           title: "Video Gen",
@@ -511,12 +677,7 @@ export function NodeGraphCanvas({
       icon: ImageIcon,
       description: "Generate images from text prompts",
     },
-    {
-      id: "image-edit",
-      title: "Image Edit",
-      icon: ImageIcon,
-      description: "Edit images using text prompts and input images",
-    },
+    // Hidden: Image Edit – Image node covers both txt2img and img2img
     {
       id: "video-gen",
       title: "Video Generation",
@@ -554,17 +715,20 @@ export function NodeGraphCanvas({
         (c) => c.type === "position" && c.dragging === false
       );
       if (positionChanges.length > 0) {
-        const wf = workflowStore.get(activeWorkflow);
-        if (wf) {
-          const updatedNodes = wf.nodes.map((n) => {
-            const change = positionChanges.find((c) => c.id === n.id);
-            if (change && change.position) {
-              return { ...n, position: change.position };
-            }
-            return n;
-          });
-          workflowStore.setNodes(activeWorkflow, updatedNodes);
-        }
+        // Defer store writes to next tick to avoid setState during render warnings
+        setTimeout(() => {
+          const wf = workflowStore.get(activeWorkflow);
+          if (wf) {
+            const updatedNodes = wf.nodes.map((n) => {
+              const change = positionChanges.find((c) => c.id === n.id);
+              if (change && change.position) {
+                return { ...n, position: change.position };
+              }
+              return n;
+            });
+            workflowStore.setNodes(activeWorkflow, updatedNodes);
+          }
+        }, 0);
       }
     },
     [onNodesChange, activeWorkflow]
@@ -596,6 +760,31 @@ export function NodeGraphCanvas({
       setNodes(mapped);
       if (wf.edges) setEdges(wf.edges as any);
     });
+    // Hydrate initial state on mount (CSR only) to avoid SSR mismatch
+    const wf0 = workflowStore.get(activeWorkflow);
+    if (wf0) {
+      const mapped0: Node[] = wf0.nodes.map((n) => ({
+        id: n.id,
+        type:
+          n.type === "prompt"
+            ? "promptNode"
+            : n.type === "image-gen" || n.type === "image-edit"
+            ? "imageGenNode"
+            : "customNode",
+        position: n.position,
+        data: {
+          type: n.type,
+          title: n.title,
+          status: n.status,
+          config: n.config,
+          onChange: (cfg: Record<string, any>) =>
+            workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
+          result: n.result,
+        },
+      }));
+      setNodes(mapped0);
+      if (wf0.edges) setEdges(wf0.edges as any);
+    }
     const handleError = (event: ErrorEvent) => {
       if (
         event.message.includes(
@@ -638,18 +827,15 @@ export function NodeGraphCanvas({
       // Update edges in store after any change (including deletions)
       setTimeout(() => {
         setEdges((currentEdges) => {
-          workflowStore.setEdges(activeWorkflow, currentEdges as any);
+          queueMicrotask(() =>
+            workflowStore.setEdges(activeWorkflow, currentEdges as any)
+          );
           return currentEdges;
         });
       }, 0);
     },
     [onEdgesChange, activeWorkflow]
   );
-
-  // Persist edges and viewport on changes
-  useEffect(() => {
-    workflowStore.setEdges(activeWorkflow, edges as any);
-  }, [edges, activeWorkflow]);
 
   const onMoveEnd = useCallback(
     (viewport: { x: number; y: number; zoom: number }) => {

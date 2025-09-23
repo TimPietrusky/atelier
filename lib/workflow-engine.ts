@@ -1,3 +1,5 @@
+import { getImageModelMeta } from "@/lib/config";
+
 export interface WorkflowNode {
   id: string;
   type:
@@ -48,6 +50,8 @@ export class WorkflowEngine {
   private isProcessing = false;
   private maxConcurrency = 5;
   private runningCount = 0;
+  // live node snapshots during an execution to avoid stale localStorage reads
+  private runtimeNodesByWorkflow: Map<string, WorkflowNode[]> = new Map();
 
   async executeWorkflow(
     workflowId: string,
@@ -121,35 +125,150 @@ export class WorkflowEngine {
   }
 
   private async runWorkflowExecution(execution: WorkflowExecution) {
-    const workflow = this.getWorkflowById(execution.workflowId);
+    // Prefer in-memory store state to avoid stale/localStorage quota issues
+    let workflow: any | undefined;
+    try {
+      const { workflowStore } = await import("@/lib/store/workflows");
+      workflow = workflowStore.get(execution.workflowId) as any;
+    } catch {}
+    if (!workflow) workflow = this.getWorkflowById(execution.workflowId) as any;
     if (!workflow) throw new Error("Workflow not found");
 
-    const nodes = workflow.nodes;
-    const totalSteps = nodes.length;
+    // Order nodes using a simple topological sort based on edges so that
+    // upstream nodes execute before their dependents.
+    const edges: Array<{ source: string; target: string }> =
+      (workflow.edges as any[]) || [];
+    const nodes: WorkflowNode[] = (workflow.nodes as WorkflowNode[]) || [];
 
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
+    const idToNode = new Map(nodes.map((n: WorkflowNode) => [n.id, n]));
+    const indegree = new Map<string, number>();
+    nodes.forEach((n) => indegree.set(n.id, 0));
+    edges.forEach((e) => {
+      indegree.set(e.target, (indegree.get(e.target) || 0) + 1);
+    });
+
+    const queue: WorkflowNode[] = [];
+    // Seed queue in original order for stable results
+    nodes.forEach((n) => {
+      if ((indegree.get(n.id) || 0) === 0) queue.push(n);
+    });
+
+    const ordered: WorkflowNode[] = [];
+    const outgoing = new Map<string, string[]>();
+    edges.forEach((e) => {
+      const arr = outgoing.get(e.source) || [];
+      arr.push(e.target);
+      outgoing.set(e.source, arr);
+    });
+
+    while (queue.length) {
+      const n = queue.shift()!;
+      ordered.push(n);
+      const outs = outgoing.get(n.id) || [];
+      outs.forEach((t) => {
+        const next = (indegree.get(t) || 0) - 1;
+        indegree.set(t, next);
+        if (next === 0 && idToNode.has(t)) {
+          queue.push(idToNode.get(t)!);
+        }
+      });
+    }
+
+    // Fallback: append any nodes that were not included due to cycles/missing edges
+    nodes.forEach((n) => {
+      if (!ordered.includes(n)) ordered.push(n);
+    });
+
+    // Keep a live snapshot for resolution of inputs across nodes
+    this.runtimeNodesByWorkflow.set(
+      execution.workflowId,
+      ordered.map((n) => ({ ...n }))
+    );
+
+    const totalSteps = ordered.length;
+
+    // Reset all node statuses to idle before starting; update store for UI
+    ordered.forEach((n) => (n.status = "idle"));
+    try {
+      const { workflowStore } = await import("@/lib/store/workflows");
+      ordered.forEach((n) =>
+        workflowStore.updateNodeStatus(execution.workflowId, n.id, "idle")
+      );
+    } catch {}
+
+    for (let i = 0; i < ordered.length; i++) {
+      const node = ordered[i];
       execution.progress = ((i + 1) / totalSteps) * 100;
       execution.currentNodeId = node.id;
       (node as any).workflowId = execution.workflowId;
 
       try {
+        // mark active
+        try {
+          const { workflowStore } = await import("@/lib/store/workflows");
+          workflowStore.updateNodeStatus(
+            execution.workflowId,
+            node.id,
+            "running"
+          );
+        } catch {}
+
         await this.executeNode(node);
         node.status = "complete";
+        try {
+          const { workflowStore } = await import("@/lib/store/workflows");
+          workflowStore.updateNodeStatus(
+            execution.workflowId,
+            node.id,
+            "complete"
+          );
+        } catch {}
       } catch (error) {
         node.status = "error";
+        try {
+          const { workflowStore } = await import("@/lib/store/workflows");
+          workflowStore.updateNodeStatus(
+            execution.workflowId,
+            node.id,
+            "error"
+          );
+        } catch {}
         throw error;
       }
 
+      // Update live snapshot
+      this.runtimeNodesByWorkflow.set(
+        execution.workflowId,
+        ordered.map((n) => ({ ...n }))
+      );
+
       // persist node updates to localStorage so UI reflects changes
-      this.persistWorkflowNodes(execution.workflowId, nodes);
+      this.persistWorkflowNodes(execution.workflowId, ordered);
 
       // Small delay between nodes
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
 
+  private getRuntimeNodes(workflowId: string): WorkflowNode[] | undefined {
+    return this.runtimeNodesByWorkflow.get(workflowId);
+  }
+
   private async executeNode(node: WorkflowNode) {
+    // Refresh node config from the latest store snapshot before executing,
+    // so recent UI changes (like localImage) are respected.
+    try {
+      const wfId = (node as any).workflowId as string | undefined;
+      if (wfId) {
+        const { workflowStore } = await import("@/lib/store/workflows");
+        const wf = workflowStore.get(wfId) as any;
+        const fresh = wf?.nodes?.find((n: any) => n.id === node.id);
+        if (fresh && fresh.config) {
+          node.config = JSON.parse(JSON.stringify(fresh.config));
+        }
+      }
+    } catch {}
+
     switch (node.type) {
       case "prompt":
         await this.executePromptNode(node);
@@ -178,8 +297,18 @@ export class WorkflowEngine {
     node.result = {
       type: "text",
       data: text,
-      metadata: { timestamp: new Date().toISOString() },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        inputsUsed: { prompt: text },
+      },
     };
+    // Debug I/O log
+    if (typeof window !== "undefined") {
+      console.groupCollapsed(`[node:${node.id}] ${node.title}`);
+      console.log("inputs", { prompt: text });
+      console.log("result", node.result);
+      console.groupEnd();
+    }
     try {
       const { workflowStore } = await import("@/lib/store/workflows");
       const wfId = (node as any).workflowId as string | undefined;
@@ -190,28 +319,131 @@ export class WorkflowEngine {
   }
 
   private async executeImageGenNode(node: WorkflowNode) {
-    // Determine prompt: prefer node's own config.prompt; otherwise use first prompt node in workflow
+    // Short-circuit: if user loaded a local image on this node, don't generate.
+    const localImageUrl: string | undefined =
+      typeof node.config?.localImage === "string"
+        ? (node.config!.localImage as string)
+        : undefined;
+    if (localImageUrl) {
+      node.result = {
+        type: "image",
+        data: localImageUrl,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          inputsUsed: { mode: "local", source: "user" },
+        },
+      };
+      // Debug I/O log
+      if (typeof window !== "undefined") {
+        console.groupCollapsed(`[node:${node.id}] ${node.title} (local image)`);
+        console.log("inputs", node.result.metadata?.inputsUsed);
+        console.log("result", node.result);
+        console.groupEnd();
+      }
+      // Notify workflow store so UI updates
+      try {
+        const { workflowStore } = await import("@/lib/store/workflows");
+        const wfId = (node as any).workflowId as string | undefined;
+        if (wfId) {
+          workflowStore.updateNodeResult(wfId, node.id, node.result);
+        }
+      } catch {}
+      return;
+    }
+
+    // Resolve prompt and optional image input from incoming edges; fallback to node config
     let prompt: string | undefined = node.config?.prompt;
-    if (!prompt) {
-      const wfId = (node as any).workflowId as string | undefined;
-      if (wfId) {
-        const wf = this.getWorkflowById(wfId) as { nodes?: any[] } | undefined;
+    let inputImageUrl: string | undefined;
+    const wfId = (node as any).workflowId as string | undefined;
+    if (wfId) {
+      const wf = this.getWorkflowById(wfId) as any;
+      const liveNodes = (this.getRuntimeNodes(wfId) || wf?.nodes || []).map(
+        (n: any) => ({ ...n })
+      );
+      const edges: Array<{
+        source: string;
+        target: string;
+        sourceHandle?: string;
+        targetHandle?: string;
+      }> = (wf?.edges as any[]) || [];
+      const incoming = edges.filter((e) => e.target === node.id);
+      const sourceNodes = incoming
+        .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
+        .filter(Boolean);
+      const pNode = sourceNodes
+        .slice()
+        .sort((a: any, b: any) => {
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0;
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0;
+          return bt - at;
+        })
+        .find((n: any) => n.type === "prompt");
+      if (pNode) {
+        prompt = pNode.config?.prompt || pNode.result?.data || prompt;
+      } else if (!prompt) {
         const p = wf?.nodes?.find((n: any) => n.type === "prompt");
         prompt = p?.config?.prompt || p?.result?.data;
       }
+      // Prefer edges wired to the image-input handle; fall back to any image
+      let imageCandidates = incoming
+        .filter((e) => e.targetHandle === "image-input")
+        .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
+        .filter(Boolean) as any[];
+      if (imageCandidates.length === 0) {
+        imageCandidates = sourceNodes.filter(
+          (n: any) =>
+            (n.type === "image-gen" || n.type === "image-edit") &&
+            n.result?.type === "image"
+        ) as any[];
+      }
+      if (imageCandidates.length > 0) {
+        const latest = imageCandidates.slice().sort((a: any, b: any) => {
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0;
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0;
+          return bt - at;
+        })[0];
+        inputImageUrl = latest?.result?.data;
+      }
+
+      // Expose hasImageInput to UI via config hint (non-persistent during run)
+      try {
+        const { workflowStore } = await import("@/lib/store/workflows");
+        if (wfId) {
+          workflowStore.updateNodeConfig(wfId, node.id, {
+            hasImageInput: !!inputImageUrl,
+          } as any);
+        }
+      } catch {}
     }
+
+    const selectedModel: string =
+      node.config?.model || "black-forest-labs/flux-1-schnell";
+    const hasImageInput = !!inputImageUrl;
+    const meta = getImageModelMeta(selectedModel);
+
     const response = await fetch("/api/generate-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt: prompt || "A beautiful image",
-        model: node.config?.model || "black-forest-labs/flux-1-schnell",
+        prompt:
+          prompt || (hasImageInput ? "Edit this image" : "A beautiful image"),
+        model: selectedModel,
         ratio: node.config?.ratio || "1:1",
         width: node.config?.width,
         height: node.config?.height,
         steps: node.config?.steps,
-        guidance: node.config?.guidance,
+        guidance:
+          meta && meta.supportsGuidance ? node.config?.guidance : undefined,
         seed: node.config?.seed,
+        inputs: hasImageInput ? { images: [inputImageUrl] } : undefined,
       }),
     });
 
@@ -225,10 +457,30 @@ export class WorkflowEngine {
       data: result.imageUrl,
       metadata: {
         executionId: result.executionId,
-        model: node.config?.model || "black-forest-labs/flux-1-schnell",
+        model: selectedModel,
         timestamp: new Date().toISOString(),
+        inputsUsed: {
+          prompt:
+            prompt || (hasImageInput ? "Edit this image" : "A beautiful image"),
+          mode: hasImageInput ? "img2img" : "txt2img",
+          inputImageUrl,
+          ratio: result.applied?.ratio || node.config?.ratio || "1:1",
+          width: result.applied?.width ?? node.config?.width,
+          height: result.applied?.height ?? node.config?.height,
+          steps: node.config?.steps,
+          guidance: node.config?.guidance,
+          seed: node.config?.seed,
+        },
       },
     };
+
+    // Debug I/O log
+    if (typeof window !== "undefined") {
+      console.groupCollapsed(`[node:${node.id}] ${node.title}`);
+      console.log("inputs", node.result.metadata?.inputsUsed);
+      console.log("result", node.result);
+      console.groupEnd();
+    }
 
     // Save to media manager (best effort)
     try {
@@ -262,29 +514,120 @@ export class WorkflowEngine {
   }
 
   private async executeImageEditNode(node: WorkflowNode) {
-    // Get prompt from connected prompt node or node config
-    let prompt: string | undefined = node.config?.prompt;
-    if (!prompt) {
-      const wfId = (node as any).workflowId as string | undefined;
-      if (wfId) {
-        const wf = this.getWorkflowById(wfId) as { nodes?: any[] } | undefined;
-        const p = wf?.nodes?.find((n: any) => n.type === "prompt");
-        prompt = p?.config?.prompt || p?.result?.data;
+    // Short-circuit: if this node has a user-loaded image, act as a passthrough
+    const localImageUrl: string | undefined =
+      typeof node.config?.localImage === "string"
+        ? (node.config!.localImage as string)
+        : undefined;
+    if (localImageUrl) {
+      node.result = {
+        type: "image",
+        data: localImageUrl,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          inputsUsed: { mode: "local", source: "user" },
+        },
+      };
+      if (typeof window !== "undefined") {
+        console.groupCollapsed(`[node:${node.id}] ${node.title} (local image)`);
+        console.log("inputs", node.result.metadata?.inputsUsed);
+        console.log("result", node.result);
+        console.groupEnd();
       }
+      try {
+        const { workflowStore } = await import("@/lib/store/workflows");
+        const wfId = (node as any).workflowId as string | undefined;
+        if (wfId) {
+          workflowStore.updateNodeResult(wfId, node.id, node.result);
+        }
+      } catch {}
+      return;
     }
 
-    // Get input image from connected image node
+    // Resolve inputs from edges using live runtime snapshot
+    let prompt: string | undefined = node.config?.prompt;
     let inputImageUrl: string | undefined;
     const wfId = (node as any).workflowId as string | undefined;
     if (wfId) {
-      const wf = this.getWorkflowById(wfId) as { nodes?: any[] } | undefined;
-      const imageNode = wf?.nodes?.find(
-        (n: any) => n.type === "image-gen" && n.result?.type === "image"
+      const wf = this.getWorkflowById(wfId) as any;
+      const liveNodes = (this.getRuntimeNodes(wfId) || wf?.nodes || []).map(
+        (n: any) => ({ ...n })
       );
-      inputImageUrl = imageNode?.result?.data;
+      const edges: Array<{
+        source: string;
+        target: string;
+        sourceHandle?: string;
+        targetHandle?: string;
+      }> = (wf?.edges as any[]) || [];
+      const incoming = edges.filter((e) => e.target === node.id);
+      const sourceNodes = incoming
+        .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
+        .filter(Boolean);
+      const promptNode = sourceNodes
+        .slice()
+        .sort((a: any, b: any) => {
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0;
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0;
+          return bt - at;
+        })
+        .find((n: any) => n.type === "prompt");
+      if (promptNode) {
+        prompt = promptNode.config?.prompt || promptNode.result?.data || prompt;
+      } else if (!prompt) {
+        const p = (liveNodes || []).find((n: any) => n.type === "prompt");
+        prompt = p?.config?.prompt || p?.result?.data;
+      }
+
+      // Prefer explicit image-input connection; else pick latest image result
+      let imageCandidates = incoming
+        .filter((e) => e.targetHandle === "image-input")
+        .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
+        .filter(Boolean) as any[];
+      if (imageCandidates.length === 0) {
+        imageCandidates = sourceNodes.filter(
+          (n: any) =>
+            (n.type === "image-gen" || n.type === "image-edit") &&
+            n.result?.type === "image"
+        ) as any[];
+      }
+      if (imageCandidates.length > 0) {
+        const latest = imageCandidates.slice().sort((a: any, b: any) => {
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0;
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0;
+          return bt - at;
+        })[0];
+        inputImageUrl = latest?.result?.data;
+      }
     }
 
     if (!inputImageUrl) {
+      if (typeof window !== "undefined") {
+        const wf = wfId ? (this.getWorkflowById(wfId) as any) : undefined;
+        const liveNodes = wfId ? this.getRuntimeNodes(wfId) : undefined;
+        console.groupCollapsed(
+          `[node:${node.id}] ${node.title} – missing image input`
+        );
+        console.log("incomingEdges", wf?.edges || []);
+        console.log(
+          "sourceNodes",
+          (wf?.edges || [])
+            .filter((e: any) => e.target === node.id)
+            .map((e: any) =>
+              (liveNodes || wf?.nodes || []).find((n: any) => n.id === e.source)
+            )
+        );
+        console.log("resolved prompt", prompt);
+        console.log("resolved inputImageUrl", inputImageUrl);
+        console.groupEnd();
+      }
       throw new Error("Image edit requires an input image from another node");
     }
 
@@ -317,8 +660,26 @@ export class WorkflowEngine {
         model: node.config?.model || "bytedance/seedream-4.0-edit",
         inputImage: inputImageUrl,
         timestamp: new Date().toISOString(),
+        inputsUsed: {
+          prompt: prompt || "Edit this image",
+          inputImageUrl,
+          ratio: node.config?.ratio || "1:1",
+          width: node.config?.width,
+          height: node.config?.height,
+          steps: node.config?.steps,
+          guidance: node.config?.guidance,
+          seed: node.config?.seed,
+        },
       },
     };
+
+    // Debug I/O log
+    if (typeof window !== "undefined") {
+      console.groupCollapsed(`[node:${node.id}] ${node.title}`);
+      console.log("inputs", node.result.metadata?.inputsUsed);
+      console.log("result", node.result);
+      console.groupEnd();
+    }
 
     // Save to media manager
     try {
@@ -384,7 +745,11 @@ export class WorkflowEngine {
           ? window.localStorage.getItem("workflows")
           : null;
       if (raw) {
-        const arr = JSON.parse(raw) as Array<{ id: string; nodes: any[] }>;
+        const arr = JSON.parse(raw) as Array<{
+          id: string;
+          nodes: any[];
+          edges?: Array<{ source: string; target: string; id: string }>;
+        }>;
         const wf = arr.find((w) => w.id === workflowId);
         if (wf) return wf as any;
       }
