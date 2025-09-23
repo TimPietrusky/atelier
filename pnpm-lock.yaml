@@ -123,7 +123,7 @@ importers:
         specifier: 8.5.1
         version: 8.5.1(react@18.0.0)
       geist:
-        specifier: latest
+        specifier: ^1.5.1
         version: 1.5.1(next@14.2.16(@opentelemetry/api@1.9.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0))
       input-otp:
         specifier: 1.4.1

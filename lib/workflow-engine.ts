@@ -11,6 +11,7 @@ export interface WorkflowNode {
   title: string;
   status: "idle" | "running" | "complete" | "error";
   position: { x: number; y: number };
+  size?: { width: number; height: number };
   inputs?: string[];
   outputs?: string[];
   config?: Record<string, any>;
@@ -782,6 +783,15 @@ export class WorkflowEngine {
   private persistWorkflowNodes(workflowId: string, nodes: WorkflowNode[]) {
     try {
       if (typeof window === "undefined") return;
+      // Prefer the latest snapshot from the workflow store to avoid overwriting
+      // recent UI changes (like node size) with stale in-memory nodes.
+      try {
+        const { workflowStore } = require("@/lib/store/workflows");
+        const wf = workflowStore.get(workflowId) as any;
+        if (wf?.nodes && Array.isArray(wf.nodes)) {
+          nodes = (wf.nodes as WorkflowNode[]).map((n: any) => ({ ...n }));
+        }
+      } catch {}
       const raw = window.localStorage.getItem("workflows");
       if (!raw) return;
       const arr = JSON.parse(raw) as Array<{ id: string; nodes: any[] }>;
@@ -793,6 +803,9 @@ export class WorkflowEngine {
           title: n.title,
           status: n.status,
           position: { x: n.position.x, y: n.position.y },
+          size: n.size
+            ? { width: n.size.width, height: n.size.height }
+            : undefined,
           inputs: n.inputs,
           outputs: n.outputs,
           config: n.config ? JSON.parse(JSON.stringify(n.config)) : undefined,

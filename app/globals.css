@@ -11,7 +11,14 @@
   --card-foreground: #f9fafb;
   --popover: #1a1a2e;
   --popover-foreground: #ffffff;
-  --primary: linear-gradient(135deg, #ff0080, #ff8c00, #40e0d0, #9370db, #ff1493);
+  --primary: linear-gradient(
+    135deg,
+    #ff0080,
+    #ff8c00,
+    #40e0d0,
+    #9370db,
+    #ff1493
+  );
   --primary-solid: #ff0080;
   --primary-foreground: #ffffff;
   --secondary: #ec4899;
@@ -50,7 +57,14 @@
   --card-foreground: #f9fafb;
   --popover: #1a1a2e;
   --popover-foreground: #ffffff;
-  --primary: linear-gradient(135deg, #ff0080, #ff8c00, #40e0d0, #9370db, #ff1493);
+  --primary: linear-gradient(
+    135deg,
+    #ff0080,
+    #ff8c00,
+    #40e0d0,
+    #9370db,
+    #ff1493
+  );
   --primary-solid: #ff0080;
   --primary-foreground: #ffffff;
   --secondary: #ec4899;
@@ -125,28 +139,51 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 }
 
 /* Added rainbow gradient utilities */
 @layer utilities {
   .bg-rainbow {
-    background: linear-gradient(135deg, #ff0080, #ff8c00, #40e0d0, #9370db, #ff1493);
+    background: linear-gradient(
+      135deg,
+      #ff0080,
+      #ff8c00,
+      #40e0d0,
+      #9370db,
+      #ff1493
+    );
   }
 
   .text-rainbow {
-    background: linear-gradient(135deg, #ff0080, #ff8c00, #40e0d0, #9370db, #ff1493);
+    background: linear-gradient(
+      135deg,
+      #ff0080,
+      #ff8c00,
+      #40e0d0,
+      #9370db,
+      #ff1493
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .border-rainbow {
-    border-image: linear-gradient(135deg, #ff0080, #ff8c00, #40e0d0, #9370db, #ff1493) 1;
+    border-image: linear-gradient(
+        135deg,
+        #ff0080,
+        #ff8c00,
+        #40e0d0,
+        #9370db,
+        #ff1493
+      )
+      1;
   }
 
   .shadow-rainbow {
-    box-shadow: 0 0 20px rgba(255, 0, 128, 0.3), 0 0 40px rgba(64, 224, 208, 0.2);
+    box-shadow: 0 0 20px rgba(255, 0, 128, 0.3),
+      0 0 40px rgba(64, 224, 208, 0.2);
   }
 }

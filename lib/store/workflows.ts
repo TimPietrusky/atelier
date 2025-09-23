@@ -175,6 +175,39 @@ class WorkflowStore {
     this.notify();
   }
 
+  setNodeSize(
+    workflowId: string,
+    nodeId: string,
+    size: { width: number; height: number }
+  ) {
+    const wf = this.get(workflowId);
+    if (!wf) return;
+    const n = wf.nodes.find((x) => x.id === nodeId);
+    if (!n) return;
+    (n as any).size = { width: size.width, height: size.height };
+    this.notify();
+  }
+
+  // convenience to update a single node's position/size in-line with other updates
+  updateNodeDimensions(
+    workflowId: string,
+    nodeId: string,
+    position?: { x: number; y: number },
+    size?: { width: number; height: number }
+  ) {
+    const wf = this.get(workflowId);
+    if (!wf) return;
+    const idx = wf.nodes.findIndex((n) => n.id === nodeId);
+    if (idx < 0) return;
+    const node = wf.nodes[idx] as any;
+    wf.nodes[idx] = {
+      ...node,
+      position: position || node.position,
+      size: size || node.size,
+    } as any;
+    this.notify();
+  }
+
   setEdges(workflowId: string, edges: Workflow["edges"]) {
     const wf = this.get(workflowId);
     if (!wf) return;
