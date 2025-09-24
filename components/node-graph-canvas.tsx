@@ -244,6 +244,7 @@ export function NodeGraphCanvas({
         setEdges(
           (wf.edges as any).map((e: any) => ({
             ...e,
+            type: "default",
             style: { stroke: "#e5e7eb", strokeWidth: 2 },
             animated: false,
           }))
@@ -281,6 +282,7 @@ export function NodeGraphCanvas({
         setEdges(
           (wf0.edges as any).map((e: any) => ({
             ...e,
+            type: "default",
             style: { stroke: "#e5e7eb", strokeWidth: 2 },
             animated: false,
           }))

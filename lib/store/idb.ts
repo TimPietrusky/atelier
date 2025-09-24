@@ -1,6 +1,6 @@
 // Tiny IndexedDB helper for storing/retrieving image blobs as data URLs
 
-const DB_NAME = "gen-ai-studio";
+const DB_NAME = "atelier";
 const STORE = "images";
 
 function withDB(): Promise<IDBDatabase> {

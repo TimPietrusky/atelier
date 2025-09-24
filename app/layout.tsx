@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "atelier",
-  description: "Atelier – node-based AI studio",
+  description: "atelier – node-based AI studio",
   metadataBase: new URL("https://atelier.jetzt"),
   icons: {
     icon: [

@@ -7,6 +7,7 @@ import {
   MiniMap,
   ReactFlow,
   ConnectionMode,
+  ConnectionLineType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ReactNode } from "react";
@@ -49,8 +50,11 @@ export function FlowCanvas({
       fitViewOptions={{ padding: 0.2 }}
       snapToGrid
       snapGrid={[8, 8]}
-      connectionLineType={"smoothstep" as any}
+      connectionLineType={ConnectionLineType.Bezier}
       connectionLineStyle={{ stroke: "#e5e7eb", strokeWidth: 2 }}
+      defaultEdgeOptions={
+        { type: "default", style: { stroke: "#e5e7eb", strokeWidth: 2 } } as any
+      }
       proOptions={proOptions as any}
       colorMode="dark"
       onMoveEnd={(_, viewport) => onMoveEnd(viewport)}
