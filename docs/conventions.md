@@ -13,10 +13,8 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 - **Next.js App Router**: API routes under `app/api/*`, UI in `app/*`.
 - **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`).
-- **State**: Simple store class pattern (Zustand-like) in `lib/store/*`.
-  - `workflowStore`: workflows (nodes, edges, viewport, chat, history), persisted.
-  - `mediaStore`: generated media registry, persisted.
-- **Persistence**: Dexie (IndexedDB) for metadata; OPFS/FS Access for large assets; IndexedDB blobs as fallback. Do not store originals in `localStorage`.
+- **State**: Zustand store for app metadata and workflows.
+- **Persistence**: Dexie (IndexedDB) for metadata via a store→Dexie bridge; OPFS/FS Access for large assets; Dexie blobs as fallback. Do not store originals in `localStorage`.
 - **Workflow engine**: `lib/workflow-engine.ts` handles queueing, topological sort, per-node execution, status updates, and result propagation.
 - **RunPod provider adapter**: `lib/providers/runpod.ts`—the single place that speaks to `@runpod/ai-sdk-provider`.
 
