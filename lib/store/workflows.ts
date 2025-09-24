@@ -1,7 +1,8 @@
 "use client";
 
 import type { WorkflowNode } from "@/lib/workflow-engine";
-import { JsonStorage, LocalStorageAdapter } from "@/lib/store/storage";
+import { useWorkflowStore } from "@/lib/store/workflows-zustand";
+import { getKV, putKV } from "@/lib/store/db";
 
 export interface ChatEntry {
   id: string;
@@ -35,144 +36,124 @@ type WorkflowUpdate = {
 
 type Listener = () => void;
 
-class WorkflowStore {
-  private workflows: Map<string, Workflow> = new Map();
-  private listeners: Set<Listener> = new Set();
-  private initialized = false;
+function mapDocToWorkflow(doc: any): Workflow {
+  return {
+    id: doc.id,
+    name: doc.name,
+    nodes: doc.nodes,
+    edges: doc.edges,
+    viewport: doc.viewport,
+    chat: [],
+    history: [],
+  } as any;
+}
 
-  private ensureInit() {
-    if (this.initialized) return;
-    const storage = new JsonStorage<Workflow[]>(
-      new LocalStorageAdapter(),
-      "workflows"
-    );
+let initialized = false;
+let initPromise: Promise<void> | null = null;
+function ensureInit() {
+  if (initialized || initPromise) return;
+  initPromise = (async () => {
     try {
-      const storedArr = storage.read([]);
-      if (Array.isArray(storedArr) && storedArr.length > 0) {
-        storedArr.forEach((wf) => {
-          // Sanitize any lingering 'running' statuses from previous sessions
-          if (Array.isArray(wf.nodes)) {
-            wf.nodes = wf.nodes.map((n: any) => ({
-              ...n,
-              status: n?.status === "running" ? "idle" : n?.status || "idle",
-            }));
-          }
-          this.workflows.set(wf.id, wf);
-        });
-      } else {
-        // Only seed defaults on the client to avoid SSR hydration mismatch
-        if (typeof window !== "undefined") {
-          const defaultWorkflow: Workflow = {
-            id: "workflow-a",
-            name: "Workflow A",
-            nodes: [
-              {
-                id: "prompt-1",
-                type: "prompt",
-                title: "Prompt",
-                status: "idle",
-                position: { x: 100, y: 200 },
-                config: { prompt: "Create a cinematic cyberpunk portrait" },
-              },
-              {
-                id: "image-gen-1",
-                type: "image-gen",
-                title: "Image",
-                status: "idle",
-                position: { x: 400, y: 200 },
-                config: {
-                  model: "black-forest-labs/flux-1-schnell",
-                  ratio: "3:4",
-                  steps: 30,
-                  guidance: 7.5,
-                },
-              },
-            ],
-            history: [],
-            chat: [],
-          };
-          this.workflows.set(defaultWorkflow.id, defaultWorkflow);
-        }
+      await useWorkflowStore.getState().hydrate();
+      const workflows = useWorkflowStore.getState().workflows;
+      const seeded = await getKV<boolean>("seeded");
+      if (
+        typeof window !== "undefined" &&
+        Object.keys(workflows).length === 0 &&
+        !seeded
+      ) {
+        const id = useWorkflowStore.getState().createWorkflow("Workflow A");
+        useWorkflowStore.getState().setNodes(id, [
+          {
+            id: "prompt-1",
+            type: "prompt",
+            title: "Prompt",
+            status: "idle",
+            position: { x: 100, y: 200 },
+            config: { prompt: "Create a cinematic cyberpunk portrait" },
+          },
+          {
+            id: "image-gen-1",
+            type: "image-gen",
+            title: "Image",
+            status: "idle",
+            position: { x: 400, y: 200 },
+            config: {
+              model: "black-forest-labs/flux-1-schnell",
+              ratio: "3:4",
+              steps: 30,
+              guidance: 7.5,
+            },
+          },
+        ] as any);
+        useWorkflowStore.getState().setEdges(id, [] as any);
+        await putKV("seeded", true);
       }
-    } catch {
-      // ignore
-    }
-    this.initialized = true;
-  }
+      await putKV("schemaVersion", 1);
+    } catch {}
+    initialized = true;
+    initPromise = null;
+  })();
+}
 
-  private persist() {
-    const arr = Array.from(this.workflows.values());
-    const storage = new JsonStorage<Workflow[]>(
-      new LocalStorageAdapter(),
-      "workflows"
-    );
-    storage.write(arr);
-  }
-
+class WorkflowStoreCompat {
   subscribe(listener: Listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  private notify() {
-    // Never persist transient 'running' statuses; coerce to 'idle' before write
-    const arr = Array.from(this.workflows.values()).map((wf) => ({
-      ...wf,
-      nodes: wf.nodes.map((n) => ({
-        ...n,
-        status: n.status === "running" ? "idle" : n.status,
-      })),
-    }));
-    const storage = new JsonStorage<Workflow[]>(
-      new LocalStorageAdapter(),
-      "workflows"
-    );
-    storage.write(arr);
-    this.listeners.forEach((l) => l());
+    ensureInit();
+    return useWorkflowStore.subscribe(listener);
   }
 
   list(): Workflow[] {
-    this.ensureInit();
-    return Array.from(this.workflows.values());
+    ensureInit();
+    const ws = useWorkflowStore.getState().workflows;
+    return Object.values(ws).map(mapDocToWorkflow);
   }
 
   get(workflowId: string): Workflow | undefined {
-    this.ensureInit();
-    return this.workflows.get(workflowId);
+    ensureInit();
+    const doc = (useWorkflowStore.getState().workflows as any)[workflowId];
+    return doc ? mapDocToWorkflow(doc) : undefined;
   }
 
   upsert(workflow: Workflow) {
-    this.ensureInit();
-    this.workflows.set(workflow.id, workflow);
-    this.notify();
+    ensureInit();
+    const s = useWorkflowStore.getState();
+    const exists = !!s.workflows[workflow.id];
+    if (!exists) {
+      s.createWorkflow(workflow.name);
+    }
+    s.setNodes(workflow.id, workflow.nodes);
+    s.setEdges(workflow.id, (workflow.edges as any) || []);
+    if (workflow.viewport) s.setViewport(workflow.id, workflow.viewport);
   }
 
   create(name: string): Workflow {
-    this.ensureInit();
-    const id = `${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
-    const wf: Workflow = { id, name, nodes: [], chat: [] };
-    this.workflows.set(id, wf);
-    this.notify();
+    ensureInit();
+    const id = useWorkflowStore.getState().createWorkflow(name);
+    const wf = this.get(id)!;
     return wf;
   }
 
   rename(workflowId: string, name: string) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    wf.name = name;
-    this.notify();
+    ensureInit();
+    const s = useWorkflowStore.getState();
+    const doc = (s.workflows as any)[workflowId];
+    if (!doc) return;
+    (doc as any).name = name;
+    // trigger persistence by a no-op set
+    s.setViewport(workflowId, doc.viewport || { x: 0, y: 0, zoom: 1 });
   }
 
   remove(workflowId: string) {
-    this.workflows.delete(workflowId);
-    this.notify();
+    ensureInit();
+    const s = useWorkflowStore.getState();
+    // Clear nodes/edges to trigger persistence, then rely on DB deletion in zustand actions
+    s.setNodes(workflowId, [] as any);
+    s.setEdges(workflowId, [] as any);
   }
 
   setNodes(workflowId: string, nodes: WorkflowNode[]) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    wf.nodes = nodes;
-    this.notify();
+    ensureInit();
+    useWorkflowStore.getState().setNodes(workflowId, nodes);
   }
 
   setNodeSize(
@@ -180,46 +161,34 @@ class WorkflowStore {
     nodeId: string,
     size: { width: number; height: number }
   ) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    const n = wf.nodes.find((x) => x.id === nodeId);
-    if (!n) return;
-    (n as any).size = { width: size.width, height: size.height };
-    this.notify();
+    ensureInit();
+    useWorkflowStore
+      .getState()
+      .updateNodeDimensions(workflowId, nodeId, undefined, size);
   }
 
-  // convenience to update a single node's position/size in-line with other updates
   updateNodeDimensions(
     workflowId: string,
     nodeId: string,
     position?: { x: number; y: number },
     size?: { width: number; height: number }
   ) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    const idx = wf.nodes.findIndex((n) => n.id === nodeId);
-    if (idx < 0) return;
-    const node = wf.nodes[idx] as any;
-    wf.nodes[idx] = {
-      ...node,
-      position: position || node.position,
-      size: size || node.size,
-    } as any;
-    this.notify();
+    ensureInit();
+    useWorkflowStore
+      .getState()
+      .updateNodeDimensions(workflowId, nodeId, position, size);
   }
 
   setEdges(workflowId: string, edges: Workflow["edges"]) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    wf.edges = edges || [];
-    this.notify();
+    ensureInit();
+    useWorkflowStore.getState().setEdges(workflowId, (edges as any) || []);
   }
 
   setViewport(workflowId: string, viewport: Workflow["viewport"]) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    wf.viewport = viewport || { x: 0, y: 0, zoom: 1 };
-    this.notify();
+    ensureInit();
+    useWorkflowStore
+      .getState()
+      .setViewport(workflowId, viewport || { x: 0, y: 0, zoom: 1 });
   }
 
   updateNodeConfig(
@@ -227,12 +196,8 @@ class WorkflowStore {
     nodeId: string,
     config: Record<string, any>
   ) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    const n = wf.nodes.find((x) => x.id === nodeId);
-    if (!n) return;
-    n.config = { ...(n.config || {}), ...config };
-    this.notify();
+    ensureInit();
+    useWorkflowStore.getState().updateNodeConfig(workflowId, nodeId, config);
   }
 
   updateNodeResult(
@@ -240,13 +205,8 @@ class WorkflowStore {
     nodeId: string,
     result: WorkflowNode["result"]
   ) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    const n = wf.nodes.find((x) => x.id === nodeId);
-    if (!n) return;
-    n.result = result;
-    n.status = "complete";
-    this.notify();
+    ensureInit();
+    useWorkflowStore.getState().updateNodeResult(workflowId, nodeId, result);
   }
 
   updateNodeStatus(
@@ -254,54 +214,43 @@ class WorkflowStore {
     nodeId: string,
     status: WorkflowNode["status"]
   ) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-    const n = wf.nodes.find((x) => x.id === nodeId);
-    if (!n) return;
-    n.status = status;
-    this.notify();
+    ensureInit();
+    useWorkflowStore.getState().updateNodeStatus(workflowId, nodeId, status);
   }
 
   applyUpdates(workflowId: string, updates: WorkflowUpdate[]) {
-    const wf = this.get(workflowId);
-    if (!wf) return;
-
-    // snapshot before changes
-    wf.history = wf.history || [];
-    wf.history.push(this.deepCloneNodes(wf.nodes));
-
+    ensureInit();
+    const s = useWorkflowStore.getState();
+    const doc = (s.workflows as any)[workflowId];
+    if (!doc) return;
+    let nodes = [...doc.nodes];
     for (const u of updates) {
       if (u.type === "add-node" && u.nodeType) {
         const id = `${u.nodeType}-${Date.now()}-${Math.floor(
           Math.random() * 1000
         )}`;
-        const newNode: WorkflowNode = {
+        nodes.push({
           id,
           type: u.nodeType,
           title: this.titleForType(u.nodeType),
           status: "idle",
-          position: this.randomPosition(),
+          position: this.randomPosition(nodes.length),
           config: u.config || {},
-        };
-        wf.nodes.push(newNode);
+        } as any);
       }
       if (u.type === "modify-node" && u.nodeId) {
-        const n = wf.nodes.find((x) => x.id === u.nodeId);
-        if (n) {
-          n.config = { ...(n.config || {}), ...(u.config || {}) };
-        }
+        nodes = nodes.map((n: any) =>
+          n.id === u.nodeId
+            ? { ...n, config: { ...(n.config || {}), ...(u.config || {}) } }
+            : n
+        );
       }
     }
-
-    this.notify();
+    s.setNodes(workflowId, nodes);
   }
 
-  rollbackLast(workflowId: string) {
-    const wf = this.get(workflowId);
-    if (!wf || !wf.history || wf.history.length === 0) return;
-    const prev = wf.history.pop()!;
-    wf.nodes = this.deepCloneNodes(prev);
-    this.notify();
+  rollbackLast(_workflowId: string) {
+    // not implemented in zustand shim
   }
 
   private titleForType(type: WorkflowNode["type"]): string {
@@ -316,41 +265,17 @@ class WorkflowStore {
         return "Video Generation";
       case "background-replace":
         return "Background Replace";
-      // 'output' node removed for now
     }
+    return String(type);
   }
 
-  private randomPosition() {
-    const count = Array.from(this.workflows.values()).reduce(
-      (sum, wf) => sum + wf.nodes.length,
-      0
-    );
+  private randomPosition(count: number) {
     const spacingX = 260;
     const spacingY = 160;
     const col = count % 3;
     const row = Math.floor(count / 3);
     return { x: 120 + col * spacingX, y: 140 + row * spacingY };
   }
-
-  private deepCloneNodes(nodes: WorkflowNode[]): WorkflowNode[] {
-    return nodes.map((n) => ({
-      id: n.id,
-      type: n.type,
-      title: n.title,
-      status: n.status,
-      position: { x: n.position.x, y: n.position.y },
-      inputs: n.inputs ? [...n.inputs] : undefined,
-      outputs: n.outputs ? [...n.outputs] : undefined,
-      config: n.config ? JSON.parse(JSON.stringify(n.config)) : undefined,
-      result: n.result
-        ? {
-            type: n.result.type,
-            data: n.result.data,
-            metadata: n.result.metadata ? { ...n.result.metadata } : undefined,
-          }
-        : undefined,
-    }));
-  }
 }
 
-export const workflowStore = new WorkflowStore();
+export const workflowStore = new WorkflowStoreCompat();

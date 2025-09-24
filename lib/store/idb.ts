@@ -1,7 +1,17 @@
 // Tiny IndexedDB helper for storing/retrieving image blobs as data URLs
+// This remains as a fallback for small previews or when OPFS/FS Access is
+// unavailable. Large originals should use OPFS or user-selected FS Access.
 
 const DB_NAME = "atelier";
 const STORE = "images";
+
+export function isIndexedDBAvailable(): boolean {
+  try {
+    return typeof indexedDB !== "undefined";
+  } catch {
+    return false;
+  }
+}
 
 function withDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

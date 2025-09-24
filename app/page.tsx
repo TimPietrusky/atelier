@@ -11,9 +11,10 @@ import { ExecutionQueue } from "@/components/execution-queue";
 import { ConnectProvider } from "@/components/connect-provider";
 import { workflowStore } from "@/lib/store/workflows";
 import { workflowEngine } from "@/lib/workflow-engine";
+import { getKV, putKV } from "@/lib/store/db";
 
 export default function StudioDashboard() {
-  const [activeWorkflow, setActiveWorkflow] = useState("workflow-a");
+  const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false);
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
@@ -23,6 +24,7 @@ export default function StudioDashboard() {
   const [queueCount, setQueueCount] = useState(0);
 
   const handleRun = () => {
+    if (!activeWorkflow) return;
     const wf = workflowStore.get(activeWorkflow);
     if (wf) {
       workflowEngine.executeWorkflow(wf.id, wf.nodes);
@@ -52,10 +54,44 @@ export default function StudioDashboard() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem("active-workflow-id", activeWorkflow);
-    }
+    if (!activeWorkflow) return;
+    (async () => {
+      try {
+        await putKV("lastActiveWorkflowId", activeWorkflow);
+      } catch {}
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem("active-workflow-id", activeWorkflow);
+      }
+    })();
   }, [activeWorkflow]);
+
+  // On mount, ensure active workflow points to the last active one.
+  // Prefer sessionStorage (most recent) then Dexie KV, then first available.
+  useEffect(() => {
+    try {
+      const { useWorkflowStore } = require("@/lib/store/workflows-zustand");
+      const init = async () => {
+        await useWorkflowStore.getState().hydrate();
+        const ws = useWorkflowStore.getState().workflows;
+        const ids = Object.keys(ws);
+        let savedSession: string | null = null;
+        if (typeof window !== "undefined") {
+          savedSession = window.sessionStorage.getItem("active-workflow-id");
+        }
+        let savedKv: string | null = null;
+        try {
+          const kvSaved = await getKV<string>("lastActiveWorkflowId");
+          savedKv = kvSaved || null;
+        } catch {}
+        const preferred =
+          savedSession && ws[savedSession] ? savedSession : savedKv;
+        const candidate =
+          preferred && ws[preferred] ? preferred : ids[0] || null;
+        setActiveWorkflow(candidate);
+      };
+      init();
+    } catch {}
+  }, []);
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col">
@@ -66,10 +102,14 @@ export default function StudioDashboard() {
             <h1 className="text-xl font-bold text-rainbow">atelier</h1>
           </div>
 
-          <WorkflowSwitcher
-            activeWorkflow={activeWorkflow}
-            onWorkflowChange={setActiveWorkflow}
-          />
+          {activeWorkflow ? (
+            <WorkflowSwitcher
+              activeWorkflow={activeWorkflow}
+              onWorkflowChange={setActiveWorkflow}
+            />
+          ) : (
+            <div className="w-48 h-9 rounded-md bg-muted/50 animate-pulse" />
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -89,13 +129,15 @@ export default function StudioDashboard() {
       <div className="flex-1 flex">
         {/* Left Panel - Node Graph Canvas */}
         <div className="flex-1 relative">
-          <NodeGraphCanvas
-            activeWorkflow={activeWorkflow}
-            onExecute={handleRun}
-            executionStatus={executionStatus}
-            onStatusChange={setExecutionStatus}
-            queueCount={queueCount}
-          />
+          {activeWorkflow && (
+            <NodeGraphCanvas
+              activeWorkflow={activeWorkflow}
+              onExecute={handleRun}
+              executionStatus={executionStatus}
+              onStatusChange={setExecutionStatus}
+              queueCount={queueCount}
+            />
+          )}
         </div>
 
         {/* Right Panel - Chat Agent */}

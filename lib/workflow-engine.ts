@@ -1,4 +1,6 @@
 import { getImageModelMeta } from "@/lib/config";
+import { useWorkflowStore } from "@/lib/store/workflows-zustand";
+import { AssetStorage, type AssetRef } from "@/lib/store/assets";
 
 export interface WorkflowNode {
   id: string;
@@ -17,7 +19,8 @@ export interface WorkflowNode {
   config?: Record<string, any>;
   result?: {
     type: "text" | "image" | "video";
-    data: string;
+    data: string; // legacy view URL; for media also set assetRef
+    assetRef?: AssetRef;
     metadata?: Record<string, any>;
   };
 }
@@ -126,12 +129,12 @@ export class WorkflowEngine {
 
   private async runWorkflowExecution(execution: WorkflowExecution) {
     // Prefer in-memory store state to avoid stale/localStorage quota issues
+    // Pull from Zustand store (source of truth)
     let workflow: any | undefined;
     try {
-      const { workflowStore } = await import("@/lib/store/workflows");
-      workflow = workflowStore.get(execution.workflowId) as any;
+      const s = useWorkflowStore.getState();
+      workflow = s.workflows[execution.workflowId];
     } catch {}
-    if (!workflow) workflow = this.getWorkflowById(execution.workflowId) as any;
     if (!workflow) throw new Error("Workflow not found");
 
     // Order nodes using a simple topological sort based on edges so that
@@ -190,9 +193,9 @@ export class WorkflowEngine {
     // Reset all node statuses to idle before starting; update store for UI
     ordered.forEach((n) => (n.status = "idle"));
     try {
-      const { workflowStore } = await import("@/lib/store/workflows");
+      const { updateNodeStatus } = useWorkflowStore.getState();
       ordered.forEach((n) =>
-        workflowStore.updateNodeStatus(execution.workflowId, n.id, "idle")
+        updateNodeStatus(execution.workflowId, n.id, "idle")
       );
     } catch {}
 
@@ -205,33 +208,21 @@ export class WorkflowEngine {
       try {
         // mark active
         try {
-          const { workflowStore } = await import("@/lib/store/workflows");
-          workflowStore.updateNodeStatus(
-            execution.workflowId,
-            node.id,
-            "running"
-          );
+          const { updateNodeStatus } = useWorkflowStore.getState();
+          updateNodeStatus(execution.workflowId, node.id, "running");
         } catch {}
 
         await this.executeNode(node);
         node.status = "complete";
         try {
-          const { workflowStore } = await import("@/lib/store/workflows");
-          workflowStore.updateNodeStatus(
-            execution.workflowId,
-            node.id,
-            "complete"
-          );
+          const { updateNodeStatus } = useWorkflowStore.getState();
+          updateNodeStatus(execution.workflowId, node.id, "complete");
         } catch {}
       } catch (error) {
         node.status = "error";
         try {
-          const { workflowStore } = await import("@/lib/store/workflows");
-          workflowStore.updateNodeStatus(
-            execution.workflowId,
-            node.id,
-            "error"
-          );
+          const { updateNodeStatus } = useWorkflowStore.getState();
+          updateNodeStatus(execution.workflowId, node.id, "error");
         } catch {}
         throw error;
       }
@@ -242,8 +233,7 @@ export class WorkflowEngine {
         ordered.map((n) => ({ ...n }))
       );
 
-      // persist node updates to localStorage so UI reflects changes
-      this.persistWorkflowNodes(execution.workflowId, ordered);
+      // Zustand/Dexie persistence handled by store actions; nothing to do here
 
       // Small delay between nodes
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -260,8 +250,7 @@ export class WorkflowEngine {
     try {
       const wfId = (node as any).workflowId as string | undefined;
       if (wfId) {
-        const { workflowStore } = await import("@/lib/store/workflows");
-        const wf = workflowStore.get(wfId) as any;
+        const wf = (useWorkflowStore.getState().workflows as any)[wfId];
         const fresh = wf?.nodes?.find((n: any) => n.id === node.id);
         if (fresh && fresh.config) {
           node.config = JSON.parse(JSON.stringify(fresh.config));
@@ -310,10 +299,10 @@ export class WorkflowEngine {
       console.groupEnd();
     }
     try {
-      const { workflowStore } = await import("@/lib/store/workflows");
       const wfId = (node as any).workflowId as string | undefined;
       if (wfId) {
-        workflowStore.updateNodeResult(wfId, node.id, node.result);
+        const { updateNodeResult } = useWorkflowStore.getState();
+        updateNodeResult(wfId, node.id, node.result);
       }
     } catch {}
   }
@@ -339,6 +328,12 @@ export class WorkflowEngine {
       node.result = {
         type: "image",
         data: localImageUrl,
+        assetRef:
+          typeof node.config?.localImageRef === "string"
+            ? { kind: "idb", blobKey: String(node.config.localImageRef) }
+            : node.config?.localImage
+            ? { kind: "url", url: String(node.config.localImage) }
+            : undefined,
         metadata: {
           timestamp: new Date().toISOString(),
           inputsUsed: { mode: "local", source: "user" },
@@ -353,10 +348,10 @@ export class WorkflowEngine {
       }
       // Notify workflow store so UI updates
       try {
-        const { workflowStore } = await import("@/lib/store/workflows");
         const wfId = (node as any).workflowId as string | undefined;
         if (wfId) {
-          workflowStore.updateNodeResult(wfId, node.id, node.result);
+          const { updateNodeResult } = useWorkflowStore.getState();
+          updateNodeResult(wfId, node.id, node.result);
         }
       } catch {}
       return;
@@ -367,7 +362,8 @@ export class WorkflowEngine {
     let inputImageUrl: string | undefined;
     const wfId = (node as any).workflowId as string | undefined;
     if (wfId) {
-      const wf = this.getWorkflowById(wfId) as any;
+      const s = useWorkflowStore.getState();
+      const wf = (s.workflows as any)[wfId];
       const liveNodes = (this.getRuntimeNodes(wfId) || wf?.nodes || []).map(
         (n: any) => ({ ...n })
       );
@@ -421,14 +417,27 @@ export class WorkflowEngine {
             : 0;
           return bt - at;
         })[0];
-        inputImageUrl = latest?.result?.data;
+        // Prefer resolving from AssetRef at request-time
+        const ref: AssetRef | undefined = latest?.result?.assetRef;
+        if (ref) {
+          try {
+            const got = await AssetStorage.get(ref);
+            if (typeof got === "string") {
+              inputImageUrl = got;
+            } else {
+              const dataUrl = await this.blobToDataUrl(got);
+              inputImageUrl = dataUrl;
+            }
+          } catch {}
+        }
+        if (!inputImageUrl) inputImageUrl = latest?.result?.data;
       }
 
       // Expose hasImageInput to UI via config hint (non-persistent during run)
       try {
-        const { workflowStore } = await import("@/lib/store/workflows");
         if (wfId) {
-          workflowStore.updateNodeConfig(wfId, node.id, {
+          const { updateNodeConfig } = useWorkflowStore.getState();
+          updateNodeConfig(wfId, node.id, {
             hasImageInput: !!inputImageUrl,
           } as any);
         }
@@ -466,6 +475,7 @@ export class WorkflowEngine {
     node.result = {
       type: "image",
       data: result.imageUrl,
+      assetRef: { kind: "url", url: result.imageUrl },
       metadata: {
         executionId: result.executionId,
         model: selectedModel,
@@ -516,10 +526,10 @@ export class WorkflowEngine {
 
     // Notify workflow store so UI updates
     try {
-      const { workflowStore } = await import("@/lib/store/workflows");
       const wfId = (node as any).workflowId as string | undefined;
       if (wfId) {
-        workflowStore.updateNodeResult(wfId, node.id, node.result);
+        const { updateNodeResult } = useWorkflowStore.getState();
+        updateNodeResult(wfId, node.id, node.result);
       }
     } catch {}
   }
@@ -544,6 +554,12 @@ export class WorkflowEngine {
       node.result = {
         type: "image",
         data: localImageUrl,
+        assetRef:
+          typeof node.config?.localImageRef === "string"
+            ? { kind: "idb", blobKey: String(node.config.localImageRef) }
+            : node.config?.localImage
+            ? { kind: "url", url: String(node.config.localImage) }
+            : undefined,
         metadata: {
           timestamp: new Date().toISOString(),
           inputsUsed: { mode: "local", source: "user" },
@@ -570,7 +586,8 @@ export class WorkflowEngine {
     let inputImageUrl: string | undefined;
     const wfId = (node as any).workflowId as string | undefined;
     if (wfId) {
-      const wf = this.getWorkflowById(wfId) as any;
+      const s = useWorkflowStore.getState();
+      const wf = (s.workflows as any)[wfId];
       const liveNodes = (this.getRuntimeNodes(wfId) || wf?.nodes || []).map(
         (n: any) => ({ ...n })
       );
@@ -625,13 +642,23 @@ export class WorkflowEngine {
             : 0;
           return bt - at;
         })[0];
-        inputImageUrl = latest?.result?.data;
+        // Resolve from AssetRef when possible
+        const ref: AssetRef | undefined = latest?.result?.assetRef;
+        if (ref) {
+          try {
+            const got = await AssetStorage.get(ref);
+            if (typeof got === "string") inputImageUrl = got;
+            else inputImageUrl = await this.blobToDataUrl(got);
+          } catch {}
+        }
+        if (!inputImageUrl) inputImageUrl = latest?.result?.data;
       }
     }
 
     if (!inputImageUrl) {
       if (typeof window !== "undefined") {
-        const wf = wfId ? (this.getWorkflowById(wfId) as any) : undefined;
+        const s = useWorkflowStore.getState();
+        const wf = wfId ? (s.workflows as any)[wfId] : undefined;
         const liveNodes = wfId ? this.getRuntimeNodes(wfId) : undefined;
         console.groupCollapsed(
           `[node:${node.id}] ${node.title} – missing image input`
@@ -676,6 +703,7 @@ export class WorkflowEngine {
     node.result = {
       type: "image",
       data: result.imageUrl,
+      assetRef: { kind: "url", url: result.imageUrl },
       metadata: {
         executionId: result.executionId,
         model: node.config?.model || "bytedance/seedream-4.0-edit",
@@ -725,10 +753,10 @@ export class WorkflowEngine {
 
     // Notify workflow store so UI updates
     try {
-      const { workflowStore } = await import("@/lib/store/workflows");
       const wfId = (node as any).workflowId as string | undefined;
       if (wfId) {
-        workflowStore.updateNodeResult(wfId, node.id, node.result);
+        const { updateNodeResult } = useWorkflowStore.getState();
+        updateNodeResult(wfId, node.id, node.result);
       }
     } catch {}
   }
@@ -778,6 +806,15 @@ export class WorkflowEngine {
       // ignore
     }
     return undefined;
+  }
+
+  private async blobToDataUrl(blob: Blob): Promise<string> {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(blob);
+    });
   }
 
   private persistWorkflowNodes(workflowId: string, nodes: WorkflowNode[]) {

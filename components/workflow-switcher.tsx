@@ -18,8 +18,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Workflow } from "lucide-react";
-import { workflowStore, type Workflow } from "@/lib/store/workflows";
+import { Plus, Workflow as WorkflowIcon } from "lucide-react";
+import {
+  workflowStore,
+  type Workflow as WorkflowDoc,
+} from "@/lib/store/workflows";
+import { putKV } from "@/lib/store/db";
 
 interface WorkflowSwitcherProps {
   activeWorkflow: string;
@@ -30,7 +34,7 @@ export function WorkflowSwitcher({
   activeWorkflow,
   onWorkflowChange,
 }: WorkflowSwitcherProps) {
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowDoc[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState("");
 
@@ -54,10 +58,21 @@ export function WorkflowSwitcher({
 
   return (
     <div className="flex items-center gap-2">
-      <Select value={activeWorkflow} onValueChange={onWorkflowChange}>
+      <Select
+        value={activeWorkflow}
+        onValueChange={(val) => {
+          onWorkflowChange(val);
+          try {
+            if (typeof window !== "undefined") {
+              window.sessionStorage.setItem("active-workflow-id", val);
+            }
+            void putKV("lastActiveWorkflowId", val);
+          } catch {}
+        }}
+      >
         <SelectTrigger className="w-48 bg-background">
           <div className="flex items-center gap-2">
-            <Workflow className="w-4 h-4 text-primary" />
+            <WorkflowIcon className="w-4 h-4 text-primary" />
             <SelectValue />
           </div>
         </SelectTrigger>

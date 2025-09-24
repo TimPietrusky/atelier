@@ -3,7 +3,7 @@
 export interface MediaAsset {
   id: string;
   type: "image" | "video";
-  url: string;
+  url: string; // legacy field; keep for now; will be derived from AssetRef
   title: string;
   tags: string[];
   createdAt: string;

@@ -208,7 +208,7 @@ export function NodeGraphCanvas({
         }, 0);
       }
     },
-    [onNodesChange, activeWorkflow]
+    [onNodesChange, activeWorkflow, nodes]
   );
 
   useEffect(() => {
@@ -250,7 +250,7 @@ export function NodeGraphCanvas({
           }))
         );
     });
-    // Hydrate initial state on mount (CSR only) to avoid SSR mismatch
+    // Hydrate current workflow snapshot whenever activeWorkflow changes (CSR only)
     const wf0 = workflowStore.get(activeWorkflow);
     if (wf0) {
       const mapped0: Node[] = wf0.nodes.map((n) => ({
@@ -321,7 +321,7 @@ export function NodeGraphCanvas({
       );
       unsub();
     };
-  }, []);
+  }, [activeWorkflow]);
 
   // Handle edge deletion
   const onEdgesChangeHandler = useCallback(
@@ -346,6 +346,17 @@ export function NodeGraphCanvas({
     },
     [activeWorkflow]
   );
+
+  // Periodically reconcile with DB in case of external writes (e.g., engine updates)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      try {
+        const { useWorkflowStore } = require("@/lib/store/workflows-zustand");
+        useWorkflowStore.getState().mergeFromDbIfNewer();
+      } catch {}
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="h-full w-full relative bg-background">

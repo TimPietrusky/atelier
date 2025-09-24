@@ -38,3 +38,26 @@ export class JsonStorage<T> {
     } catch {}
   }
 }
+
+// Broadcast utility for multi-tab coherence
+export class BroadcastBus<T = any> {
+  private channel?: BroadcastChannel;
+  constructor(private name: string) {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      try {
+        this.channel = new BroadcastChannel(name);
+      } catch {}
+    }
+  }
+  post(message: T) {
+    try {
+      this.channel?.postMessage(message as any);
+    } catch {}
+  }
+  subscribe(handler: (message: T) => void) {
+    if (!this.channel) return () => {};
+    const listener = (ev: MessageEvent) => handler(ev.data as T);
+    this.channel.addEventListener("message", listener as any);
+    return () => this.channel?.removeEventListener("message", listener as any);
+  }
+}
