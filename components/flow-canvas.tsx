@@ -6,6 +6,7 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
+  ConnectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ReactNode } from "react";
@@ -40,6 +41,14 @@ export function FlowCanvas({
       nodeTypes={nodeTypes}
       fitView={false}
       className="bg-background"
+      connectionMode={ConnectionMode.Loose}
+      connectionRadius={30}
+      connectOnClick
+      nodesConnectable
+      elementsSelectable
+      fitViewOptions={{ padding: 0.2 }}
+      snapToGrid
+      snapGrid={[8, 8]}
       connectionLineType={"smoothstep" as any}
       connectionLineStyle={{ stroke: "#e5e7eb", strokeWidth: 2 }}
       proOptions={proOptions as any}

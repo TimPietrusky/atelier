@@ -35,7 +35,13 @@ export function NodeContainer({
         minHeight={120}
         color="#e5e7eb"
         autoScale
-        handleStyle={{ width: 8, height: 8, borderRadius: 2 }}
+        handleStyle={{
+          width: 8,
+          height: 8,
+          borderRadius: 2,
+          pointerEvents: "auto",
+        }}
+        lineStyle={{ pointerEvents: "none" }}
       />
       {handles?.target && (
         <Handle
@@ -43,7 +49,11 @@ export function NodeContainer({
           position={Position.Left}
           id={handles.target.id}
           className={handles.target.className}
-          style={handles.target.style}
+          style={{
+            ...(handles.target.style || {}),
+            pointerEvents: "auto",
+            zIndex: 10000,
+          }}
         />
       )}
       {handles?.source && (
@@ -52,7 +62,11 @@ export function NodeContainer({
           position={Position.Right}
           id={handles.source.id}
           className={handles.source.className}
-          style={handles.source.style}
+          style={{
+            ...(handles.source.style || {}),
+            pointerEvents: "auto",
+            zIndex: 10000,
+          }}
         />
       )}
       {children}

@@ -225,7 +225,10 @@ export function NodeGraphCanvas({
             : "customNode",
         position: n.position,
         width: (n as any).size?.width ?? undefined,
-        height: (n as any).size?.height ?? undefined,
+        height:
+          (n as any).size?.height && (n as any).size?.height > 0
+            ? (n as any).size?.height
+            : undefined,
         data: {
           type: n.type,
           title: n.title,
@@ -259,7 +262,10 @@ export function NodeGraphCanvas({
             : "customNode",
         position: n.position,
         width: (n as any).size?.width ?? undefined,
-        height: (n as any).size?.height ?? undefined,
+        height:
+          (n as any).size?.height && (n as any).size?.height > 0
+            ? (n as any).size?.height
+            : undefined,
         data: {
           type: n.type,
           title: n.title,
