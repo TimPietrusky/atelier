@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Settings, Database, Grid3X3, Activity } from "lucide-react";
 import { WorkflowSwitcher } from "@/components/workflow-switcher";
 import { NodeGraphCanvas } from "@/components/node-graph-canvas";
-import { ChatAgent } from "@/components/chat-agent";
 import { MediaManager } from "@/components/media-manager";
 import { ExecutionQueue } from "@/components/execution-queue";
 import { ConnectProvider } from "@/components/connect-provider";
@@ -138,11 +137,6 @@ export default function StudioDashboard() {
               queueCount={queueCount}
             />
           )}
-        </div>
-
-        {/* Right Panel - Chat Agent */}
-        <div className="w-80 border-l border-border bg-card/50 backdrop-blur-sm">
-          <ChatAgent />
         </div>
       </div>
 
