@@ -186,4 +186,9 @@
     box-shadow: 0 0 20px rgba(255, 0, 128, 0.3),
       0 0 40px rgba(64, 224, 208, 0.2);
   }
+
+  /* XYFlow panel spacing override scoped to our canvas */
+  .rf-panel-tight .react-flow__panel {
+    margin: 0px !important;
+  }
 }
