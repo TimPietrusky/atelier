@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import {
   useNodesState,
   useEdgesState,
@@ -41,6 +41,19 @@ export function NodeGraphCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isAddNodeModalOpen, setIsAddNodeModalOpen] = useState(false);
+  const isInteractingRef = useRef(false);
+  const pendingSizesRef = useRef(
+    new Map<string, { width: number; height: number }>()
+  );
+
+  const commitPendingSizes = useCallback(() => {
+    if (pendingSizesRef.current.size === 0) return;
+    const entries = Array.from(pendingSizesRef.current.entries());
+    pendingSizesRef.current.clear();
+    entries.forEach(([id, size]) => {
+      workflowStore.updateNodeDimensions(activeWorkflow, id, undefined, size);
+    });
+  }, [activeWorkflow]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -137,10 +150,49 @@ export function NodeGraphCanvas({
 
   const proOptions = { hideAttribution: true };
 
+  const mapStoreNodeToRF = useCallback(
+    (n: any): Node => ({
+      id: n.id,
+      type:
+        n.type === "prompt"
+          ? "promptNode"
+          : n.type === "image-gen" || n.type === "image-edit"
+          ? "imageGenNode"
+          : "customNode",
+      position: n.position,
+      width: (n as any).size?.width ?? undefined,
+      height:
+        (n as any).size?.height && (n as any).size?.height > 0
+          ? (n as any).size?.height
+          : undefined,
+      data: {
+        type: n.type,
+        title: n.title,
+        status: n.status,
+        config: n.config,
+        onChange: (cfg: Record<string, any>) =>
+          workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
+        result: n.result,
+      },
+    }),
+    [activeWorkflow]
+  );
+
   // Persist node position changes
   const onNodesChangeHandler = useCallback(
     (changes: any[]) => {
       onNodesChange(changes);
+      // Track interaction state to avoid store→UI remaps during drag/resize
+      const anyDragging = changes.some(
+        (c) => c.type === "position" && c.dragging === true
+      );
+      const anyPositionDrop = changes.some(
+        (c) => c.type === "position" && c.dragging === false
+      );
+      const anyResize = changes.some((c) => c.type === "dimensions");
+      if (anyDragging || anyResize) {
+        isInteractingRef.current = true;
+      }
       // Update positions in store
       const positionChanges = changes.filter(
         (c) => c.type === "position" && c.dragging === false
@@ -159,32 +211,28 @@ export function NodeGraphCanvas({
             });
             workflowStore.setNodes(activeWorkflow, updatedNodes);
           }
+          // Interaction done after drop
+          isInteractingRef.current = false;
         }, 0);
       }
 
       // Update sizes in store when resize ends
       const resizeChanges = changes.filter((c) => c.type === "dimensions");
       if (resizeChanges.length > 0) {
-        setTimeout(() => {
-          const wf = workflowStore.get(activeWorkflow);
-          if (!wf) return;
-          resizeChanges.forEach((c: any) => {
-            const node = nodes.find((n) => n.id === c.id);
-            if (
-              node &&
-              typeof node.width === "number" &&
-              typeof node.height === "number"
-            ) {
-              // update in the source of truth (workflow store) so it's persisted and wins on re-hydration
-              workflowStore.updateNodeDimensions(
-                activeWorkflow,
-                c.id,
-                undefined,
-                { width: node.width, height: node.height }
-              );
-            }
-          });
-        }, 0);
+        // Don't persist mid-drag; stash latest sizes and commit on pointerup
+        resizeChanges.forEach((c: any) => {
+          const node = nodes.find((n) => n.id === c.id);
+          if (
+            node &&
+            typeof node.width === "number" &&
+            typeof node.height === "number"
+          ) {
+            pendingSizesRef.current.set(c.id, {
+              width: node.width,
+              height: node.height,
+            });
+          }
+        });
       }
 
       // Persist removals (nodes deleted via UI)
@@ -212,34 +260,27 @@ export function NodeGraphCanvas({
   );
 
   useEffect(() => {
+    const onPointerUp = () => {
+      if (isInteractingRef.current) {
+        commitPendingSizes();
+        isInteractingRef.current = false;
+      }
+    };
+    window.addEventListener("pointerup", onPointerUp, true);
     const unsub = workflowStore.subscribe(() => {
       const wf = workflowStore.get(activeWorkflow);
       if (!wf) return;
-      const mapped: Node[] = wf.nodes.map((n) => ({
-        id: n.id,
-        type:
-          n.type === "prompt"
-            ? "promptNode"
-            : n.type === "image-gen" || n.type === "image-edit"
-            ? "imageGenNode"
-            : "customNode",
-        position: n.position,
-        width: (n as any).size?.width ?? undefined,
-        height:
-          (n as any).size?.height && (n as any).size?.height > 0
-            ? (n as any).size?.height
-            : undefined,
-        data: {
-          type: n.type,
-          title: n.title,
-          status: n.status,
-          config: n.config,
-          onChange: (cfg: Record<string, any>) =>
-            workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
-          result: n.result,
-        },
-      }));
-      setNodes(mapped);
+      // Avoid clobbering local drag/resizes with store snapshots
+      if (!isInteractingRef.current) {
+        setNodes((prev) => {
+          const prevSel = new Map(prev.map((p) => [p.id, p.selected]));
+          const mapped = wf.nodes.map(mapStoreNodeToRF).map((n) => ({
+            ...n,
+            selected: prevSel.get(n.id) || false,
+          }));
+          return mapped;
+        });
+      }
       if (wf.edges)
         setEdges(
           (wf.edges as any).map((e: any) => ({
@@ -253,31 +294,13 @@ export function NodeGraphCanvas({
     // Hydrate current workflow snapshot whenever activeWorkflow changes (CSR only)
     const wf0 = workflowStore.get(activeWorkflow);
     if (wf0) {
-      const mapped0: Node[] = wf0.nodes.map((n) => ({
-        id: n.id,
-        type:
-          n.type === "prompt"
-            ? "promptNode"
-            : n.type === "image-gen" || n.type === "image-edit"
-            ? "imageGenNode"
-            : "customNode",
-        position: n.position,
-        width: (n as any).size?.width ?? undefined,
-        height:
-          (n as any).size?.height && (n as any).size?.height > 0
-            ? (n as any).size?.height
-            : undefined,
-        data: {
-          type: n.type,
-          title: n.title,
-          status: n.status,
-          config: n.config,
-          onChange: (cfg: Record<string, any>) =>
-            workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
-          result: n.result,
-        },
-      }));
-      setNodes(mapped0);
+      setNodes((prev) => {
+        const prevSel = new Map(prev.map((p) => [p.id, p.selected]));
+        const mapped0: Node[] = wf0.nodes
+          .map(mapStoreNodeToRF)
+          .map((n) => ({ ...n, selected: prevSel.get(n.id) || false }));
+        return mapped0;
+      });
       if (wf0.edges)
         setEdges(
           (wf0.edges as any).map((e: any) => ({
@@ -314,6 +337,7 @@ export function NodeGraphCanvas({
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
 
     return () => {
+      window.removeEventListener("pointerup", onPointerUp, true);
       window.removeEventListener("error", handleError);
       window.removeEventListener(
         "unhandledrejection",
@@ -347,16 +371,7 @@ export function NodeGraphCanvas({
     [activeWorkflow]
   );
 
-  // Periodically reconcile with DB in case of external writes (e.g., engine updates)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      try {
-        const { useWorkflowStore } = require("@/lib/store/workflows-zustand");
-        useWorkflowStore.getState().mergeFromDbIfNewer();
-      } catch {}
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  // Removed periodic DB reconciliation to prevent UI oscillation during interactions
 
   return (
     <div className="h-full w-full relative bg-background">

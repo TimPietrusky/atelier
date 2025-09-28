@@ -47,6 +47,7 @@ export function FlowCanvas({
       connectOnClick
       nodesConnectable
       elementsSelectable
+      deleteKeyCode={["Backspace", "Delete"] as any}
       fitViewOptions={{ padding: 0.2 }}
       snapToGrid
       snapGrid={[8, 8]}
