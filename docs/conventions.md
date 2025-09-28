@@ -101,6 +101,37 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Defer persistence in canvas event handlers using `queueMicrotask` or `setTimeout(..., 0)`.
 - Radix `asChild` integration: UI primitives use `React.forwardRef`.
 
+### General interaction & persistence rules (agent playbook)
+
+- Single source of truth: Keep a single in‑memory store for UI; treat persistence (Dexie/OPFS) as an async side‑effect. Never immediately re‑hydrate over in‑flight UI state.
+- Edge‑triggered commits: For high‑frequency interactions (drag, resize, slider), buffer changes and commit on an end signal (e.g., `dragging === false`, global `pointerup`, debounce idle). Avoid per‑frame writes.
+- Interaction guard: Pause store→UI remaps while a gesture is active (drag/resize/typing). Resume after the final commit to prevent oscillation.
+- Preserve focus/selection: When remapping store entities into view components, copy transient UI flags (e.g., `selected`, focus) to avoid losing handles/carets.
+- No periodic clobbering: Avoid periodic DB→store or store→UI reconciliations while interacting. Reconcile only when idle or on explicit events.
+- Deterministic hydration: Gate components that depend on hydrated data; render placeholders instantly (skeletons) for layout stability.
+- Sync hints before async data: On startup, prefer synchronous hints (e.g., sessionStorage) for initial selection; validate/repair with durable storage (Dexie) after hydration.
+- Idempotent updates: Ensure subscribers are idempotent; remaps should not create new identities or reset transient UI on every store tick.
+- Bounded persistence: Batch/transactional writes; coalesce multiple changes from a single gesture into one write.
+- Cross‑tab: Broadcast only minimal change signals; ignore older or concurrent updates when an interaction guard is active.
+
+### Canvas interaction and persistence (ReactFlow)
+
+- Drag/move vs persist:
+  - Do not persist node position continuously while dragging; commit once on drag end.
+  - Use the change object’s `dragging === false` (position events) as the commit signal.
+- Resize vs persist:
+  - Treat `dimensions` changes as transient; buffer the latest width/height during resize and persist once on pointerup (resize end). Do not write on every `dimensions` event.
+  - Keep a simple interaction guard (e.g., `isInteractingRef`) to temporarily pause store→UI remaps while dragging/resizing. Resume remaps only after committing the final value to avoid oscillation.
+- Selection preservation:
+  - When mapping store nodes back to ReactFlow nodes, preserve the previous `selected` state so the `NodeResizer` remains visible during interactions.
+- Reconciliation:
+  - Do not run periodic DB→store reconciliation while an interaction is in flight. Reconcile only when idle to avoid fighting in-flight UI state.
+
+### Startup/UI gating
+
+- Show the header immediately with skeleton placeholders while the store hydrates.
+- Prefer `sessionStorage` for the last-active workflow ID on initial paint for instant correctness; persist the same key to Dexie KV for durability/cross-tab and validate post-hydration.
+
 ## API routes
 
 - `POST /api/generate-image`: Validates model, resolves dimensions via `resolveModelDimensions`, calls `generateImageWithRunpod`, and returns `{ success, imageUrl, executionId, applied, used }`.
