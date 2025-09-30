@@ -42,14 +42,6 @@ export function CanvasToolbar({
             add
           </Button>
         </div>
-        {queueCount > 0 && (
-          <Badge
-            variant="secondary"
-            className="text-xs absolute bottom-1 left-1/2 -translate-x-1/2 pointer-events-none"
-          >
-            {queueCount} queued
-          </Badge>
-        )}
       </div>
     </div>
   );

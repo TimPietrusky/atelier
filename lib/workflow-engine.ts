@@ -23,6 +23,13 @@ export interface WorkflowNode {
     assetRef?: AssetRef;
     metadata?: Record<string, any>;
   };
+  // History of all results (for image nodes to show multiple generations)
+  resultHistory?: Array<{
+    type: "text" | "image" | "video";
+    data: string;
+    assetRef?: AssetRef;
+    metadata?: Record<string, any>;
+  }>;
 }
 
 export interface WorkflowExecution {
@@ -302,7 +309,7 @@ export class WorkflowEngine {
       const wfId = (node as any).workflowId as string | undefined;
       if (wfId) {
         const { updateNodeResult } = useWorkflowStore.getState();
-        updateNodeResult(wfId, node.id, node.result);
+        updateNodeResult(wfId, node.id, node.result, node.resultHistory);
       }
     } catch {}
   }
@@ -351,7 +358,7 @@ export class WorkflowEngine {
         const wfId = (node as any).workflowId as string | undefined;
         if (wfId) {
           const { updateNodeResult } = useWorkflowStore.getState();
-          updateNodeResult(wfId, node.id, node.result);
+          updateNodeResult(wfId, node.id, node.result, node.resultHistory);
         }
       } catch {}
       return;
@@ -472,10 +479,10 @@ export class WorkflowEngine {
       throw new Error("Image generation failed");
     }
 
-    node.result = {
-      type: "image",
+    const newResult = {
+      type: "image" as const,
       data: result.imageUrl,
-      assetRef: { kind: "url", url: result.imageUrl },
+      assetRef: { kind: "url" as const, url: result.imageUrl },
       metadata: {
         executionId: result.executionId,
         model: selectedModel,
@@ -494,6 +501,15 @@ export class WorkflowEngine {
         },
       },
     };
+
+    // Set as current result
+    node.result = newResult;
+
+    // Append to history for image nodes
+    if (!node.resultHistory) {
+      node.resultHistory = [];
+    }
+    node.resultHistory.push(newResult);
 
     // Debug I/O log
     if (typeof window !== "undefined") {
@@ -529,7 +545,7 @@ export class WorkflowEngine {
       const wfId = (node as any).workflowId as string | undefined;
       if (wfId) {
         const { updateNodeResult } = useWorkflowStore.getState();
-        updateNodeResult(wfId, node.id, node.result);
+        updateNodeResult(wfId, node.id, node.result, node.resultHistory);
       }
     } catch {}
   }
@@ -575,7 +591,12 @@ export class WorkflowEngine {
         const { workflowStore } = await import("@/lib/store/workflows");
         const wfId = (node as any).workflowId as string | undefined;
         if (wfId) {
-          workflowStore.updateNodeResult(wfId, node.id, node.result);
+          workflowStore.updateNodeResult(
+            wfId,
+            node.id,
+            node.result,
+            node.resultHistory
+          );
         }
       } catch {}
       return;
@@ -756,7 +777,7 @@ export class WorkflowEngine {
       const wfId = (node as any).workflowId as string | undefined;
       if (wfId) {
         const { updateNodeResult } = useWorkflowStore.getState();
-        updateNodeResult(wfId, node.id, node.result);
+        updateNodeResult(wfId, node.id, node.result, node.resultHistory);
       }
     } catch {}
   }
@@ -874,6 +895,14 @@ export class WorkflowEngine {
 
   getQueue(): ExecutionQueue[] {
     return [...this.queue];
+  }
+
+  getActiveJobsCount(): number {
+    // Returns count of queued + running jobs
+    const runningCount = Array.from(this.executions.values()).filter(
+      (e) => e.status === "running" || e.status === "queued"
+    ).length;
+    return runningCount;
   }
 
   cancelExecution(executionId: string): boolean {

@@ -55,6 +55,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
     - Prompt: most recent upstream prompt.
     - Image: most recent upstream image when the `image-input` handle is connected.
   - Emits `inputsUsed` in `result.metadata` for transparency.
+  - **Result history**: stores all generated images in `resultHistory` array; displays in 2-column grid with most recent first. Each execution appends to history instead of replacing. Users can remove individual images or use "Clear All".
 
 ## AI SDK integration (provider-agnostic)
 
@@ -166,10 +167,11 @@ This doc orients anyone working in this codebase. It captures the architectural 
 ## Quick glossary
 
 - `workflowStore`: source of truth for workflows; persists via `JsonStorage`.
-- `workflowEngine`: executes nodes in dependency order; manages queue; updates statuses/results.
+- `workflowEngine`: executes nodes in dependency order; manages queue; updates statuses/results; appends image results to `resultHistory`.
 - `localImage`: when present on an Image node, short-circuits generation and outputs that image.
 - `inputsUsed`: debug metadata attached to node results for traceability.
 - `AssetRef`: typed reference to media (`url` | `opfs` | `fs-handle` | `idb`); never stores base64 originals in JSON.
+- `resultHistory`: array of all results for a node (primarily used for image nodes); allows viewing all generations from multiple executions.
 
 ## Keeping this doc fresh
 

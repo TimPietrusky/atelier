@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
   X,
   AlertCircle,
   CheckCircle,
+  GripVertical,
 } from "lucide-react";
 import { workflowEngine, type WorkflowExecution } from "@/lib/workflow-engine";
 
@@ -28,6 +29,9 @@ export function ExecutionQueueComponent({
 }: ExecutionQueueProps) {
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [queue, setQueue] = useState<any[]>([]);
+  const [width, setWidth] = useState(480);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
 
   useEffect(() => {
     // Populate immediately for instant feedback, then poll
@@ -40,6 +44,37 @@ export function ExecutionQueueComponent({
     }, 300);
     return () => clearInterval(interval);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      // Clamp between 320px and 800px
+      setWidth(Math.max(320, Math.min(800, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isOpen]);
+
+  const handleResizeStart = () => {
+    isDraggingRef.current = true;
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+  };
 
   const getStatusIcon = (status: WorkflowExecution["status"]) => {
     switch (status) {
@@ -80,193 +115,117 @@ export function ExecutionQueueComponent({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-4xl h-[70vh] bg-card flex flex-col">
+    <div
+      ref={panelRef}
+      className="fixed top-0 right-0 h-full bg-card/95 backdrop-blur-sm border-l border-border shadow-2xl z-50 flex"
+      style={{ width: `${width}px` }}
+    >
+      {/* Resize Handle */}
+      <div
+        className="w-1 bg-border hover:bg-primary/50 cursor-ew-resize flex items-center justify-center group transition-colors"
+        onMouseDown={handleResizeStart}
+      >
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
+        </div>
+      </div>
+
+      {/* Panel Content */}
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="p-6 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold text-card-foreground">
-              Execution Queue
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              queue
             </h2>
-            <Badge variant="outline">
-              {queue.length} queued •{" "}
-              {executions.filter((e) => e.status === "running").length} running
+            <Badge variant="outline" className="text-xs h-5">
+              {queue.length +
+                executions.filter((e) => e.status === "running").length}
             </Badge>
           </div>
 
-          <Button variant="outline" size="sm" onClick={onClose}>
-            <X className="w-4 h-4" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={onClose}
+          >
+            <X className="w-3.5 h-3.5" />
           </Button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex">
+        <div className="flex-1 flex flex-col min-h-0">
           {/* Current Executions */}
-          <div className="flex-1 p-6">
-            <h3 className="text-lg font-semibold mb-4 text-card-foreground">
-              Active Executions
-            </h3>
-
-            <ScrollArea className="h-full">
-              <div className="space-y-4">
-                {executions.length === 0 ? (
+          <div className="flex-1 px-3 py-2 min-h-0 flex flex-col">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="space-y-1.5 pr-2">
+                {executions.length === 0 && queue.length === 0 ? (
                   <div className="text-center py-8">
-                    <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No executions yet</p>
+                    <p className="text-xs text-muted-foreground">empty</p>
                   </div>
                 ) : (
-                  executions.map((execution) => (
-                    <Card key={execution.id} className="p-4 bg-background">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(execution.status)}
-                          <span className="font-medium text-card-foreground">
-                            Workflow {execution.workflowId}
+                  <>
+                    {executions.map((execution) => (
+                      <div
+                        key={execution.id}
+                        className="px-2 py-1.5 rounded bg-background/50 border border-border/50 hover:border-border transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor(
+                              execution.status
+                            )}`}
+                          />
+                          <span className="text-xs text-card-foreground truncate flex-1 font-mono">
+                            {execution.workflowId.slice(0, 12)}
                           </span>
-                          <Badge variant="outline" className="text-xs">
-                            {execution.status}
-                          </Badge>
-                        </div>
-
-                        <div className="flex items-center gap-2">
                           {execution.status === "running" && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  workflowEngine.pauseExecution(execution.id)
-                                }
-                              >
-                                <Pause className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  workflowEngine.cancelExecution(execution.id)
-                                }
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {execution.status === "running" && (
-                        <div className="mb-3">
-                          <div className="flex items-center justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">
-                              Progress
-                            </span>
-                            <span className="text-card-foreground">
+                            <span className="text-xs text-muted-foreground font-mono">
                               {Math.round(execution.progress)}%
                             </span>
-                          </div>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {formatCost(
+                              execution.actualCost || execution.estimatedCost
+                            )}
+                          </span>
+                        </div>
+
+                        {execution.status === "running" && (
                           <Progress
                             value={execution.progress}
-                            className="h-2"
+                            className="h-1"
                           />
-                          {execution.currentNodeId && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Processing: {execution.currentNodeId}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-muted-foreground">
-                              {formatCost(
-                                execution.actualCost || execution.estimatedCost
-                              )}
-                            </span>
-                          </div>
-
-                          {execution.startTime && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-muted-foreground" />
-                              <span className="text-muted-foreground">
-                                {execution.endTime
-                                  ? formatDuration(
-                                      Math.floor(
-                                        (execution.endTime.getTime() -
-                                          execution.startTime.getTime()) /
-                                          1000
-                                      )
-                                    )
-                                  : formatDuration(
-                                      Math.floor(
-                                        (Date.now() -
-                                          execution.startTime.getTime()) /
-                                          1000
-                                      )
-                                    )}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                        )}
 
                         {execution.error && (
-                          <span className="text-destructive text-xs">
+                          <p className="text-destructive text-xs mt-1 truncate">
                             {execution.error}
-                          </span>
+                          </p>
                         )}
                       </div>
-                    </Card>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+                    ))}
 
-          {/* Queue */}
-          <div className="w-80 border-l border-border p-6">
-            <h3 className="text-lg font-semibold mb-4 text-card-foreground">
-              Queue
-            </h3>
-
-            <ScrollArea className="h-full">
-              <div className="space-y-3">
-                {queue.length === 0 ? (
-                  <div className="text-center py-8">
-                    <CheckCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      Queue is empty
-                    </p>
-                  </div>
-                ) : (
-                  queue.map((item, index) => (
-                    <Card key={item.id} className="p-3 bg-background">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-card-foreground">
-                          #{index + 1}
-                        </span>
-                        <Badge variant="outline" className="text-xs">
-                          Priority {item.priority}
-                        </Badge>
-                      </div>
-
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Workflow {item.workflowId}
-                      </p>
-
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{formatDuration(item.estimatedDuration)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="w-3 h-3" />
-                          <span>{formatCost(item.estimatedCost)}</span>
+                    {queue.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="px-2 py-1.5 rounded bg-muted/30 border border-border/30"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground font-mono">
+                            #{index + 1}
+                          </span>
+                          <span className="text-xs text-muted-foreground truncate flex-1 font-mono">
+                            {item.workflowId.slice(0, 12)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatCost(item.estimatedCost)}
+                          </span>
                         </div>
                       </div>
-                    </Card>
-                  ))
+                    ))}
+                  </>
                 )}
               </div>
             </ScrollArea>
@@ -274,42 +233,33 @@ export function ExecutionQueueComponent({
         </div>
 
         {/* Footer Stats */}
-        <div className="p-4 border-t border-border bg-muted/50">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-6">
-              <span className="text-muted-foreground">
-                Total Cost:{" "}
-                <span className="text-card-foreground font-medium">
-                  {formatCost(
-                    executions.reduce(
-                      (sum, e) => sum + (e.actualCost || e.estimatedCost),
-                      0
-                    )
-                  )}
-                </span>
+        <div className="px-3 py-2 border-t border-border/50 flex-shrink-0">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground font-mono">
+                {formatCost(
+                  executions.reduce(
+                    (sum, e) => sum + (e.actualCost || e.estimatedCost),
+                    0
+                  )
+                )}
               </span>
 
               <span className="text-muted-foreground">
-                Completed:{" "}
-                <span className="text-card-foreground font-medium">
-                  {executions.filter((e) => e.status === "completed").length}
-                </span>
+                ✓ {executions.filter((e) => e.status === "completed").length}
               </span>
 
               <span className="text-muted-foreground">
-                Failed:{" "}
-                <span className="text-card-foreground font-medium">
-                  {executions.filter((e) => e.status === "failed").length}
-                </span>
+                ✗ {executions.filter((e) => e.status === "failed").length}
               </span>
             </div>
 
-            <Button variant="outline" size="sm">
-              Clear Completed
+            <Button variant="ghost" size="sm" className="h-6 text-xs px-2">
+              clear
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

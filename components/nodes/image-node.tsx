@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ImageIcon, ImagePlus, X } from "lucide-react";
+import { ImageIcon, ImagePlus, X, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -35,8 +35,10 @@ export function ImageNode({
   const meta = getImageModelMeta(model);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
-  const imageUrl: string | undefined =
-    data?.result?.type === "image" ? data?.result?.data : undefined;
+  const imageHistory: string[] = (data?.resultHistory || [])
+    .filter((r: any) => r.type === "image")
+    .map((r: any) => r.data)
+    .reverse(); // Most recent first
   const isRunning = data.status === "running";
   const [localImage, setLocalImage] = useState<string | undefined>(
     data.config?.localImage || undefined
@@ -202,27 +204,71 @@ export function ImageNode({
           </div>
         )}
 
-        {imageUrl && (
-          <div className="relative overflow-hidden rounded border group">
-            <img
-              src={imageUrl || "/placeholder.svg"}
-              alt="Node output"
-              className="block w-full h-auto max-h-[320px] object-contain"
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute top-2 right-2 h-6 w-6 p-0 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => {
-                data?.onChange?.({ result: undefined });
-              }}
-              title="Remove generated image"
-            >
-              <X className="w-3 h-3 text-destructive" />
-            </Button>
+        {imageHistory.length > 0 && (
+          <div className="space-y-2">
+            {/* Clear All Button */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {imageHistory.length} image
+                {imageHistory.length !== 1 ? "s" : ""}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                onClick={() => {
+                  data?.onChange?.({ result: undefined, resultHistory: [] });
+                }}
+                title="Clear all images"
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Clear All
+              </Button>
+            </div>
+
+            {/* Image Grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {imageHistory.map((url, idx) => (
+                <div
+                  key={`${url}-${idx}`}
+                  className="relative overflow-hidden rounded border group aspect-square"
+                >
+                  <img
+                    src={url || "/placeholder.svg"}
+                    alt={`Generation ${imageHistory.length - idx}`}
+                    className="block w-full h-full object-cover"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute top-1 right-1 h-6 w-6 p-0 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => {
+                      const newHistory = [...(data.resultHistory || [])];
+                      newHistory.splice(imageHistory.length - 1 - idx, 1);
+                      const newResult =
+                        newHistory.length > 0
+                          ? newHistory[newHistory.length - 1]
+                          : undefined;
+                      data?.onChange?.({
+                        result: newResult,
+                        resultHistory: newHistory,
+                      });
+                    }}
+                    title="Remove this image"
+                  >
+                    <X className="w-3 h-3 text-destructive" />
+                  </Button>
+                  {idx === 0 && (
+                    <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
+                      Latest
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
-        {!imageUrl && localImage && (
+        {imageHistory.length === 0 && localImage && (
           <div className="relative overflow-hidden rounded border group">
             <img
               src={localImage || "/placeholder.svg"}
@@ -257,7 +303,7 @@ export function ImageNode({
             </Button>
           </div>
         )}
-        {!imageUrl && !localImage && (
+        {imageHistory.length === 0 && !localImage && (
           <div className="h-32 border-2 border-dashed border-border/30 rounded flex items-center justify-center text-muted-foreground/50">
             <div className="text-center">
               <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />

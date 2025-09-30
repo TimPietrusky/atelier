@@ -1,7 +1,6 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { WorkflowNode } from "@/lib/workflow-engine";
 import { BroadcastBus } from "@/lib/store/storage";
 import { db, hydrateWorkflows, writeWorkflowGraph } from "@/lib/store/db";
@@ -48,7 +47,8 @@ type Actions = {
   updateNodeResult: (
     workflowId: string,
     nodeId: string,
-    result: WorkflowNode["result"]
+    result: WorkflowNode["result"],
+    resultHistory?: WorkflowNode["resultHistory"]
   ) => void;
   updateNodeStatus: (
     workflowId: string,
@@ -79,6 +79,7 @@ async function persistGraph(doc: WorkflowDoc) {
     size: n.size,
     config: n.config,
     result: n.result,
+    resultHistory: n.resultHistory,
     updatedAt: now,
   }));
   const sanitizedEdges = (doc.edges || []).map((e) => ({
@@ -102,253 +103,251 @@ async function persistGraph(doc: WorkflowDoc) {
   bus.post({ id: doc.id, updatedAt: now });
 }
 
-export const useWorkflowStore = create<State & Actions>()(
-  persist(
-    (set, get) => ({
-      workflows: {},
-      async hydrate() {
-        const rows = await hydrateWorkflows();
-        const workflows: Record<string, WorkflowDoc> = {};
-        rows.forEach((wf) => {
-          workflows[wf.id] = {
-            id: wf.id,
-            name: wf.name,
-            nodes: (wf.nodes as any).map((n: any) => ({
-              id: n.id,
-              type: n.type,
-              title: n.title,
-              status: n.status === "running" ? "idle" : n.status,
-              position: n.position,
-              size: n.size,
-              config: n.config,
-              result: n.result,
-            })),
-            edges: (wf.edges as any).map((e: any) => ({
-              id: e.id,
-              source: e.source,
-              target: e.target,
-              sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle,
-            })),
-            viewport: wf.viewport,
-            updatedAt: wf.updatedAt,
-            version: wf.version,
-          };
-        });
-        set({ workflows });
-      },
-      async mergeFromDbIfNewer() {
-        const rows = await hydrateWorkflows();
-        set((s) => {
-          const next = { ...s.workflows } as Record<string, WorkflowDoc>;
-          for (const wf of rows) {
-            const incoming: WorkflowDoc = {
-              id: wf.id,
-              name: wf.name,
-              nodes: (wf.nodes as any).map((n: any) => ({
-                id: n.id,
-                type: n.type,
-                title: n.title,
-                status: n.status === "running" ? "idle" : n.status,
-                position: n.position,
-                size: n.size,
-                config: n.config,
-                result: n.result,
-              })),
-              edges: (wf.edges as any).map((e: any) => ({
-                id: e.id,
-                source: e.source,
-                target: e.target,
-                sourceHandle: e.sourceHandle,
-                targetHandle: e.targetHandle,
-              })),
-              viewport: wf.viewport,
-              updatedAt: wf.updatedAt,
-              version: wf.version,
-            };
-            const current = next[wf.id];
-            if (!current || (incoming.version || 0) > (current.version || 0)) {
-              next[wf.id] = incoming;
-            }
-          }
-          return { workflows: next } as any;
-        });
-      },
-      createWorkflow(name) {
-        const id = `${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
-        const doc: WorkflowDoc = {
-          id,
-          name,
-          nodes: [],
-          edges: [],
-          updatedAt: Date.now(),
-          version: 0,
+export const useWorkflowStore = create<State & Actions>()((set, get) => ({
+  workflows: {},
+  async hydrate() {
+    const rows = await hydrateWorkflows();
+    const workflows: Record<string, WorkflowDoc> = {};
+    rows.forEach((wf) => {
+      workflows[wf.id] = {
+        id: wf.id,
+        name: wf.name,
+        nodes: (wf.nodes as any).map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          status: n.status === "running" ? "idle" : n.status,
+          position: n.position,
+          size: n.size,
+          config: n.config,
+          result: n.result,
+        })),
+        edges: (wf.edges as any).map((e: any) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+        })),
+        viewport: wf.viewport,
+        updatedAt: wf.updatedAt,
+        version: wf.version,
+      };
+    });
+    set({ workflows });
+  },
+  async mergeFromDbIfNewer() {
+    const rows = await hydrateWorkflows();
+    set((s) => {
+      const next = { ...s.workflows } as Record<string, WorkflowDoc>;
+      for (const wf of rows) {
+        const incoming: WorkflowDoc = {
+          id: wf.id,
+          name: wf.name,
+          nodes: (wf.nodes as any).map((n: any) => ({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            status: n.status === "running" ? "idle" : n.status,
+            position: n.position,
+            size: n.size,
+            config: n.config,
+            result: n.result,
+          })),
+          edges: (wf.edges as any).map((e: any) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle,
+          })),
+          viewport: wf.viewport,
+          updatedAt: wf.updatedAt,
+          version: wf.version,
         };
-        set((s) => ({ workflows: { ...s.workflows, [id]: doc } }));
-        void persistGraph(doc);
-        return id;
-      },
-      removeWorkflow(id) {
-        set((s) => {
-          const next = { ...s.workflows };
-          delete next[id];
-          return { workflows: next } as any;
-        });
-        // Hard delete from DB
-        if (db) {
-          void db
-            .transaction("rw", db.workflows, db.nodes, db.edges, async () => {
-              await db.workflows.delete(id);
-              await db.nodes.where("workflowId").equals(id).delete();
-              await db.edges.where("workflowId").equals(id).delete();
-            })
-            .catch((e) => {
-              console.warn("[DB] Delete failed, using fallback:", e);
-              import("@/lib/store/db-fallback").then(
-                ({ fallbackDeleteWorkflow }) => fallbackDeleteWorkflow(id)
-              );
-            });
-        } else {
+        const current = next[wf.id];
+        if (!current || (incoming.version || 0) > (current.version || 0)) {
+          next[wf.id] = incoming;
+        }
+      }
+      return { workflows: next } as any;
+    });
+  },
+  createWorkflow(name) {
+    const id = `${name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
+    const doc: WorkflowDoc = {
+      id,
+      name,
+      nodes: [],
+      edges: [],
+      updatedAt: Date.now(),
+      version: 0,
+    };
+    set((s) => ({ workflows: { ...s.workflows, [id]: doc } }));
+    void persistGraph(doc);
+    return id;
+  },
+  removeWorkflow(id) {
+    set((s) => {
+      const next = { ...s.workflows };
+      delete next[id];
+      return { workflows: next } as any;
+    });
+    // Hard delete from DB
+    if (db) {
+      void db
+        .transaction("rw", db.workflows, db.nodes, db.edges, async () => {
+          await db.workflows.delete(id);
+          await db.nodes.where("workflowId").equals(id).delete();
+          await db.edges.where("workflowId").equals(id).delete();
+        })
+        .catch((e) => {
+          console.warn("[DB] Delete failed, using fallback:", e);
           import("@/lib/store/db-fallback").then(({ fallbackDeleteWorkflow }) =>
             fallbackDeleteWorkflow(id)
           );
-        }
-      },
-      setNodes(workflowId, nodes) {
-        set((s) => {
-          const doc = s.workflows[workflowId];
-          if (!doc) return {} as any;
-          const next = {
-            ...doc,
-            nodes,
-            updatedAt: Date.now(),
-            version: (doc.version || 0) + 1,
-          };
-          (s.workflows as any)[workflowId] = next;
-          void persistGraph(next);
-          return { workflows: { ...s.workflows } } as any;
         });
-      },
-      setEdges(workflowId, edges) {
-        set((s) => {
-          const doc = s.workflows[workflowId];
-          if (!doc) return {} as any;
-          const next = {
-            ...doc,
-            edges,
-            updatedAt: Date.now(),
-            version: (doc.version || 0) + 1,
-          };
-          (s.workflows as any)[workflowId] = next;
-          void persistGraph(next);
-          return { workflows: { ...s.workflows } } as any;
-        });
-      },
-      setViewport(workflowId, viewport) {
-        set((s) => {
-          const doc = s.workflows[workflowId];
-          if (!doc) return {} as any;
-          const next = {
-            ...doc,
-            viewport,
-            updatedAt: Date.now(),
-            version: (doc.version || 0) + 1,
-          };
-          (s.workflows as any)[workflowId] = next;
-          void persistGraph(next);
-          return { workflows: { ...s.workflows } } as any;
-        });
-      },
-      updateNodeConfig(workflowId, nodeId, config) {
-        set((s) => {
-          const doc = s.workflows[workflowId];
-          if (!doc) return {} as any;
-          const nodes = doc.nodes.map((n) =>
-            n.id === nodeId
-              ? { ...n, config: { ...(n.config || {}), ...config } }
-              : n
-          );
-
-          const next = {
-            ...doc,
-            nodes,
-            updatedAt: Date.now(),
-            version: (doc.version || 0) + 1,
-          };
-          (s.workflows as any)[workflowId] = next;
-          void persistGraph(next);
-          return { workflows: { ...s.workflows } } as any;
-        });
-      },
-      updateNodeResult(workflowId, nodeId, result) {
-        set((s) => {
-          const doc = s.workflows[workflowId];
-          if (!doc) return {} as any;
-          const nodes = doc.nodes.map((n) =>
-            n.id === nodeId ? { ...n, result, status: "complete" } : n
-          );
-          const next = {
-            ...doc,
-            nodes,
-            updatedAt: Date.now(),
-            version: (doc.version || 0) + 1,
-          };
-          (s.workflows as any)[workflowId] = next;
-          void persistGraph(next);
-          return { workflows: { ...s.workflows } } as any;
-        });
-      },
-      updateNodeStatus(workflowId, nodeId, status) {
-        set((s) => {
-          const doc = s.workflows[workflowId];
-          if (!doc) return {} as any;
-          const nodes = doc.nodes.map((n) =>
-            n.id === nodeId ? { ...n, status } : n
-          );
-          const next = { ...doc, nodes };
-          (s.workflows as any)[workflowId] = next;
-          // Do not persist transient running status immediately
-          if (status !== "running")
-            void persistGraph({
-              ...next,
-              updatedAt: Date.now(),
-              version: (next.version || 0) + 1,
-            });
-          return { workflows: { ...s.workflows } } as any;
-        });
-      },
-      updateNodeDimensions(workflowId, nodeId, position, size) {
-        set((s) => {
-          const doc = s.workflows[workflowId];
-          if (!doc) return {} as any;
-          const nodes = doc.nodes.map((n) =>
-            n.id === nodeId
-              ? {
-                  ...n,
-                  position: position || n.position,
-                  size: size || n.size,
-                }
-              : n
-          );
-          const next = {
-            ...doc,
-            nodes,
-            updatedAt: Date.now(),
-            version: (doc.version || 0) + 1,
-          };
-          (s.workflows as any)[workflowId] = next;
-          void persistGraph(next);
-          return { workflows: { ...s.workflows } } as any;
-        });
-      },
-    }),
-    {
-      name: "atelier-ui-cache",
-      partialize: (s) => ({ workflows: s.workflows, activeId: s.activeId }),
-      // Only used as a tiny UI cache; Dexie is the durable store
+    } else {
+      import("@/lib/store/db-fallback").then(({ fallbackDeleteWorkflow }) =>
+        fallbackDeleteWorkflow(id)
+      );
     }
-  )
-);
+  },
+  setNodes(workflowId, nodes) {
+    set((s) => {
+      const doc = s.workflows[workflowId];
+      if (!doc) return {} as any;
+      const next = {
+        ...doc,
+        nodes,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      };
+      (s.workflows as any)[workflowId] = next;
+      void persistGraph(next);
+      return { workflows: { ...s.workflows } } as any;
+    });
+  },
+  setEdges(workflowId, edges) {
+    set((s) => {
+      const doc = s.workflows[workflowId];
+      if (!doc) return {} as any;
+      const next = {
+        ...doc,
+        edges,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      };
+      (s.workflows as any)[workflowId] = next;
+      void persistGraph(next);
+      return { workflows: { ...s.workflows } } as any;
+    });
+  },
+  setViewport(workflowId, viewport) {
+    set((s) => {
+      const doc = s.workflows[workflowId];
+      if (!doc) return {} as any;
+      const next = {
+        ...doc,
+        viewport,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      };
+      (s.workflows as any)[workflowId] = next;
+      void persistGraph(next);
+      return { workflows: { ...s.workflows } } as any;
+    });
+  },
+  updateNodeConfig(workflowId, nodeId, config) {
+    set((s) => {
+      const doc = s.workflows[workflowId];
+      if (!doc) return {} as any;
+      const nodes = doc.nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, config: { ...(n.config || {}), ...config } }
+          : n
+      );
+
+      const next = {
+        ...doc,
+        nodes,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      };
+      (s.workflows as any)[workflowId] = next;
+      void persistGraph(next);
+      return { workflows: { ...s.workflows } } as any;
+    });
+  },
+  updateNodeResult(workflowId, nodeId, result, resultHistory) {
+    set((s) => {
+      const doc = s.workflows[workflowId];
+      if (!doc) return {} as any;
+      const nodes = doc.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              result,
+              resultHistory: resultHistory || n.resultHistory,
+              status: "complete",
+            }
+          : n
+      );
+      const next = {
+        ...doc,
+        nodes,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      };
+      (s.workflows as any)[workflowId] = next;
+      void persistGraph(next);
+      return { workflows: { ...s.workflows } } as any;
+    });
+  },
+  updateNodeStatus(workflowId, nodeId, status) {
+    set((s) => {
+      const doc = s.workflows[workflowId];
+      if (!doc) return {} as any;
+      const nodes = doc.nodes.map((n) =>
+        n.id === nodeId ? { ...n, status } : n
+      );
+      const next = { ...doc, nodes };
+      (s.workflows as any)[workflowId] = next;
+      // Do not persist transient running status immediately
+      if (status !== "running")
+        void persistGraph({
+          ...next,
+          updatedAt: Date.now(),
+          version: (next.version || 0) + 1,
+        });
+      return { workflows: { ...s.workflows } } as any;
+    });
+  },
+  updateNodeDimensions(workflowId, nodeId, position, size) {
+    set((s) => {
+      const doc = s.workflows[workflowId];
+      if (!doc) return {} as any;
+      const nodes = doc.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              position: position || n.position,
+              size: size || n.size,
+            }
+          : n
+      );
+      const next = {
+        ...doc,
+        nodes,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      };
+      (s.workflows as any)[workflowId] = next;
+      void persistGraph(next);
+      return { workflows: { ...s.workflows } } as any;
+    });
+  },
+}));
 
 // Cross-tab listener: hydrate when another tab updates
 if (typeof window !== "undefined" && "BroadcastChannel" in window) {

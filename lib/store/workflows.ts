@@ -55,40 +55,7 @@ function ensureInit() {
   initPromise = (async () => {
     try {
       await useWorkflowStore.getState().hydrate();
-      const workflows = useWorkflowStore.getState().workflows;
-      const seeded = await getKV<boolean>("seeded");
-      if (
-        typeof window !== "undefined" &&
-        Object.keys(workflows).length === 0 &&
-        !seeded
-      ) {
-        const id = useWorkflowStore.getState().createWorkflow("Workflow A");
-        useWorkflowStore.getState().setNodes(id, [
-          {
-            id: "prompt-1",
-            type: "prompt",
-            title: "Prompt",
-            status: "idle",
-            position: { x: 100, y: 200 },
-            config: { prompt: "Create a cinematic cyberpunk portrait" },
-          },
-          {
-            id: "image-gen-1",
-            type: "image-gen",
-            title: "Image",
-            status: "idle",
-            position: { x: 400, y: 200 },
-            config: {
-              model: "black-forest-labs/flux-1-schnell",
-              ratio: "3:4",
-              steps: 30,
-              guidance: 7.5,
-            },
-          },
-        ] as any);
-        useWorkflowStore.getState().setEdges(id, [] as any);
-        await putKV("seeded", true);
-      }
+      // Note: Seeding is now handled in app/page.tsx to avoid duplication
       await putKV("schemaVersion", 1);
     } catch {}
     initialized = true;
@@ -203,10 +170,13 @@ class WorkflowStoreCompat {
   updateNodeResult(
     workflowId: string,
     nodeId: string,
-    result: WorkflowNode["result"]
+    result: WorkflowNode["result"],
+    resultHistory?: WorkflowNode["resultHistory"]
   ) {
     ensureInit();
-    useWorkflowStore.getState().updateNodeResult(workflowId, nodeId, result);
+    useWorkflowStore
+      .getState()
+      .updateNodeResult(workflowId, nodeId, result, resultHistory);
   }
 
   updateNodeStatus(
