@@ -22,6 +22,7 @@ export function FlowCanvas({
   onEdgesChange,
   onConnect,
   onMoveEnd,
+  toolbar,
 }: {
   children?: ReactNode;
   nodes: any[];
@@ -31,6 +32,7 @@ export function FlowCanvas({
   onEdgesChange: any;
   onConnect: any;
   onMoveEnd: any;
+  toolbar?: ReactNode;
 }) {
   const proOptions = { hideAttribution: true } as const;
   return (
@@ -63,7 +65,7 @@ export function FlowCanvas({
       onError={() => {}}
     >
       {children}
-      <Panel position="top-left" className="!p-3">
+      <Panel position="top-left" className="!p-3 bg-card/90 backdrop-blur-sm">
         <div className="flex items-end gap-3">
           <Controls
             className="bg-background/90 backdrop-blur-sm border border-border/50 rounded-md [&>button]:text-foreground [&>button]:hover:bg-muted [&>button]:bg-transparent [&>button]:border-border/50 [&>button>svg]:text-foreground"
@@ -74,6 +76,7 @@ export function FlowCanvas({
             nodeColor="#ff0080"
             style={{ position: "static", height: 105 }}
           />
+          {toolbar}
         </div>
       </Panel>
       <Background

@@ -23,11 +23,13 @@ export function AddNodeDialog({
   onOpenChange,
   nodeTypes,
   onAdd,
+  showTrigger = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   nodeTypes: NodeTypeDef[];
   onAdd: (id: string) => void;
+  showTrigger?: boolean;
 }) {
   const getIconColor = (id: string) => {
     switch (id) {
@@ -46,15 +48,17 @@ export function AddNodeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="gap-2 px-4 py-2 rounded-md border border-border/50 hover:border-white/70 hover:bg-white/10 hover:text-white transition-all duration-200 bg-transparent text-white"
-        >
-          <Plus className="w-4 h-4" />
-          add
-        </Button>
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            className="gap-2 px-4 py-2 rounded-md border border-border/50 hover:border-white/70 hover:bg-white/10 hover:text-white transition-all duration-200 bg-transparent text-white"
+          >
+            <Plus className="w-4 h-4" />
+            add
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-md border border-border/50">
         <DialogHeader>
           <DialogTitle className="text-rainbow">Add New Node</DialogTitle>

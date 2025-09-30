@@ -375,20 +375,6 @@ export function NodeGraphCanvas({
 
   return (
     <div className="h-full w-full relative bg-background">
-      <CanvasToolbar
-        queueCount={queueCount}
-        onRun={handleRun}
-        onOpenAdd={setIsAddNodeModalOpen}
-        addDialog={
-          <AddNodeDialog
-            open={isAddNodeModalOpen}
-            onOpenChange={setIsAddNodeModalOpen}
-            nodeTypes={nodeTypeConfig}
-            onAdd={addNewNode}
-          />
-        }
-      />
-
       {/* React Flow Canvas */}
       <FlowCanvas
         nodes={nodes}
@@ -398,6 +384,23 @@ export function NodeGraphCanvas({
         onEdgesChange={onEdgesChangeHandler}
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
+        toolbar={
+          <>
+            <CanvasToolbar
+              style={{ height: 105 }}
+              queueCount={queueCount}
+              onRun={handleRun}
+              onOpenAdd={setIsAddNodeModalOpen}
+            />
+            <AddNodeDialog
+              open={isAddNodeModalOpen}
+              onOpenChange={setIsAddNodeModalOpen}
+              nodeTypes={nodeTypeConfig}
+              onAdd={addNewNode}
+              showTrigger={false}
+            />
+          </>
+        }
       />
     </div>
   );
