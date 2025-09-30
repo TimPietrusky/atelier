@@ -195,17 +195,24 @@ export const useWorkflowStore = create<State & Actions>()(
           return { workflows: next } as any;
         });
         // Hard delete from DB
-        void db.transaction(
-          "rw",
-          db.workflows,
-          db.nodes,
-          db.edges,
-          async () => {
-            await db.workflows.delete(id);
-            await db.nodes.where("workflowId").equals(id).delete();
-            await db.edges.where("workflowId").equals(id).delete();
-          }
-        );
+        if (db) {
+          void db
+            .transaction("rw", db.workflows, db.nodes, db.edges, async () => {
+              await db.workflows.delete(id);
+              await db.nodes.where("workflowId").equals(id).delete();
+              await db.edges.where("workflowId").equals(id).delete();
+            })
+            .catch((e) => {
+              console.warn("[DB] Delete failed, using fallback:", e);
+              import("@/lib/store/db-fallback").then(
+                ({ fallbackDeleteWorkflow }) => fallbackDeleteWorkflow(id)
+              );
+            });
+        } else {
+          import("@/lib/store/db-fallback").then(({ fallbackDeleteWorkflow }) =>
+            fallbackDeleteWorkflow(id)
+          );
+        }
       },
       setNodes(workflowId, nodes) {
         set((s) => {
