@@ -1,123 +1,128 @@
-"use client";
+"use client"
 
-import { useState, useEffect, useRef } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Clock,
-  DollarSign,
-  Play,
-  Pause,
-  X,
-  AlertCircle,
-  CheckCircle,
-  GripVertical,
-} from "lucide-react";
-import { workflowEngine, type WorkflowExecution } from "@/lib/workflow-engine";
+import { useState, useEffect, useRef } from "react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Clock, Play, X, AlertCircle, CheckCircle, GripVertical, Loader2 } from "lucide-react"
+import { workflowEngine, type WorkflowExecution } from "@/lib/workflow-engine"
+import { useWorkflowStore } from "@/lib/store/workflows-zustand"
 
 interface ExecutionQueueProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
 }
 
-export function ExecutionQueueComponent({
-  isOpen,
-  onClose,
-}: ExecutionQueueProps) {
-  const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
-  const [queue, setQueue] = useState<any[]>([]);
-  const [width, setWidth] = useState(480);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
+export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps) {
+  const [executions, setExecutions] = useState<WorkflowExecution[]>([])
+  const [queue, setQueue] = useState<any[]>([])
+  const [width, setWidth] = useState(480)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const isDraggingRef = useRef(false)
+  const workflows = useWorkflowStore((s) => s.workflows)
 
   useEffect(() => {
     // Populate immediately for instant feedback, then poll
-    setExecutions(workflowEngine.getAllExecutions());
-    setQueue(workflowEngine.getQueue());
-    if (!isOpen) return;
+    setExecutions(workflowEngine.getAllExecutions())
+    setQueue(workflowEngine.getQueue())
+    if (!isOpen) return
     const interval = setInterval(() => {
-      setExecutions(workflowEngine.getAllExecutions());
-      setQueue(workflowEngine.getQueue());
-    }, 300);
-    return () => clearInterval(interval);
-  }, [isOpen]);
+      setExecutions(workflowEngine.getAllExecutions())
+      setQueue(workflowEngine.getQueue())
+    }, 300)
+    return () => clearInterval(interval)
+  }, [isOpen])
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const newWidth = window.innerWidth - e.clientX;
+      if (!isDraggingRef.current) return
+      const newWidth = window.innerWidth - e.clientX
       // Clamp between 320px and 800px
-      setWidth(Math.max(320, Math.min(800, newWidth)));
-    };
+      setWidth(Math.max(320, Math.min(800, newWidth)))
+    }
 
     const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
+      isDraggingRef.current = false
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+    }
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
 
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isOpen]);
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [isOpen])
 
   const handleResizeStart = () => {
-    isDraggingRef.current = true;
-    document.body.style.cursor = "ew-resize";
-    document.body.style.userSelect = "none";
-  };
+    isDraggingRef.current = true
+    document.body.style.cursor = "ew-resize"
+    document.body.style.userSelect = "none"
+  }
 
   const getStatusIcon = (status: WorkflowExecution["status"]) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
+        return <CheckCircle className="w-4 h-4 text-green-500" />
       case "failed":
-        return <AlertCircle className="w-4 h-4 text-destructive" />;
+        return <AlertCircle className="w-4 h-4 text-destructive" />
       case "running":
-        return <Play className="w-4 h-4 text-primary animate-pulse" />;
+        return <Play className="w-4 h-4 text-primary animate-pulse" />
       default:
-        return <Clock className="w-4 h-4 text-muted-foreground" />;
+        return <Clock className="w-4 h-4 text-muted-foreground" />
     }
-  };
+  }
 
   const getStatusColor = (status: WorkflowExecution["status"]) => {
     switch (status) {
       case "completed":
-        return "bg-green-500";
+        return "bg-green-500"
       case "failed":
-        return "bg-destructive";
+        return "bg-destructive"
       case "running":
-        return "bg-primary";
+        return "bg-primary"
       default:
-        return "bg-muted";
+        return "bg-muted"
     }
-  };
+  }
 
   const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, "0")}`
+  }
 
   const formatCost = (cost: number) => {
-    return `$${cost.toFixed(3)}`;
-  };
+    return `$${cost.toFixed(3)}`
+  }
 
-  if (!isOpen) return null;
+  const getWorkflowDisplay = (workflowId: string, startTime?: Date) => {
+    const workflow = workflows[workflowId]
+    const name = workflow?.name || workflowId.slice(0, 12)
+
+    // Format timestamp as HH:MM:SS
+    const timestamp = startTime
+      ? new Date(startTime).toLocaleTimeString("en-US", {
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      : ""
+
+    return { name, timestamp }
+  }
+
+  if (!isOpen) return null
 
   return (
     <div
       ref={panelRef}
-      className="fixed top-0 right-0 h-full bg-card/95 backdrop-blur-sm border-l border-border shadow-2xl z-50 flex"
+      className="fixed top-[40px] right-0 h-[calc(100vh-40px)] bg-card/95 backdrop-blur-sm border-l border-border shadow-2xl z-50 flex"
       style={{ width: `${width}px` }}
     >
       {/* Resize Handle */}
@@ -135,21 +140,13 @@ export function ExecutionQueueComponent({
         {/* Header */}
         <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-card-foreground">
-              queue
-            </h2>
+            <h2 className="text-sm font-semibold text-card-foreground">queue</h2>
             <Badge variant="outline" className="text-xs h-5">
-              {queue.length +
-                executions.filter((e) => e.status === "running").length}
+              {queue.length + executions.filter((e) => e.status === "running").length}
             </Badge>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={onClose}
-          >
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onClose}>
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -166,65 +163,51 @@ export function ExecutionQueueComponent({
                   </div>
                 ) : (
                   <>
-                    {executions.map((execution) => (
-                      <div
-                        key={execution.id}
-                        className="px-2 py-1.5 rounded bg-background/50 border border-border/50 hover:border-border transition-colors"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div
-                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor(
-                              execution.status
-                            )}`}
-                          />
-                          <span className="text-xs text-card-foreground truncate flex-1 font-mono">
-                            {execution.workflowId.slice(0, 12)}
-                          </span>
-                          {execution.status === "running" && (
-                            <span className="text-xs text-muted-foreground font-mono">
-                              {Math.round(execution.progress)}%
-                            </span>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {formatCost(
-                              execution.actualCost || execution.estimatedCost
+                    {executions.map((execution) => {
+                      const { name, timestamp } = getWorkflowDisplay(execution.workflowId, execution.startTime)
+
+                      return (
+                        <div
+                          key={execution.id}
+                          className="px-2 py-1.5 rounded bg-background/50 border border-border/50 hover:border-border transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            {execution.status === "running" ? (
+                              <Loader2 className="w-3 h-3 animate-spin text-primary flex-shrink-0" />
+                            ) : (
+                              <div
+                                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor(execution.status)}`}
+                              />
                             )}
-                          </span>
+                            <span className="text-xs text-card-foreground truncate flex-1 font-mono">{name}</span>
+                            {timestamp && (
+                              <span className="text-[10px] text-muted-foreground/60 font-mono">{timestamp}</span>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {formatCost(execution.actualCost || execution.estimatedCost)}
+                            </span>
+                          </div>
+
+                          {execution.error && (
+                            <p className="text-destructive text-xs mt-1 truncate">{execution.error}</p>
+                          )}
                         </div>
+                      )
+                    })}
 
-                        {execution.status === "running" && (
-                          <Progress
-                            value={execution.progress}
-                            className="h-1"
-                          />
-                        )}
+                    {queue.map((item, index) => {
+                      const { name } = getWorkflowDisplay(item.workflowId)
 
-                        {execution.error && (
-                          <p className="text-destructive text-xs mt-1 truncate">
-                            {execution.error}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-
-                    {queue.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="px-2 py-1.5 rounded bg-muted/30 border border-border/30"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground font-mono">
-                            #{index + 1}
-                          </span>
-                          <span className="text-xs text-muted-foreground truncate flex-1 font-mono">
-                            {item.workflowId.slice(0, 12)}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatCost(item.estimatedCost)}
-                          </span>
+                      return (
+                        <div key={item.id} className="px-2 py-1.5 rounded bg-muted/30 border border-border/30">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground font-mono">#{index + 1}</span>
+                            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{name}</span>
+                            <span className="text-xs text-muted-foreground">{formatCost(item.estimatedCost)}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </>
                 )}
               </div>
@@ -237,21 +220,14 @@ export function ExecutionQueueComponent({
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground font-mono">
-                {formatCost(
-                  executions.reduce(
-                    (sum, e) => sum + (e.actualCost || e.estimatedCost),
-                    0
-                  )
-                )}
+                {formatCost(executions.reduce((sum, e) => sum + (e.actualCost || e.estimatedCost), 0))}
               </span>
 
               <span className="text-muted-foreground">
                 ✓ {executions.filter((e) => e.status === "completed").length}
               </span>
 
-              <span className="text-muted-foreground">
-                ✗ {executions.filter((e) => e.status === "failed").length}
-              </span>
+              <span className="text-muted-foreground">✗ {executions.filter((e) => e.status === "failed").length}</span>
             </div>
 
             <Button variant="ghost" size="sm" className="h-6 text-xs px-2">
@@ -261,7 +237,7 @@ export function ExecutionQueueComponent({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export { ExecutionQueueComponent as ExecutionQueue };
+export { ExecutionQueueComponent as ExecutionQueue }
