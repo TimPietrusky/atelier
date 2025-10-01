@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { ImageIcon, ImagePlus, X, Trash2 } from "lucide-react"
+import { ImageIcon, ImagePlus, X } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -220,8 +220,7 @@ export function ImageNode({
                 }}
                 title="Clear all images"
               >
-                <Trash2 className="w-3 h-3 mr-1" />
-                Clear All
+                clear
               </Button>
             </div>
           )}
@@ -265,7 +264,7 @@ export function ImageNode({
                   </Button>
                   {idx === 0 && (
                     <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
-                      Latest
+                      latest
                     </div>
                   )}
                 </div>
