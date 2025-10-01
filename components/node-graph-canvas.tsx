@@ -1,7 +1,14 @@
 "use client"
 
 import { useCallback, useState, useEffect, useRef } from "react"
-import { useNodesState, useEdgesState, addEdge, type Connection, type Edge, type Node } from "@xyflow/react"
+import {
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  type Connection,
+  type Edge,
+  type Node,
+} from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { workflowStore } from "@/lib/store/workflows"
 import { FlowCanvas } from "@/components/flow-canvas"
@@ -17,7 +24,7 @@ interface NodeGraphCanvasProps {
   executionStatus?: "idle" | "running" | "paused"
   onStatusChange?: (status: "idle" | "running" | "paused") => void
   queueCount?: number
-  onAddNodeCallbackReady?: (callback: (nodeType: string) => void) => void
+  onAddNode?: (nodeType: string) => void
 }
 
 export function NodeGraphCanvas({
@@ -26,7 +33,7 @@ export function NodeGraphCanvas({
   executionStatus = "idle",
   onStatusChange,
   queueCount = 0,
-  onAddNodeCallbackReady,
+  onAddNode,
 }: NodeGraphCanvasProps) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -57,7 +64,7 @@ export function NodeGraphCanvas({
         }
       })
     },
-    [setEdges, activeWorkflow],
+    [setEdges, activeWorkflow]
   )
 
   const addNewNode = useCallback(
@@ -133,14 +140,14 @@ export function NodeGraphCanvas({
 
       console.log("[v0] Node added to workflow store")
     },
-    [setNodes, activeWorkflow],
+    [setNodes, activeWorkflow]
   )
 
   useEffect(() => {
-    if (onAddNodeCallbackReady) {
-      onAddNodeCallbackReady(() => addNewNode)
+    if (onAddNode) {
+      // Parent handles add node logic now
     }
-  }, [addNewNode, onAddNodeCallbackReady])
+  }, [onAddNode])
 
   const handleRun = () => {
     onExecute?.()
@@ -163,22 +170,26 @@ export function NodeGraphCanvas({
         n.type === "prompt"
           ? "promptNode"
           : n.type === "image-gen" || n.type === "image-edit"
-            ? "imageGenNode"
-            : "customNode",
+          ? "imageGenNode"
+          : "customNode",
       position: n.position,
       width: (n as any).size?.width ?? undefined,
-      height: (n as any).size?.height && (n as any).size?.height > 0 ? (n as any).size?.height : undefined,
+      height:
+        (n as any).size?.height && (n as any).size?.height > 0
+          ? (n as any).size?.height
+          : undefined,
       data: {
         type: n.type,
         title: n.title,
         status: n.status,
         config: n.config,
-        onChange: (cfg: Record<string, any>) => workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
+        onChange: (cfg: Record<string, any>) =>
+          workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
         result: n.result,
         resultHistory: n.resultHistory,
       },
     }),
-    [activeWorkflow],
+    [activeWorkflow]
   )
 
   const onNodesChangeHandler = useCallback(
@@ -229,14 +240,14 @@ export function NodeGraphCanvas({
           const remainingNodes = wf.nodes.filter((n) => !removed.includes(n.id))
           const remainingNodeIds = new Set(remainingNodes.map((n) => n.id))
           const remainingEdges = (wf.edges || []).filter(
-            (e) => remainingNodeIds.has(e.source) && remainingNodeIds.has(e.target),
+            (e) => remainingNodeIds.has(e.source) && remainingNodeIds.has(e.target)
           )
           workflowStore.setNodes(activeWorkflow, remainingNodes as any)
           workflowStore.setEdges(activeWorkflow, remainingEdges as any)
         }, 0)
       }
     },
-    [onNodesChange, activeWorkflow, nodes],
+    [onNodesChange, activeWorkflow, nodes]
   )
 
   useEffect(() => {
@@ -267,7 +278,7 @@ export function NodeGraphCanvas({
             type: "default",
             style: { stroke: "#e5e7eb", strokeWidth: 2 },
             animated: false,
-          })),
+          }))
         )
     })
     const wf0 = workflowStore.get(activeWorkflow)
@@ -286,7 +297,7 @@ export function NodeGraphCanvas({
             type: "default",
             style: { stroke: "#e5e7eb", strokeWidth: 2 },
             animated: false,
-          })),
+          }))
         )
     }
     const handleError = (event: ErrorEvent) => {
@@ -297,7 +308,11 @@ export function NodeGraphCanvas({
     }
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      if (event.reason?.message?.includes("ResizeObserver loop completed with undelivered notifications")) {
+      if (
+        event.reason?.message?.includes(
+          "ResizeObserver loop completed with undelivered notifications"
+        )
+      ) {
         event.preventDefault()
         return false
       }
@@ -324,14 +339,14 @@ export function NodeGraphCanvas({
         })
       }, 0)
     },
-    [onEdgesChange, activeWorkflow],
+    [onEdgesChange, activeWorkflow]
   )
 
   const onMoveEnd = useCallback(
     (viewport: { x: number; y: number; zoom: number }) => {
       workflowStore.setViewport(activeWorkflow, viewport)
     },
-    [activeWorkflow],
+    [activeWorkflow]
   )
 
   return (

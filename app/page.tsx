@@ -24,7 +24,57 @@ export default function StudioDashboard() {
   const [isConnectOpen, setIsConnectOpen] = useState(false)
   const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "paused">("idle")
   const [queueCount, setQueueCount] = useState(0)
-  const [addNodeCallback, setAddNodeCallback] = useState<(() => void) | null>(null)
+  const handleAddNode = (nodeType: string) => {
+    if (!activeWorkflow) return
+
+    const nodeTypeMap: Record<string, { type: string; title: string; config: any }> = {
+      prompt: {
+        type: "promptNode",
+        title: "Prompt",
+        config: { prompt: "" },
+      },
+      "image-gen": {
+        type: "imageGenNode",
+        title: "Image",
+        config: { model: "black-forest-labs/flux-1-schnell", steps: 30 },
+      },
+      "video-gen": {
+        type: "customNode",
+        title: "Video Gen",
+        config: { duration: 10, fps: 24 },
+      },
+      "background-replace": {
+        type: "customNode",
+        title: "Background Replace",
+        config: { background_prompt: "" },
+      },
+    }
+
+    const nodeConfig = nodeTypeMap[nodeType]
+    if (!nodeConfig) {
+      console.error("[app] Invalid node type:", nodeType)
+      return
+    }
+
+    const wf = workflowStore.get(activeWorkflow)
+    if (wf) {
+      workflowStore.setNodes(activeWorkflow, [
+        ...wf.nodes,
+        {
+          id: `${nodeType}-${Date.now()}`,
+          type: nodeType as any,
+          title: nodeConfig.title,
+          status: "idle" as const,
+          position: {
+            x: Math.random() * 400 + 200,
+            y: Math.random() * 200 + 150,
+          },
+          config: nodeConfig.config,
+          size: { width: 256, height: 0 },
+        },
+      ])
+    }
+  }
 
   const handleRun = () => {
     if (!activeWorkflow) return
@@ -153,7 +203,10 @@ export default function StudioDashboard() {
             <h1 className="text-base font-bold text-rainbow mr-2">atelier</h1>
 
             {activeWorkflow ? (
-              <WorkflowSwitcher activeWorkflow={activeWorkflow} onWorkflowChange={setActiveWorkflow} />
+              <WorkflowSwitcher
+                activeWorkflow={activeWorkflow}
+                onWorkflowChange={setActiveWorkflow}
+              />
             ) : (
               <div className="w-48 h-8 rounded-md bg-muted/50 animate-pulse" />
             )}
@@ -178,7 +231,9 @@ export default function StudioDashboard() {
                 <Badge
                   variant={queueCount > 0 ? "default" : "secondary"}
                   className={`min-w-[18px] h-3.5 flex items-center justify-center px-1 font-mono text-[10px] ${
-                    queueCount > 0 ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+                    queueCount > 0
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {queueCount}
@@ -188,7 +243,7 @@ export default function StudioDashboard() {
           </div>
 
           <div className="flex items-center gap-2 px-4 py-1 rounded-lg bg-muted/30 border border-border/50">
-            {addNodeCallback && <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={addNodeCallback()} />}
+            <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={handleAddNode} />
           </div>
 
           <div className="flex items-center gap-0.5 h-8">
@@ -212,7 +267,7 @@ export default function StudioDashboard() {
                 executionStatus={executionStatus}
                 onStatusChange={setExecutionStatus}
                 queueCount={queueCount}
-                onAddNodeCallbackReady={setAddNodeCallback}
+                onAddNode={handleAddNode}
               />
             )}
           </div>
@@ -222,7 +277,10 @@ export default function StudioDashboard() {
 
         {isMediaManagerOpen && <MediaManager onClose={() => setIsMediaManagerOpen(false)} />}
 
-        <ExecutionQueue isOpen={isExecutionQueueOpen} onClose={() => setIsExecutionQueueOpen(false)} />
+        <ExecutionQueue
+          isOpen={isExecutionQueueOpen}
+          onClose={() => setIsExecutionQueueOpen(false)}
+        />
 
         <ConnectProvider open={isConnectOpen} onOpenChange={setIsConnectOpen} />
       </div>
