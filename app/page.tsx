@@ -11,6 +11,7 @@ import { ExecutionQueue } from "@/components/execution-queue"
 import { ConnectProvider } from "@/components/connect-provider"
 import { CanvasControls } from "@/components/canvas-controls"
 import { AddNodeMenu } from "@/components/add-node-menu"
+import { AddNodeMenuItems } from "@/components/add-node-menu-items"
 import { NODE_TYPES } from "@/lib/nodes/config"
 import { workflowStore } from "@/lib/store/workflows"
 import { workflowEngine } from "@/lib/workflow-engine"
@@ -22,6 +23,9 @@ export default function StudioDashboard() {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false)
   const [isConnectOpen, setIsConnectOpen] = useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(
+    null
+  )
   const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "paused">("idle")
   const [queueCount, setQueueCount] = useState(0)
   const handleAddNode = (nodeType: string) => {
@@ -242,9 +246,7 @@ export default function StudioDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 px-4 py-1 rounded-lg bg-muted/30 border border-border/50">
-            <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={handleAddNode} />
-          </div>
+          <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={handleAddNode} />
 
           <div className="flex items-center gap-0.5 h-8">
             <CanvasControls />
@@ -267,7 +269,7 @@ export default function StudioDashboard() {
                 executionStatus={executionStatus}
                 onStatusChange={setExecutionStatus}
                 queueCount={queueCount}
-                onAddNode={handleAddNode}
+                onCanvasDoubleClick={(pos) => setContextMenuPosition(pos)}
               />
             )}
           </div>
@@ -283,6 +285,29 @@ export default function StudioDashboard() {
         />
 
         <ConnectProvider open={isConnectOpen} onOpenChange={setIsConnectOpen} />
+
+        {/* Context Menu for Add Node (appears on double-click) */}
+        {contextMenuPosition && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setContextMenuPosition(null)} />
+            <div
+              className="fixed z-50 w-64 bg-card/95 backdrop-blur-md border border-border/50 rounded-lg shadow-lg p-1"
+              style={{
+                left: contextMenuPosition.x,
+                top: contextMenuPosition.y,
+              }}
+            >
+              <AddNodeMenuItems
+                nodeTypes={NODE_TYPES}
+                onAdd={(id) => {
+                  handleAddNode(id)
+                  setContextMenuPosition(null)
+                }}
+                variant="context"
+              />
+            </div>
+          </>
+        )}
       </div>
     </ReactFlowProvider>
   )

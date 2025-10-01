@@ -1,4 +1,4 @@
-import { MessageSquare, ImageIcon, Video, Wand2 } from "lucide-react";
+import { MessageSquare, ImageIcon, Video, Wand2 } from "lucide-react"
 
 export const NODE_TYPES = [
   {
@@ -14,16 +14,18 @@ export const NODE_TYPES = [
     description: "Generate images from text prompts",
   },
   // Hidden: Image Edit – Image node covers both txt2img and img2img
-  {
-    id: "video-gen",
-    title: "Video Generation",
-    icon: Video,
-    description: "Create videos from prompts or images",
-  },
-  {
-    id: "background-replace",
-    title: "Background Replace",
-    icon: Wand2,
-    description: "Replace image backgrounds",
-  },
-];
+  // Hidden: Video Gen – not implemented yet
+  // {
+  //   id: "video-gen",
+  //   title: "Video Generation",
+  //   icon: Video,
+  //   description: "Create videos from prompts or images",
+  // },
+  // Hidden: Background Replace – not implemented yet
+  // {
+  //   id: "background-replace",
+  //   title: "Background Replace",
+  //   icon: Wand2,
+  //   description: "Replace image backgrounds",
+  // },
+]

@@ -24,7 +24,7 @@ interface NodeGraphCanvasProps {
   executionStatus?: "idle" | "running" | "paused"
   onStatusChange?: (status: "idle" | "running" | "paused") => void
   queueCount?: number
-  onAddNode?: (nodeType: string) => void
+  onCanvasDoubleClick?: (position: { x: number; y: number }) => void
 }
 
 export function NodeGraphCanvas({
@@ -33,7 +33,7 @@ export function NodeGraphCanvas({
   executionStatus = "idle",
   onStatusChange,
   queueCount = 0,
-  onAddNode,
+  onCanvasDoubleClick,
 }: NodeGraphCanvasProps) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -142,12 +142,6 @@ export function NodeGraphCanvas({
     },
     [setNodes, activeWorkflow]
   )
-
-  useEffect(() => {
-    if (onAddNode) {
-      // Parent handles add node logic now
-    }
-  }, [onAddNode])
 
   const handleRun = () => {
     onExecute?.()
@@ -359,6 +353,7 @@ export function NodeGraphCanvas({
         onEdgesChange={onEdgesChangeHandler}
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
+        onPaneDoubleClick={onCanvasDoubleClick}
       />
     </div>
   )

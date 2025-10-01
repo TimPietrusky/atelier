@@ -19,6 +19,7 @@ export function FlowCanvas({
   onEdgesChange,
   onConnect,
   onMoveEnd,
+  onPaneDoubleClick,
 }: {
   children?: ReactNode
   nodes: any[]
@@ -28,6 +29,7 @@ export function FlowCanvas({
   onEdgesChange: any
   onConnect: any
   onMoveEnd: any
+  onPaneDoubleClick?: (position: { x: number; y: number }) => void
 }) {
   const proOptions = { hideAttribution: true } as const
   return (
@@ -55,6 +57,12 @@ export function FlowCanvas({
       proOptions={proOptions as any}
       colorMode="dark"
       onMoveEnd={(_, viewport) => onMoveEnd(viewport)}
+      onPaneClick={(e: any) => {
+        if (e.detail === 2 && onPaneDoubleClick) {
+          onPaneDoubleClick({ x: e.clientX, y: e.clientY })
+        }
+      }}
+      zoomOnDoubleClick={false}
       onError={() => {}}
     >
       {children}
