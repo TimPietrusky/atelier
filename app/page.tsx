@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ReactFlowProvider, Controls, MiniMap } from "@xyflow/react"
+import { ReactFlowProvider, MiniMap } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Grid3X3 } from "lucide-react"
@@ -10,6 +10,7 @@ import { NodeGraphCanvas } from "@/components/node-graph-canvas"
 import { MediaManager } from "@/components/media-manager"
 import { ExecutionQueue } from "@/components/execution-queue"
 import { ConnectProvider } from "@/components/connect-provider"
+import { CanvasControls } from "@/components/canvas-controls"
 import { workflowStore } from "@/lib/store/workflows"
 import { workflowEngine } from "@/lib/workflow-engine"
 import { getKV, putKV } from "@/lib/store/db"
@@ -153,73 +154,68 @@ export default function StudioDashboard() {
     <ReactFlowProvider>
       <div className="h-screen bg-background text-foreground flex flex-col">
         {/* Top Header */}
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm px-4 py-2 flex items-center gap-3">
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-2 py-1 gap-2">
           {/* Logo */}
-          <h1 className="text-lg font-bold text-rainbow">atelier</h1>
+          <h1 className="text-base font-bold text-rainbow mr-4">atelier</h1>
 
-          {/* Workflow Switcher */}
+          {/* WorkflowSwitcher is now self-contained */}
           {activeWorkflow ? (
-            <WorkflowSwitcher
-              activeWorkflow={activeWorkflow}
-              onWorkflowChange={setActiveWorkflow}
-            />
+            <WorkflowSwitcher activeWorkflow={activeWorkflow} onWorkflowChange={setActiveWorkflow} />
           ) : (
             <div className="w-48 h-8 rounded-md bg-muted/50 animate-pulse" />
           )}
 
-          {/* Run Button */}
-          <Button
-            onClick={handleRun}
-            className="h-8 px-3 font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
-          >
-            run
-          </Button>
+          <div className="h-5 w-px bg-border/50" />
 
-          {/* Queue Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsExecutionQueueOpen(!isExecutionQueueOpen)}
-            className="h-8 gap-2 border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300"
-          >
-            <span>queue</span>
-            <Badge
-              variant={queueCount > 0 ? "default" : "secondary"}
-              className={`min-w-[20px] h-4 flex items-center justify-center px-1 font-mono text-xs ${
-                queueCount > 0
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-muted text-muted-foreground"
-              }`}
+          <div className="flex items-center gap-1.5">
+            {/* Run Button */}
+            <Button
+              onClick={handleRun}
+              className="h-8 px-3 text-sm font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
             >
-              {queueCount}
-            </Badge>
-          </Button>
+              run
+            </Button>
+
+            {/* Queue Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsExecutionQueueOpen(!isExecutionQueueOpen)}
+              className="h-8 gap-1.5 px-3 text-sm border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300"
+            >
+              <span>queue</span>
+              <Badge
+                variant={queueCount > 0 ? "default" : "secondary"}
+                className={`min-w-[18px] h-3.5 flex items-center justify-center px-1 font-mono text-[10px] ${
+                  queueCount > 0 ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {queueCount}
+              </Badge>
+            </Button>
+          </div>
+
+          <div className="h-5 w-px bg-border/50" />
 
           {/* Add Node Button */}
           <Button
             onClick={() => setIsAddNodeModalOpen(true)}
             variant="outline"
             size="sm"
-            className="h-8 gap-2 border-border/50 hover:border-white/70 hover:bg-white/10 transition-all duration-200"
+            className="h-8 gap-1.5 px-3 text-sm border-border/50 hover:border-white/70 hover:bg-white/10 hover:text-white transition-all duration-200"
           >
             <span>add node</span>
-            <Grid3X3 className="w-3.5 h-3.5" />
+            <Grid3X3 className="w-3 h-3" />
           </Button>
 
-          {/* Spacer */}
-          <div className="flex-1" />
-
           {/* ReactFlow Controls in Header */}
-          <div className="flex items-end gap-3">
-            <Controls
-              className="bg-background/90 backdrop-blur-sm border border-border/50 rounded-md [&>button]:text-foreground [&>button]:hover:bg-muted [&>button]:bg-transparent [&>button]:border-border/50 [&>button>svg]:text-foreground"
-              style={{ position: "static", height: "auto" }}
-              showInteractive={false}
-            />
+          <div className="flex items-center gap-0.5 ml-auto h-8">
+            <CanvasControls />
             <MiniMap
-              className="bg-card/90 backdrop-blur-sm border border-border/50 rounded-md"
+              className="bg-card/90 backdrop-blur-sm rounded-md"
               nodeColor="#ff0080"
-              style={{ position: "static", width: 120, height: 80 }}
+              maskColor="rgba(0, 0, 0, 0.6)"
+              style={{ position: "static", width: 75, height: 32 }}
             />
           </div>
         </header>
@@ -249,10 +245,7 @@ export default function StudioDashboard() {
         {isMediaManagerOpen && <MediaManager onClose={() => setIsMediaManagerOpen(false)} />}
 
         {/* Execution Queue Overlay */}
-        <ExecutionQueue
-          isOpen={isExecutionQueueOpen}
-          onClose={() => setIsExecutionQueueOpen(false)}
-        />
+        <ExecutionQueue isOpen={isExecutionQueueOpen} onClose={() => setIsExecutionQueueOpen(false)} />
 
         {/* Connect Provider */}
         <ConnectProvider open={isConnectOpen} onOpenChange={setIsConnectOpen} />
