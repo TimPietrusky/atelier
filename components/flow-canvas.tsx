@@ -73,7 +73,7 @@ export function FlowCanvas({
       >
         <div className="flex items-stretch gap-1.5">
           <Controls
-            className="bg-background/90 backdrop-blur-sm border border-border/0 [&>button]:text-foreground [&>button]:hover:bg-muted [&>button]:bg-transparent [&>button]:border-0 [&>button>svg]:text-foreground [&>button]:w-2 [&>button]:h-2 [&>button]:p-0 [&>button>svg]:w-3 [&>button>svg]:h-3 grid grid-cols-2 gap-0 p-0.5"
+            className="backdrop-blur-sm border-border/0 [&>button]:text-foreground [&>button]:hover:bg-muted [&>button]:bg-transparent [&>button]:border-0 [&>button>svg]:text-foreground [&>button]:w-2 [&>button]:h-2 [&>button]:p-0 [&>button>svg]:w-3 [&>button>svg]:h-3 grid grid-cols-2 gap-0 p-0.5 bg-transparent px-0 py-0 border-0"
             style={{ position: "static", height: "auto" }}
             showZoom={true}
             showFitView={true}
