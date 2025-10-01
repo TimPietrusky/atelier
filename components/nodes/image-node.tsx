@@ -15,12 +15,22 @@ import { NodeContainer, NodeHeader, NodeContent, NodeSettings } from "@/componen
 import { getImageModelMeta } from "@/lib/config"
 import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb"
 
-export function ImageNode({ data, id, selected }: { data: any; id: string; selected?: boolean }) {
+export function ImageNode({
+  data,
+  id,
+  selected,
+  width,
+}: {
+  data: any
+  id: string
+  selected?: boolean
+  width?: number
+}) {
   const [model, setModel] = useState(data.config?.model || "black-forest-labs/flux-1-schnell")
   const meta = getImageModelMeta(model)
   const [isExpanded, setIsExpanded] = useState(false)
   const [showMeta, setShowMeta] = useState(false)
-  const [nodeWidth, setNodeWidth] = useState(256)
+  const nodeWidth = width || 256
   const containerRef = useRef<HTMLDivElement>(null)
 
   const imageHistory: string[] = (data?.resultHistory || [])
@@ -30,21 +40,22 @@ export function ImageNode({ data, id, selected }: { data: any; id: string; selec
 
   const isRunning = data.status === "running"
 
-  // Calculate grid columns based on node width: 2 cols at 256px, up to 5 cols max
-  const gridCols = Math.min(5, Math.max(2, Math.floor(nodeWidth / 128)))
+  // Calculate grid columns based on node width: responsive scaling from 2-5 cols
+  // After 5 cols, images naturally grow bigger as the node expands
+  const getGridCols = (width: number) => {
+    // Account for padding (p-3 = 24px total horizontal padding)
+    const contentWidth = width - 24
+    if (contentWidth < 280) return 2 // ~304px node width
+    if (contentWidth < 360) return 3 // ~384px node width
+    if (contentWidth < 440) return 4 // ~464px node width
+    return 5 // 464px+ node width
+  }
+  const gridCols = getGridCols(nodeWidth)
 
+  // Debug: log width changes (remove after testing)
   useEffect(() => {
-    if (containerRef.current) {
-      const updateWidth = () => {
-        const width = containerRef.current?.offsetWidth || 256
-        setNodeWidth(width)
-      }
-      updateWidth()
-      const observer = new ResizeObserver(updateWidth)
-      observer.observe(containerRef.current)
-      return () => observer.disconnect()
-    }
-  }, [])
+    console.log("[ImageNode] Width:", nodeWidth, "Cols:", gridCols)
+  }, [nodeWidth, gridCols])
   const [localImage, setLocalImage] = useState<string | undefined>(
     data.config?.localImage || undefined
   )
@@ -159,42 +170,42 @@ export function ImageNode({ data, id, selected }: { data: any; id: string; selec
       />
 
       <NodeContent>
-        {mode !== "uploaded" && (
-          <div className="bg-muted/30 rounded-md px-2 border border-border/30">
-            <Select
-              value={model}
-              onValueChange={(v) => {
-                setModel(v)
-                if (data?.onChange) data.onChange({ model: v })
-              }}
-            >
-              <SelectTrigger className="w-full h-7 text-sm border-none bg-transparent p-0 hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="black-forest-labs/flux-1-schnell">FLUX 1 Schnell</SelectItem>
-                <SelectItem value="black-forest-labs/flux-1-dev">FLUX 1 Dev</SelectItem>
-                <SelectItem value="black-forest-labs/flux-1-kontext-dev">
-                  FLUX 1 Kontext Dev
-                </SelectItem>
-                <SelectItem value="bytedance/seedream-3.0">Seedream 3.0</SelectItem>
-                <SelectItem value="bytedance/seedream-4.0">Seedream 4.0</SelectItem>
-                <SelectItem value="bytedance/seedream-4.0-edit">Seedream 4.0 Edit</SelectItem>
-                <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
-                <SelectItem value="qwen/qwen-image-edit">Qwen Image Edit</SelectItem>
-              </SelectContent>
-            </Select>
-            {data?.hasImageInput && meta && meta.kind !== "img2img" && (
-              <div className="mt-1 text-[10px] text-muted-foreground">
-                An input image is connected — consider selecting an edit model.
-              </div>
-            )}
-          </div>
-        )}
+        {/* Fixed section: Model selector and header - doesn't scroll */}
+        <div className="space-y-2 flex-shrink-0">
+          {mode !== "uploaded" && (
+            <div className="bg-muted/30 rounded-md px-2 border border-border/30">
+              <Select
+                value={model}
+                onValueChange={(v) => {
+                  setModel(v)
+                  if (data?.onChange) data.onChange({ model: v })
+                }}
+              >
+                <SelectTrigger className="w-full h-7 text-sm border-none bg-transparent p-0 hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="black-forest-labs/flux-1-schnell">FLUX 1 Schnell</SelectItem>
+                  <SelectItem value="black-forest-labs/flux-1-dev">FLUX 1 Dev</SelectItem>
+                  <SelectItem value="black-forest-labs/flux-1-kontext-dev">
+                    FLUX 1 Kontext Dev
+                  </SelectItem>
+                  <SelectItem value="bytedance/seedream-3.0">Seedream 3.0</SelectItem>
+                  <SelectItem value="bytedance/seedream-4.0">Seedream 4.0</SelectItem>
+                  <SelectItem value="bytedance/seedream-4.0-edit">Seedream 4.0 Edit</SelectItem>
+                  <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
+                  <SelectItem value="qwen/qwen-image-edit">Qwen Image Edit</SelectItem>
+                </SelectContent>
+              </Select>
+              {data?.hasImageInput && meta && meta.kind !== "img2img" && (
+                <div className="mt-1 text-[10px] text-muted-foreground">
+                  An input image is connected — consider selecting an edit model.
+                </div>
+              )}
+            </div>
+          )}
 
-        {imageHistory.length > 0 && (
-          <div className="space-y-2">
-            {/* Clear All Button */}
+          {imageHistory.length > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
                 {imageHistory.length} image
@@ -213,8 +224,12 @@ export function ImageNode({ data, id, selected }: { data: any; id: string; selec
                 Clear All
               </Button>
             </div>
+          )}
+        </div>
 
-            {/* Image Grid */}
+        {/* Scrollable section: Image grid only */}
+        {imageHistory.length > 0 && (
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
             <div
               className={`grid gap-2`}
               style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}

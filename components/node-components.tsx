@@ -100,9 +100,7 @@ interface NodeContentProps {
 }
 
 export function NodeContent({ children }: NodeContentProps) {
-  return (
-    <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden min-h-0">{children}</div>
-  )
+  return <div className="flex-1 flex flex-col gap-2 overflow-hidden min-h-0">{children}</div>
 }
 
 interface NodeSettingsProps {
