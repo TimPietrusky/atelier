@@ -2,9 +2,20 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { WorkflowIcon, MoreVertical, Pencil, Plus } from "lucide-react"
@@ -18,6 +29,7 @@ interface WorkflowSwitcherProps {
 
 export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowSwitcherProps) {
   const [workflows, setWorkflows] = useState<WorkflowDoc[]>([])
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false)
   const [newWorkflowName, setNewWorkflowName] = useState("")
@@ -87,7 +99,7 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
 
       <div className="h-5 w-px bg-border/50" />
 
-      <DropdownMenu>
+      <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
@@ -98,11 +110,21 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
+          <DropdownMenuItem
+            onClick={() => {
+              setIsDropdownOpen(false)
+              setIsCreateDialogOpen(true)
+            }}
+          >
             <Plus className="w-4 h-4 mr-2" />
             new
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleOpenRenameDialog}>
+          <DropdownMenuItem
+            onClick={() => {
+              setIsDropdownOpen(false)
+              handleOpenRenameDialog()
+            }}
+          >
             <Pencil className="w-4 h-4 mr-2" />
             rename
           </DropdownMenuItem>
