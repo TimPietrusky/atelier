@@ -182,7 +182,7 @@ export class WorkflowEngine {
     // Keep a live snapshot for resolution of inputs across nodes
     this.runtimeNodesByWorkflow.set(
       execution.workflowId,
-      ordered.map((n) => ({ ...n })),
+      ordered.map((n) => ({ ...n }))
     )
 
     const totalSteps = ordered.length
@@ -225,7 +225,7 @@ export class WorkflowEngine {
       // Update live snapshot
       this.runtimeNodesByWorkflow.set(
         execution.workflowId,
-        ordered.map((n) => ({ ...n })),
+        ordered.map((n) => ({ ...n }))
       )
 
       // Zustand/Dexie persistence handled by store actions; nothing to do here
@@ -323,8 +323,8 @@ export class WorkflowEngine {
           typeof node.config?.localImageRef === "string"
             ? { kind: "idb", blobKey: String(node.config.localImageRef) }
             : node.config?.localImage
-              ? { kind: "url", url: String(node.config.localImage) }
-              : undefined,
+            ? { kind: "url", url: String(node.config.localImage) }
+            : undefined,
         metadata: {
           timestamp: new Date().toISOString(),
           inputsUsed: { mode: "local", source: "user" },
@@ -363,12 +363,18 @@ export class WorkflowEngine {
         targetHandle?: string
       }> = (wf?.edges as any[]) || []
       const incoming = edges.filter((e) => e.target === node.id)
-      const sourceNodes = incoming.map((e) => (liveNodes || []).find((n: any) => n.id === e.source)).filter(Boolean)
+      const sourceNodes = incoming
+        .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
+        .filter(Boolean)
       const pNode = sourceNodes
         .slice()
         .sort((a: any, b: any) => {
-          const at = a.result?.metadata?.timestamp ? new Date(a.result.metadata.timestamp).getTime() : 0
-          const bt = b.result?.metadata?.timestamp ? new Date(b.result.metadata.timestamp).getTime() : 0
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0
           return bt - at
         })
         .find((n: any) => n.type === "prompt")
@@ -382,18 +388,28 @@ export class WorkflowEngine {
       let imageCandidates = incoming
         .filter((e) => e.targetHandle === "image-input")
         .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
-        .filter(Boolean) as any[]
+        .filter(
+          (n: any) =>
+            n && (n.type === "image-gen" || n.type === "image-edit") && n.result?.type === "image"
+        ) as any[]
       if (imageCandidates.length === 0) {
         imageCandidates = sourceNodes.filter(
-          (n: any) => (n.type === "image-gen" || n.type === "image-edit") && n.result?.type === "image",
+          (n: any) =>
+            (n.type === "image-gen" || n.type === "image-edit") && n.result?.type === "image"
         ) as any[]
       }
+
       if (imageCandidates.length > 0) {
         const latest = imageCandidates.slice().sort((a: any, b: any) => {
-          const at = a.result?.metadata?.timestamp ? new Date(a.result.metadata.timestamp).getTime() : 0
-          const bt = b.result?.metadata?.timestamp ? new Date(b.result.metadata.timestamp).getTime() : 0
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0
           return bt - at
         })[0]
+
         // Prefer resolving from AssetRef at request-time
         const ref: AssetRef | undefined = latest?.result?.assetRef
         if (ref) {
@@ -536,8 +552,8 @@ export class WorkflowEngine {
           typeof node.config?.localImageRef === "string"
             ? { kind: "idb", blobKey: String(node.config.localImageRef) }
             : node.config?.localImage
-              ? { kind: "url", url: String(node.config.localImage) }
-              : undefined,
+            ? { kind: "url", url: String(node.config.localImage) }
+            : undefined,
         metadata: {
           timestamp: new Date().toISOString(),
           inputsUsed: { mode: "local", source: "user" },
@@ -574,12 +590,18 @@ export class WorkflowEngine {
         targetHandle?: string
       }> = (wf?.edges as any[]) || []
       const incoming = edges.filter((e) => e.target === node.id)
-      const sourceNodes = incoming.map((e) => (liveNodes || []).find((n: any) => n.id === e.source)).filter(Boolean)
+      const sourceNodes = incoming
+        .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
+        .filter(Boolean)
       const promptNode = sourceNodes
         .slice()
         .sort((a: any, b: any) => {
-          const at = a.result?.metadata?.timestamp ? new Date(a.result.metadata.timestamp).getTime() : 0
-          const bt = b.result?.metadata?.timestamp ? new Date(b.result.metadata.timestamp).getTime() : 0
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0
           return bt - at
         })
         .find((n: any) => n.type === "prompt")
@@ -597,13 +619,18 @@ export class WorkflowEngine {
         .filter(Boolean) as any[]
       if (imageCandidates.length === 0) {
         imageCandidates = sourceNodes.filter(
-          (n: any) => (n.type === "image-gen" || n.type === "image-edit") && n.result?.type === "image",
+          (n: any) =>
+            (n.type === "image-gen" || n.type === "image-edit") && n.result?.type === "image"
         ) as any[]
       }
       if (imageCandidates.length > 0) {
         const latest = imageCandidates.slice().sort((a: any, b: any) => {
-          const at = a.result?.metadata?.timestamp ? new Date(a.result.metadata.timestamp).getTime() : 0
-          const bt = b.result?.metadata?.timestamp ? new Date(b.result.metadata.timestamp).getTime() : 0
+          const at = a.result?.metadata?.timestamp
+            ? new Date(a.result.metadata.timestamp).getTime()
+            : 0
+          const bt = b.result?.metadata?.timestamp
+            ? new Date(b.result.metadata.timestamp).getTime()
+            : 0
           return bt - at
         })[0]
         // Resolve from AssetRef when possible
@@ -630,7 +657,7 @@ export class WorkflowEngine {
           "sourceNodes",
           (wf?.edges || [])
             .filter((e: any) => e.target === node.id)
-            .map((e: any) => (liveNodes || wf?.nodes || []).find((n: any) => n.id === e.source)),
+            .map((e: any) => (liveNodes || wf?.nodes || []).find((n: any) => n.id === e.source))
         )
         console.log("resolved prompt", prompt)
         console.log("resolved inputImageUrl", inputImageUrl)
@@ -830,7 +857,7 @@ export class WorkflowEngine {
   getActiveJobsCount(): number {
     // Returns count of queued + running jobs
     const runningCount = Array.from(this.executions.values()).filter(
-      (e) => e.status === "running" || e.status === "queued",
+      (e) => e.status === "running" || e.status === "queued"
     ).length
     return runningCount
   }

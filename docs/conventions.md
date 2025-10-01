@@ -12,19 +12,20 @@ This doc orients anyone working in this codebase. It captures the architectural 
 ## Architecture
 
 - **Next.js App Router**: API routes under `app/api/*`, UI in `app/*`.
-- **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`).
-- **State**: Zustand store for app metadata and workflows.
-- **Persistence**: Dexie (IndexedDB) for metadata via a store→Dexie bridge; OPFS/FS Access for large assets; Dexie blobs as fallback. Do not store originals in `localStorage`.
+- **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`) wrapped with `ReactFlowProvider` at app root to enable Controls/MiniMap in header.
+- **State**: Zustand store (`lib/store/workflows-zustand.ts`) for in-memory workflows; compat wrapper (`lib/store/workflows.ts`) maintains old API.
+- **Persistence**: Dexie (IndexedDB) for metadata via store→Dexie bridge (`lib/store/db.ts`); OPFS/FS Access for large assets (planned); Dexie blobs as fallback. Do not store originals in `localStorage`.
 - **Workflow engine**: `lib/workflow-engine.ts` handles queueing, topological sort, per-node execution, status updates, and result propagation.
 - **RunPod provider adapter**: `lib/providers/runpod.ts`—the single place that speaks to `@runpod/ai-sdk-provider`.
 
 ## Persistence conventions
 
 - All user-facing graph state must persist:
-  - Nodes, edges, and viewport via `workflowStore.setNodes/setEdges/setViewport`.
+  - Nodes (including `resultHistory`), edges, and viewport via `workflowStore.setNodes/setEdges/setViewport`.
   - Node config changes via `workflowStore.updateNodeConfig`.
-  - Node results via `workflowStore.updateNodeResult`.
+  - Node results via `workflowStore.updateNodeResult(workflowId, nodeId, result, resultHistory)` — merges incoming history with existing to preserve all generations.
 - Metadata is persisted via Dexie; writes are batched and transactional.
+- Zustand `set()` must return new object references (immutable updates) to trigger subscribers; avoid direct mutation.
 - Seed default workflows on the client only (avoid SSR hydration mismatch).
 - Media assets (images/videos):
   - Store originals via OPFS (Origin Private File System) under an app-scoped directory, or in a user-selected folder through File System Access; persist only an `AssetRef` in metadata.
@@ -80,7 +81,8 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Images render inline in the Image node (no separate output node required).
 - The historical "Output" node is removed for now to keep code lean. Reintroduce later if we add sinks (export/webhook/publish).
 - Remove visual noise (no animated edges; no round status dot in titles).
-- Run button is stateless; queue count in footer updates instantly.
+- Run button is stateless; queue count updates instantly.
+- ReactFlow Controls and MiniMap live in the app header; entire app wrapped with `ReactFlowProvider`.
 - Image node:
   - Model selector includes edit models.
   - “Load image” writes originals to OPFS (or user folder via FS Access). The node stores only an `AssetRef` to the file; small previews may be cached as data URLs.
@@ -153,16 +155,20 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Add to `IMAGE_MODELS` in `lib/config.ts` with correct `id`, `kind` (txt2img | img2img), supported aspect ratios, optional `sizesByRatio`, and `supportsGuidance`.
 - Expose it in the Image node selector (include both base and edit variants when available).
 
-## Do / Don’t
+## Do / Don't
 
 - Do persist node/edge/viewport changes via `workflowStore` methods.
+- Do use immutable updates in Zustand `set()` — return new objects, never mutate `s.workflows[id]` directly.
+- Do merge `resultHistory` when updating node results to preserve all generations across queue runs.
 - Do use `providerOptions.runpod.images` for img2img; keep logs sanitized.
 - Do reset node statuses before runs and update status during execution.
 - Do store originals in OPFS or via FS Access and reference them with `AssetRef`.
-- Don’t auto-switch models in the engine—let users pick (but hint in UI).
-- Don’t send unsupported params (e.g., guidance for Seedream; undefined seed).
-- Don’t use raw `fetch` to RunPod model endpoints—always go through the provider adapter.
-- Don’t persist large base64 media in JSON/localStorage.
+- Do control DropdownMenu state explicitly; close it before opening dialogs to avoid lingering `pointer-events: none` on body.
+- Don't auto-switch models in the engine—let users pick (but hint in UI).
+- Don't send unsupported params (e.g., guidance for Seedream; undefined seed).
+- Don't use raw `fetch` to RunPod model endpoints—always go through the provider adapter.
+- Don't persist large base64 media in JSON/localStorage.
+- Don't filter image inputs by handle alone; always validate node type and result type to avoid accepting text as images.
 
 ## Quick glossary
 

@@ -1,85 +1,66 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { ImageIcon, ImagePlus, X, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react"
+import { ImageIcon, ImagePlus, X, Trash2 } from "lucide-react"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  NodeContainer,
-  NodeHeader,
-  NodeContent,
-  NodeSettings,
-} from "@/components/node-components";
-import { getImageModelMeta } from "@/lib/config";
-import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb";
+} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { NodeContainer, NodeHeader, NodeContent, NodeSettings } from "@/components/node-components"
+import { getImageModelMeta } from "@/lib/config"
+import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb"
 
-export function ImageNode({
-  data,
-  id,
-  selected,
-}: {
-  data: any;
-  id: string;
-  selected?: boolean;
-}) {
-  const [model, setModel] = useState(
-    data.config?.model || "black-forest-labs/flux-1-schnell"
-  );
-  const meta = getImageModelMeta(model);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showMeta, setShowMeta] = useState(false);
+export function ImageNode({ data, id, selected }: { data: any; id: string; selected?: boolean }) {
+  const [model, setModel] = useState(data.config?.model || "black-forest-labs/flux-1-schnell")
+  const meta = getImageModelMeta(model)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [showMeta, setShowMeta] = useState(false)
+
   const imageHistory: string[] = (data?.resultHistory || [])
     .filter((r: any) => r.type === "image")
     .map((r: any) => r.data)
-    .reverse(); // Most recent first
-  const isRunning = data.status === "running";
+    .reverse() // Most recent first
+
+  const isRunning = data.status === "running"
   const [localImage, setLocalImage] = useState<string | undefined>(
     data.config?.localImage || undefined
-  );
+  )
   const mode: string =
     data.config?.mode ||
-    (data.config?.localImageRef || data.config?.localImage
-      ? "uploaded"
-      : "generate");
+    (data.config?.localImageRef || data.config?.localImage ? "uploaded" : "generate")
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    let cancelled = false
+    ;(async () => {
       try {
-        if (
-          !localImage &&
-          data.config?.localImageRef &&
-          typeof indexedDB !== "undefined"
-        ) {
-          const url = await idbGetImage(data.config.localImageRef);
-          if (!cancelled && url) setLocalImage(url);
+        if (!localImage && data.config?.localImageRef && typeof indexedDB !== "undefined") {
+          const url = await idbGetImage(data.config.localImageRef)
+          if (!cancelled && url) setLocalImage(url)
         } else if (
           data.config?.localImage &&
           !data.config?.localImageRef &&
           typeof indexedDB !== "undefined"
         ) {
-          const key = `img_${id}`;
-          await idbPutImage(key, data.config.localImage);
-          if (!cancelled) setLocalImage(data.config.localImage);
+          const key = `img_${id}`
+          await idbPutImage(key, data.config.localImage)
+          if (!cancelled) setLocalImage(data.config.localImage)
           data?.onChange?.({
             localImageRef: key,
             localImage: undefined,
             mode: "uploaded",
-          });
+          })
         }
       } catch {}
-    })();
+    })()
     return () => {
-      cancelled = true;
-    };
-  }, [id, data.config?.localImageRef, data.config?.localImage]);
+      cancelled = true
+    }
+  }, [id, data.config?.localImageRef, data.config?.localImage])
 
   const metaData = {
     id,
@@ -94,7 +75,7 @@ export function ImageNode({
     inputs: data.result?.metadata?.inputsUsed,
     config: data.config,
     result: data.result,
-  };
+  }
 
   const imageUploadAction = (
     <label className="h-6 w-6 p-0 flex items-center justify-center cursor-pointer hover:bg-accent/20 rounded">
@@ -103,34 +84,34 @@ export function ImageNode({
         accept="image/*"
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const reader = new FileReader();
+          const file = e.target.files?.[0]
+          if (!file) return
+          const reader = new FileReader()
           reader.onload = async () => {
-            const url = String(reader.result);
-            setLocalImage(url);
+            const url = String(reader.result)
+            setLocalImage(url)
             try {
               if (typeof indexedDB !== "undefined") {
-                const key = `img_${id}`;
-                await idbPutImage(key, url);
+                const key = `img_${id}`
+                await idbPutImage(key, url)
                 data?.onChange?.({
                   localImageRef: key,
                   localImage: undefined,
                   mode: "uploaded",
-                });
+                })
               } else {
-                data?.onChange?.({ localImage: url, mode: "uploaded" });
+                data?.onChange?.({ localImage: url, mode: "uploaded" })
               }
             } catch {
-              data?.onChange?.({ localImage: url, mode: "uploaded" });
+              data?.onChange?.({ localImage: url, mode: "uploaded" })
             }
-          };
-          reader.readAsDataURL(file);
+          }
+          reader.readAsDataURL(file)
         }}
       />
       <ImagePlus className="w-4 h-4 text-white" />
     </label>
-  );
+  )
 
   return (
     <NodeContainer
@@ -164,36 +145,24 @@ export function ImageNode({
             <Select
               value={model}
               onValueChange={(v) => {
-                setModel(v);
-                if (data?.onChange) data.onChange({ model: v });
+                setModel(v)
+                if (data?.onChange) data.onChange({ model: v })
               }}
             >
               <SelectTrigger className="w-full h-7 text-sm border-none bg-transparent p-0 hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="black-forest-labs/flux-1-schnell">
-                  FLUX 1 Schnell
-                </SelectItem>
-                <SelectItem value="black-forest-labs/flux-1-dev">
-                  FLUX 1 Dev
-                </SelectItem>
+                <SelectItem value="black-forest-labs/flux-1-schnell">FLUX 1 Schnell</SelectItem>
+                <SelectItem value="black-forest-labs/flux-1-dev">FLUX 1 Dev</SelectItem>
                 <SelectItem value="black-forest-labs/flux-1-kontext-dev">
                   FLUX 1 Kontext Dev
                 </SelectItem>
-                <SelectItem value="bytedance/seedream-3.0">
-                  Seedream 3.0
-                </SelectItem>
-                <SelectItem value="bytedance/seedream-4.0">
-                  Seedream 4.0
-                </SelectItem>
-                <SelectItem value="bytedance/seedream-4.0-edit">
-                  Seedream 4.0 Edit
-                </SelectItem>
+                <SelectItem value="bytedance/seedream-3.0">Seedream 3.0</SelectItem>
+                <SelectItem value="bytedance/seedream-4.0">Seedream 4.0</SelectItem>
+                <SelectItem value="bytedance/seedream-4.0-edit">Seedream 4.0 Edit</SelectItem>
                 <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
-                <SelectItem value="qwen/qwen-image-edit">
-                  Qwen Image Edit
-                </SelectItem>
+                <SelectItem value="qwen/qwen-image-edit">Qwen Image Edit</SelectItem>
               </SelectContent>
             </Select>
             {data?.hasImageInput && meta && meta.kind !== "img2img" && (
@@ -217,7 +186,7 @@ export function ImageNode({
                 size="sm"
                 className="h-6 px-2 text-xs text-destructive hover:text-destructive"
                 onClick={() => {
-                  data?.onChange?.({ result: undefined, resultHistory: [] });
+                  data?.onChange?.({ result: undefined, resultHistory: [] })
                 }}
                 title="Clear all images"
               >
@@ -243,16 +212,14 @@ export function ImageNode({
                     size="sm"
                     className="absolute top-1 right-1 h-6 w-6 p-0 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => {
-                      const newHistory = [...(data.resultHistory || [])];
-                      newHistory.splice(imageHistory.length - 1 - idx, 1);
+                      const newHistory = [...(data.resultHistory || [])]
+                      newHistory.splice(imageHistory.length - 1 - idx, 1)
                       const newResult =
-                        newHistory.length > 0
-                          ? newHistory[newHistory.length - 1]
-                          : undefined;
+                        newHistory.length > 0 ? newHistory[newHistory.length - 1] : undefined
                       data?.onChange?.({
                         result: newResult,
                         resultHistory: newHistory,
-                      });
+                      })
                     }}
                     title="Remove this image"
                   >
@@ -280,22 +247,19 @@ export function ImageNode({
               size="sm"
               className="absolute top-2 right-2 h-6 w-6 p-0 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={() => {
-                (async () => {
+                ;(async () => {
                   try {
-                    if (
-                      data.config?.localImageRef &&
-                      typeof indexedDB !== "undefined"
-                    ) {
-                      await idbDeleteImage(data.config.localImageRef);
+                    if (data.config?.localImageRef && typeof indexedDB !== "undefined") {
+                      await idbDeleteImage(data.config.localImageRef)
                     }
                   } catch {}
-                  setLocalImage(undefined);
+                  setLocalImage(undefined)
                   data?.onChange?.({
                     localImage: undefined,
                     localImageRef: undefined,
                     mode: "generate",
-                  });
-                })();
+                  })
+                })()
               }}
               title="Remove image"
             >
@@ -327,9 +291,7 @@ export function ImageNode({
               min="1"
               max="150"
               className="h-6 text-xs"
-              onChange={(e) =>
-                data?.onChange?.({ steps: Number(e.target.value) })
-              }
+              onChange={(e) => data?.onChange?.({ steps: Number(e.target.value) })}
             />
           </div>
           {meta?.supportsGuidance && (
@@ -342,9 +304,7 @@ export function ImageNode({
                 min="1"
                 max="20"
                 className="h-6 text-xs"
-                onChange={(e) =>
-                  data?.onChange?.({ guidance: Number(e.target.value) })
-                }
+                onChange={(e) => data?.onChange?.({ guidance: Number(e.target.value) })}
               />
             </div>
           )}
@@ -353,8 +313,8 @@ export function ImageNode({
             <Select
               defaultValue="1024x1024"
               onValueChange={(v) => {
-                const [w, h] = v.split("x").map(Number);
-                data?.onChange?.({ width: w, height: h });
+                const [w, h] = v.split("x").map(Number)
+                data?.onChange?.({ width: w, height: h })
               }}
             >
               <SelectTrigger className="h-6 text-xs">
@@ -375,13 +335,11 @@ export function ImageNode({
               type="number"
               placeholder="Random"
               className="h-6 text-xs"
-              onChange={(e) =>
-                data?.onChange?.({ seed: Number(e.target.value) })
-              }
+              onChange={(e) => data?.onChange?.({ seed: Number(e.target.value) })}
             />
           </div>
         </NodeSettings>
       </NodeContent>
     </NodeContainer>
-  );
+  )
 }

@@ -108,6 +108,7 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
           size: n.size,
           config: n.config,
           result: n.result,
+          resultHistory: n.resultHistory,
         })),
         edges: (wf.edges as any).map((e: any) => ({
           id: e.id,
@@ -140,6 +141,7 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
             size: n.size,
             config: n.config,
             result: n.result,
+            resultHistory: n.resultHistory,
           })),
           edges: (wf.edges as any).map((e: any) => ({
             id: e.id,
@@ -254,26 +256,40 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
   updateNodeResult(workflowId, nodeId, result, resultHistory) {
     set((s) => {
       const doc = s.workflows[workflowId]
-      if (!doc) return {} as any
-      const nodes = doc.nodes.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              result,
-              resultHistory: resultHistory || n.resultHistory,
-              status: "complete",
-            }
-          : n
-      )
+      if (!doc) return s
+      const nodes = doc.nodes.map((n) => {
+        if (n.id !== nodeId) return n
+
+        // Merge resultHistory: append new items to existing history
+        const existingHistory = n.resultHistory || []
+        const incomingHistory = resultHistory || []
+        const mergedHistory = [...existingHistory]
+
+        // Append only new items (check by comparing result data to avoid duplicates)
+        incomingHistory.forEach((newItem: any) => {
+          const isDuplicate = existingHistory.some(
+            (existing: any) => existing.data === newItem.data && existing.type === newItem.type
+          )
+          if (!isDuplicate) {
+            mergedHistory.push(newItem)
+          }
+        })
+
+        return {
+          ...n,
+          result,
+          resultHistory: mergedHistory,
+          status: "complete",
+        }
+      })
       const next = {
         ...doc,
         nodes,
         updatedAt: Date.now(),
         version: (doc.version || 0) + 1,
       }
-      ;(s.workflows as any)[workflowId] = next
       void persistGraph(next)
-      return { workflows: { ...s.workflows } } as any
+      return { workflows: { ...s.workflows, [workflowId]: next } }
     })
   },
   updateNodeStatus(workflowId, nodeId, status) {

@@ -174,6 +174,7 @@ export function NodeGraphCanvas({
         onChange: (cfg: Record<string, any>) =>
           workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
         result: n.result,
+        resultHistory: n.resultHistory,
       },
     }),
     [activeWorkflow]

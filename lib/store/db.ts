@@ -18,6 +18,7 @@ export interface DBNodeRow {
   size?: { width: number; height: number }
   config?: Record<string, any>
   result?: any
+  resultHistory?: any[]
   updatedAt: number
 }
 
