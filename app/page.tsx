@@ -4,13 +4,14 @@ import { useEffect, useState } from "react"
 import { ReactFlowProvider, MiniMap } from "@xyflow/react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Grid3X3 } from "lucide-react"
 import { WorkflowSwitcher } from "@/components/workflow-switcher"
 import { NodeGraphCanvas } from "@/components/node-graph-canvas"
 import { MediaManager } from "@/components/media-manager"
 import { ExecutionQueue } from "@/components/execution-queue"
 import { ConnectProvider } from "@/components/connect-provider"
 import { CanvasControls } from "@/components/canvas-controls"
+import { AddNodeMenu } from "@/components/add-node-menu"
+import { NODE_TYPES } from "@/lib/nodes/config"
 import { workflowStore } from "@/lib/store/workflows"
 import { workflowEngine } from "@/lib/workflow-engine"
 import { getKV, putKV } from "@/lib/store/db"
@@ -21,18 +22,16 @@ export default function StudioDashboard() {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false)
   const [isConnectOpen, setIsConnectOpen] = useState(false)
-  const [isAddNodeModalOpen, setIsAddNodeModalOpen] = useState(false)
   const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "paused">("idle")
   const [queueCount, setQueueCount] = useState(0)
+  const [addNodeCallback, setAddNodeCallback] = useState<(() => void) | null>(null)
 
   const handleRun = () => {
     if (!activeWorkflow) return
     const wf = workflowStore.get(activeWorkflow)
     if (wf) {
       workflowEngine.executeWorkflow(wf.id, wf.nodes)
-      // update immediately after enqueue so footer shows correct count instantly
       setQueueCount(workflowEngine.getActiveJobsCount())
-      // force a small UI tick to refresh node statuses quickly
       try {
         const next = workflowStore.get(activeWorkflow)
         workflowStore.upsert({ ...(next as any) })
@@ -41,7 +40,6 @@ export default function StudioDashboard() {
   }
 
   useEffect(() => {
-    // Faster polling for snappy UI; also update on visibilitychange instantly
     const update = () => {
       try {
         setQueueCount(workflowEngine.getActiveJobsCount())
@@ -67,8 +65,6 @@ export default function StudioDashboard() {
     })()
   }, [activeWorkflow])
 
-  // On mount, ensure active workflow points to the last active one.
-  // Prefer sessionStorage (most recent) then Dexie KV, then first available.
   useEffect(() => {
     let cancelled = false
 
@@ -87,13 +83,11 @@ export default function StudioDashboard() {
         const ws = useWorkflowStore.getState().workflows
         console.log("[v0] Workflows loaded:", Object.keys(ws).length, "workflows")
 
-        // Seed default workflow if none exist - atomic check and set
         const seeded = await getKV<boolean>("seeded")
         console.log("[v0] Seeded flag:", seeded)
 
         if (Object.keys(ws).length === 0 && !seeded) {
           console.log("[v0] No workflows found, creating default workflow...")
-          // Set flag FIRST to prevent race condition from Strict Mode double-invoke
           await putKV("seeded", true)
 
           if (cancelled) {
@@ -154,62 +148,50 @@ export default function StudioDashboard() {
     <ReactFlowProvider>
       <div className="h-screen bg-background text-foreground flex flex-col">
         {/* Top Header */}
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-2 py-1 gap-2">
-          {/* Logo */}
-          <h1 className="text-base font-bold text-rainbow mr-4">atelier</h1>
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-2 py-1 gap-4">
+          <div className="flex items-center gap-2">
+            <h1 className="text-base font-bold text-rainbow mr-2">atelier</h1>
 
-          {/* WorkflowSwitcher is now self-contained */}
-          {activeWorkflow ? (
-            <WorkflowSwitcher activeWorkflow={activeWorkflow} onWorkflowChange={setActiveWorkflow} />
-          ) : (
-            <div className="w-48 h-8 rounded-md bg-muted/50 animate-pulse" />
-          )}
+            {activeWorkflow ? (
+              <WorkflowSwitcher activeWorkflow={activeWorkflow} onWorkflowChange={setActiveWorkflow} />
+            ) : (
+              <div className="w-48 h-8 rounded-md bg-muted/50 animate-pulse" />
+            )}
 
-          <div className="h-5 w-px bg-border/50" />
+            <div className="h-5 w-px bg-border/50" />
 
-          <div className="flex items-center gap-1.5">
-            {/* Run Button */}
-            <Button
-              onClick={handleRun}
-              className="h-8 px-3 text-sm font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
-            >
-              run
-            </Button>
-
-            {/* Queue Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsExecutionQueueOpen(!isExecutionQueueOpen)}
-              className="h-8 gap-1.5 px-3 text-sm border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300"
-            >
-              <span>queue</span>
-              <Badge
-                variant={queueCount > 0 ? "default" : "secondary"}
-                className={`min-w-[18px] h-3.5 flex items-center justify-center px-1 font-mono text-[10px] ${
-                  queueCount > 0 ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
-                }`}
+            <div className="flex items-center gap-1.5">
+              <Button
+                onClick={handleRun}
+                className="h-8 px-3 text-sm font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
               >
-                {queueCount}
-              </Badge>
-            </Button>
+                run
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsExecutionQueueOpen(!isExecutionQueueOpen)}
+                className="h-8 gap-1.5 px-3 text-sm border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300"
+              >
+                <span>queue</span>
+                <Badge
+                  variant={queueCount > 0 ? "default" : "secondary"}
+                  className={`min-w-[18px] h-3.5 flex items-center justify-center px-1 font-mono text-[10px] ${
+                    queueCount > 0 ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {queueCount}
+                </Badge>
+              </Button>
+            </div>
           </div>
 
-          <div className="h-5 w-px bg-border/50" />
+          <div className="flex items-center gap-2 px-4 py-1 rounded-lg bg-muted/30 border border-border/50">
+            {addNodeCallback && <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={addNodeCallback()} />}
+          </div>
 
-          {/* Add Node Button */}
-          <Button
-            onClick={() => setIsAddNodeModalOpen(true)}
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 px-3 text-sm border-border/50 hover:border-white/70 hover:bg-white/10 hover:text-white transition-all duration-200"
-          >
-            <span>add node</span>
-            <Grid3X3 className="w-3 h-3" />
-          </Button>
-
-          {/* ReactFlow Controls in Header */}
-          <div className="flex items-center gap-0.5 ml-auto h-8">
+          <div className="flex items-center gap-0.5 h-8">
             <CanvasControls />
             <MiniMap
               className="bg-card/90 backdrop-blur-sm rounded-md"
@@ -222,7 +204,6 @@ export default function StudioDashboard() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex">
-          {/* Node Graph Canvas */}
           <div className="flex-1 relative">
             {activeWorkflow && (
               <NodeGraphCanvas
@@ -231,23 +212,18 @@ export default function StudioDashboard() {
                 executionStatus={executionStatus}
                 onStatusChange={setExecutionStatus}
                 queueCount={queueCount}
-                isAddNodeModalOpen={isAddNodeModalOpen}
-                setIsAddNodeModalOpen={setIsAddNodeModalOpen}
+                onAddNodeCallbackReady={setAddNodeCallback}
               />
             )}
           </div>
         </div>
 
-        {/* Bottom Bar (hidden) */}
         <footer className="hidden border-t border-border bg-card/50 backdrop-blur-sm px-6 py-3" />
 
-        {/* Media Manager Overlay */}
         {isMediaManagerOpen && <MediaManager onClose={() => setIsMediaManagerOpen(false)} />}
 
-        {/* Execution Queue Overlay */}
         <ExecutionQueue isOpen={isExecutionQueueOpen} onClose={() => setIsExecutionQueueOpen(false)} />
 
-        {/* Connect Provider */}
         <ConnectProvider open={isConnectOpen} onOpenChange={setIsConnectOpen} />
       </div>
     </ReactFlowProvider>

@@ -2,23 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { WorkflowIcon, MoreVertical, Pencil, Plus } from "lucide-react"
+import { WorkflowIcon, MoreVertical, Pencil, Plus, X, Check } from "lucide-react"
 import { workflowStore, type Workflow as WorkflowDoc } from "@/lib/store/workflows"
 import { putKV } from "@/lib/store/db"
 
@@ -30,8 +18,8 @@ interface WorkflowSwitcherProps {
 export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowSwitcherProps) {
   const [workflows, setWorkflows] = useState<WorkflowDoc[]>([])
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false)
+  const [isCreatePopoverOpen, setIsCreatePopoverOpen] = useState(false)
+  const [isRenamePopoverOpen, setIsRenamePopoverOpen] = useState(false)
   const [newWorkflowName, setNewWorkflowName] = useState("")
   const [renameWorkflowName, setRenameWorkflowName] = useState("")
 
@@ -39,26 +27,36 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
     if (newWorkflowName.trim()) {
       const wf = workflowStore.create(newWorkflowName)
       setNewWorkflowName("")
-      setIsCreateDialogOpen(false)
+      setIsCreatePopoverOpen(false)
       setWorkflows(workflowStore.list())
       onWorkflowChange(wf.id)
     }
+  }
+
+  const handleCancelCreate = () => {
+    setNewWorkflowName("")
+    setIsCreatePopoverOpen(false)
   }
 
   const handleRenameWorkflow = () => {
     if (renameWorkflowName.trim() && activeWorkflow) {
       workflowStore.rename(activeWorkflow, renameWorkflowName)
       setRenameWorkflowName("")
-      setIsRenameDialogOpen(false)
+      setIsRenamePopoverOpen(false)
       setWorkflows(workflowStore.list())
     }
   }
 
-  const handleOpenRenameDialog = () => {
+  const handleCancelRename = () => {
+    setRenameWorkflowName("")
+    setIsRenamePopoverOpen(false)
+  }
+
+  const handleOpenRenamePopover = () => {
     const currentWorkflow = workflows.find((w) => w.id === activeWorkflow)
     if (currentWorkflow) {
       setRenameWorkflowName(currentWorkflow.name)
-      setIsRenameDialogOpen(true)
+      setIsRenamePopoverOpen(true)
     }
   }
 
@@ -110,88 +108,101 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={() => {
-              setIsDropdownOpen(false)
-              setIsCreateDialogOpen(true)
-            }}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            new
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              setIsDropdownOpen(false)
-              handleOpenRenameDialog()
-            }}
-          >
-            <Pencil className="w-4 h-4 mr-2" />
-            rename
-          </DropdownMenuItem>
+          <Popover open={isCreatePopoverOpen} onOpenChange={setIsCreatePopoverOpen}>
+            <PopoverTrigger asChild>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault()
+                  setIsDropdownOpen(false)
+                  setIsCreatePopoverOpen(true)
+                }}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                new
+              </DropdownMenuItem>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 p-3">
+              <div className="space-y-2">
+                <Input
+                  value={newWorkflowName}
+                  onChange={(e) => setNewWorkflowName(e.target.value)}
+                  placeholder="Workflow name..."
+                  className="text-sm"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleCreateWorkflow()
+                    } else if (e.key === "Escape") {
+                      handleCancelCreate()
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" onClick={handleCancelCreate} className="h-7 w-7 p-0">
+                    <X className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCreateWorkflow}
+                    className="h-7 w-7 p-0"
+                    disabled={!newWorkflowName.trim()}
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Popover open={isRenamePopoverOpen} onOpenChange={setIsRenamePopoverOpen}>
+            <PopoverTrigger asChild>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault()
+                  setIsDropdownOpen(false)
+                  handleOpenRenamePopover()
+                }}
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                rename
+              </DropdownMenuItem>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 p-3">
+              <div className="space-y-2">
+                <Input
+                  value={renameWorkflowName}
+                  onChange={(e) => setRenameWorkflowName(e.target.value)}
+                  placeholder="Workflow name..."
+                  className="text-sm"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleRenameWorkflow()
+                    } else if (e.key === "Escape") {
+                      handleCancelRename()
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" onClick={handleCancelRename} className="h-7 w-7 p-0">
+                    <X className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRenameWorkflow}
+                    className="h-7 w-7 p-0"
+                    disabled={!renameWorkflowName.trim()}
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Workflow</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="workflow-name">Workflow Name</Label>
-              <Input
-                id="workflow-name"
-                value={newWorkflowName}
-                onChange={(e) => setNewWorkflowName(e.target.value)}
-                placeholder="Enter workflow name..."
-                className="mt-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleCreateWorkflow()
-                  }
-                }}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreateWorkflow}>Create Workflow</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename Workflow</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="rename-workflow-name">Workflow Name</Label>
-              <Input
-                id="rename-workflow-name"
-                value={renameWorkflowName}
-                onChange={(e) => setRenameWorkflowName(e.target.value)}
-                placeholder="Enter workflow name..."
-                className="mt-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleRenameWorkflow()
-                  }
-                }}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleRenameWorkflow}>Rename</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
