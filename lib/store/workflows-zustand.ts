@@ -41,14 +41,14 @@ type Actions = {
     workflowId: string,
     nodeId: string,
     result: WorkflowNode["result"],
-    resultHistory?: WorkflowNode["resultHistory"],
+    resultHistory?: WorkflowNode["resultHistory"]
   ) => void
   updateNodeStatus: (workflowId: string, nodeId: string, status: WorkflowNode["status"]) => void
   updateNodeDimensions: (
     workflowId: string,
     nodeId: string,
     position?: { x: number; y: number },
-    size?: { width: number; height: number },
+    size?: { width: number; height: number }
   ) => void
 }
 
@@ -93,47 +93,35 @@ async function persistGraph(doc: WorkflowDoc) {
 export const useWorkflowStore = create<State & Actions>()((set, get) => ({
   workflows: {},
   async hydrate() {
-    console.log("[v0] Zustand hydrate() called")
-    try {
-      const rows = await hydrateWorkflows()
-      console.log("[v0] hydrateWorkflows() returned", rows.length, "workflows")
-
-      const workflows: Record<string, WorkflowDoc> = {}
-      rows.forEach((wf) => {
-        console.log("[v0] Processing workflow:", wf.id, "with", wf.nodes.length, "nodes")
-        workflows[wf.id] = {
-          id: wf.id,
-          name: wf.name,
-          nodes: (wf.nodes as any).map((n: any) => ({
-            id: n.id,
-            type: n.type,
-            title: n.title,
-            status: n.status === "running" ? "idle" : n.status,
-            position: n.position,
-            size: n.size,
-            config: n.config,
-            result: n.result,
-          })),
-          edges: (wf.edges as any).map((e: any) => ({
-            id: e.id,
-            source: e.source,
-            target: e.target,
-            sourceHandle: e.sourceHandle,
-            targetHandle: e.targetHandle,
-          })),
-          viewport: wf.viewport,
-          updatedAt: wf.updatedAt,
-          version: wf.version,
-        }
-      })
-
-      console.log("[v0] Setting workflows in state:", Object.keys(workflows))
-      set({ workflows })
-      console.log("[v0] Zustand hydrate() completed successfully")
-    } catch (e) {
-      console.error("[v0] Zustand hydrate() failed:", e)
-      throw e
-    }
+    const rows = await hydrateWorkflows()
+    const workflows: Record<string, WorkflowDoc> = {}
+    rows.forEach((wf) => {
+      workflows[wf.id] = {
+        id: wf.id,
+        name: wf.name,
+        nodes: (wf.nodes as any).map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          status: n.status === "running" ? "idle" : n.status,
+          position: n.position,
+          size: n.size,
+          config: n.config,
+          result: n.result,
+        })),
+        edges: (wf.edges as any).map((e: any) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+        })),
+        viewport: wf.viewport,
+        updatedAt: wf.updatedAt,
+        version: wf.version,
+      }
+    })
+    set({ workflows })
   },
   async mergeFromDbIfNewer() {
     const rows = await hydrateWorkflows()
@@ -193,20 +181,11 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
       return { workflows: next } as any
     })
     // Hard delete from DB
-    if (db) {
-      void db
-        .transaction("rw", db.workflows, db.nodes, db.edges, async () => {
-          await db.workflows.delete(id)
-          await db.nodes.where("workflowId").equals(id).delete()
-          await db.edges.where("workflowId").equals(id).delete()
-        })
-        .catch((e) => {
-          console.warn("[DB] Delete failed, using fallback:", e)
-          import("@/lib/store/db-fallback").then(({ fallbackDeleteWorkflow }) => fallbackDeleteWorkflow(id))
-        })
-    } else {
-      import("@/lib/store/db-fallback").then(({ fallbackDeleteWorkflow }) => fallbackDeleteWorkflow(id))
-    }
+    void db.transaction("rw", db.workflows, db.nodes, db.edges, async () => {
+      await db.workflows.delete(id)
+      await db.nodes.where("workflowId").equals(id).delete()
+      await db.edges.where("workflowId").equals(id).delete()
+    })
   },
   setNodes(workflowId, nodes) {
     set((s) => {
@@ -257,7 +236,9 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
     set((s) => {
       const doc = s.workflows[workflowId]
       if (!doc) return {} as any
-      const nodes = doc.nodes.map((n) => (n.id === nodeId ? { ...n, config: { ...(n.config || {}), ...config } } : n))
+      const nodes = doc.nodes.map((n) =>
+        n.id === nodeId ? { ...n, config: { ...(n.config || {}), ...config } } : n
+      )
 
       const next = {
         ...doc,
@@ -282,7 +263,7 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
               resultHistory: resultHistory || n.resultHistory,
               status: "complete",
             }
-          : n,
+          : n
       )
       const next = {
         ...doc,
@@ -323,7 +304,7 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
               position: position || n.position,
               size: size || n.size,
             }
-          : n,
+          : n
       )
       const next = {
         ...doc,
