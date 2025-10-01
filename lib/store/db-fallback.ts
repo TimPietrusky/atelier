@@ -1,56 +1,60 @@
-"use client";
+"use client"
 
 // Fallback storage for when IndexedDB/Dexie is unavailable (e.g., v0.dev, private browsing)
 
-import type { DBWorkflow, DBNodeRow, DBEdgeRow } from "./db";
+import type { DBWorkflow, DBNodeRow, DBEdgeRow } from "./db"
 
-const LS_KEY = "atelier-fallback";
+const LS_KEY = "atelier-fallback"
 
 interface FallbackData {
   workflows: Record<
     string,
     {
-      workflow: DBWorkflow;
-      nodes: DBNodeRow[];
-      edges: DBEdgeRow[];
+      workflow: DBWorkflow
+      nodes: DBNodeRow[]
+      edges: DBEdgeRow[]
     }
-  >;
-  kv: Record<string, any>;
+  >
+  kv: Record<string, any>
 }
 
 function readFallback(): FallbackData {
-  if (typeof window === "undefined") return { workflows: {}, kv: {} };
+  if (typeof window === "undefined") return { workflows: {}, kv: {} }
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { workflows: {}, kv: {} };
-    return JSON.parse(raw);
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return { workflows: {}, kv: {} }
+    return JSON.parse(raw)
   } catch {
-    return { workflows: {}, kv: {} };
+    return { workflows: {}, kv: {} }
   }
 }
 
 function writeFallback(data: FallbackData) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") return
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
+    localStorage.setItem(LS_KEY, JSON.stringify(data))
   } catch (e) {
-    console.warn("[Fallback Storage] Write failed:", e);
+    console.warn("[Fallback Storage] Write failed:", e)
   }
 }
 
 export async function fallbackHydrateWorkflows(): Promise<
   {
-    id: string;
-    name: string;
-    nodes: DBNodeRow[];
-    edges: DBEdgeRow[];
-    viewport?: { x: number; y: number; zoom: number };
-    updatedAt: number;
-    version?: number;
+    id: string
+    name: string
+    nodes: DBNodeRow[]
+    edges: DBEdgeRow[]
+    viewport?: { x: number; y: number; zoom: number }
+    updatedAt: number
+    version?: number
   }[]
 > {
-  const data = readFallback();
-  return Object.values(data.workflows).map((w) => ({
+  console.log("[v0] Fallback hydration started")
+  const data = readFallback()
+  const workflows = Object.values(data.workflows)
+  console.log("[v0] Fallback storage has", workflows.length, "workflows")
+
+  const result = workflows.map((w) => ({
     id: w.workflow.id,
     name: w.workflow.name,
     nodes: w.nodes,
@@ -58,19 +62,22 @@ export async function fallbackHydrateWorkflows(): Promise<
     viewport: w.workflow.viewport,
     updatedAt: w.workflow.updatedAt,
     version: w.workflow.version,
-  }));
+  }))
+
+  console.log("[v0] Fallback hydration completed")
+  return result
 }
 
 export async function fallbackWriteWorkflowGraph(payload: {
-  id: string;
-  name: string;
-  nodes: DBNodeRow[];
-  edges: DBEdgeRow[];
-  viewport?: { x: number; y: number; zoom: number };
-  updatedAt: number;
-  version?: number;
+  id: string
+  name: string
+  nodes: DBNodeRow[]
+  edges: DBEdgeRow[]
+  viewport?: { x: number; y: number; zoom: number }
+  updatedAt: number
+  version?: number
 }) {
-  const data = readFallback();
+  const data = readFallback()
   data.workflows[payload.id] = {
     workflow: {
       id: payload.id,
@@ -81,26 +88,23 @@ export async function fallbackWriteWorkflowGraph(payload: {
     },
     nodes: payload.nodes,
     edges: payload.edges,
-  };
-  writeFallback(data);
+  }
+  writeFallback(data)
 }
 
 export async function fallbackPutKV(key: string, value: any) {
-  const data = readFallback();
-  data.kv[key] = value;
-  writeFallback(data);
+  const data = readFallback()
+  data.kv[key] = value
+  writeFallback(data)
 }
 
-export async function fallbackGetKV<T = any>(
-  key: string
-): Promise<T | undefined> {
-  const data = readFallback();
-  return data.kv[key] as T | undefined;
+export async function fallbackGetKV<T = any>(key: string): Promise<T | undefined> {
+  const data = readFallback()
+  return data.kv[key] as T | undefined
 }
 
 export async function fallbackDeleteWorkflow(id: string) {
-  const data = readFallback();
-  delete data.workflows[id];
-  writeFallback(data);
+  const data = readFallback()
+  delete data.workflows[id]
+  writeFallback(data)
 }
-

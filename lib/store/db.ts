@@ -1,83 +1,77 @@
-import Dexie, { Table } from "dexie";
-import {
-  fallbackHydrateWorkflows,
-  fallbackWriteWorkflowGraph,
-  fallbackPutKV,
-  fallbackGetKV,
-  fallbackDeleteWorkflow,
-} from "./db-fallback";
+import Dexie, { type Table } from "dexie"
+import { fallbackHydrateWorkflows, fallbackWriteWorkflowGraph, fallbackPutKV, fallbackGetKV } from "./db-fallback"
 
 export interface DBWorkflow {
-  id: string;
-  name: string;
-  updatedAt: number;
-  version?: number;
-  viewport?: { x: number; y: number; zoom: number };
+  id: string
+  name: string
+  updatedAt: number
+  version?: number
+  viewport?: { x: number; y: number; zoom: number }
 }
 
 export interface DBNodeRow {
-  id: string;
-  workflowId: string;
-  type: string;
-  title: string;
-  status: "idle" | "running" | "complete" | "error";
-  position: { x: number; y: number };
-  size?: { width: number; height: number };
-  config?: Record<string, any>;
-  result?: any;
-  updatedAt: number;
+  id: string
+  workflowId: string
+  type: string
+  title: string
+  status: "idle" | "running" | "complete" | "error"
+  position: { x: number; y: number }
+  size?: { width: number; height: number }
+  config?: Record<string, any>
+  result?: any
+  updatedAt: number
 }
 
 export interface DBEdgeRow {
-  id: string;
-  workflowId: string;
-  source: string;
-  target: string;
-  sourceHandle?: string;
-  targetHandle?: string;
-  updatedAt: number;
+  id: string
+  workflowId: string
+  source: string
+  target: string
+  sourceHandle?: string
+  targetHandle?: string
+  updatedAt: number
 }
 
 export interface DBAssetRow {
-  id: string;
-  kind: "url" | "opfs" | "fs-handle" | "idb" | "embedded";
-  mime?: string;
-  bytes?: number;
-  hash?: string;
+  id: string
+  kind: "url" | "opfs" | "fs-handle" | "idb" | "embedded"
+  mime?: string
+  bytes?: number
+  hash?: string
   // For url
-  url?: string;
+  url?: string
   // For opfs
-  path?: string;
+  path?: string
   // For fs-handle
-  handleId?: string;
+  handleId?: string
   // For idb
-  blobKey?: string;
-  createdAt: number;
+  blobKey?: string
+  createdAt: number
 }
 
 export interface DBKVRow {
-  key: string;
-  value: any;
+  key: string
+  value: any
 }
 
 export interface DBOplogRow {
-  id: string;
-  entity: string;
-  op: string;
-  payload: any;
-  createdAt: number;
+  id: string
+  entity: string
+  op: string
+  payload: any
+  createdAt: number
 }
 
 class AtelierDB extends Dexie {
-  workflows!: Table<DBWorkflow, string>;
-  nodes!: Table<DBNodeRow, string>;
-  edges!: Table<DBEdgeRow, string>;
-  assets!: Table<DBAssetRow, string>;
-  kv!: Table<DBKVRow, string>;
-  oplog!: Table<DBOplogRow, string>;
+  workflows!: Table<DBWorkflow, string>
+  nodes!: Table<DBNodeRow, string>
+  edges!: Table<DBEdgeRow, string>
+  assets!: Table<DBAssetRow, string>
+  kv!: Table<DBKVRow, string>
+  oplog!: Table<DBOplogRow, string>
 
   constructor() {
-    super("atelier");
+    super("atelier")
     this.version(1).stores({
       workflows: "id, updatedAt",
       nodes: "id, workflowId, updatedAt",
@@ -85,58 +79,68 @@ class AtelierDB extends Dexie {
       assets: "id, createdAt",
       kv: "key",
       oplog: "id, createdAt",
-    });
+    })
   }
 }
 
 // Detect if IndexedDB/Dexie is available
-let useFallback = false;
-let db: AtelierDB | null = null;
+let useFallback = false
+let db: AtelierDB | null = null
 
 try {
   if (typeof window !== "undefined" && typeof indexedDB !== "undefined") {
-    db = new AtelierDB();
+    console.log("[v0] IndexedDB detected, initializing Dexie...")
+    db = new AtelierDB()
+    console.log("[v0] Dexie initialized successfully")
   } else {
-    useFallback = true;
+    console.log("[v0] IndexedDB not available, using fallback storage")
+    useFallback = true
   }
-} catch {
-  useFallback = true;
+} catch (e) {
+  console.warn("[v0] Dexie initialization failed, using fallback storage:", e)
+  useFallback = true
 }
 
-export { db };
+export { db }
 
 // High-level helpers
 export async function hydrateWorkflows(): Promise<
   {
-    id: string;
-    name: string;
-    nodes: DBNodeRow[];
-    edges: DBEdgeRow[];
-    viewport?: { x: number; y: number; zoom: number };
-    updatedAt: number;
-    version?: number;
+    id: string
+    name: string
+    nodes: DBNodeRow[]
+    edges: DBEdgeRow[]
+    viewport?: { x: number; y: number; zoom: number }
+    updatedAt: number
+    version?: number
   }[]
 > {
+  console.log("[v0] hydrateWorkflows() called, useFallback:", useFallback)
+
   if (useFallback || !db) {
-    return fallbackHydrateWorkflows();
+    console.log("[v0] Using fallback storage for hydration")
+    return fallbackHydrateWorkflows()
   }
+
   try {
-    const wfs = await db.workflows.toArray();
-    const byWorkflow: Record<
-      string,
-      { nodes: DBNodeRow[]; edges: DBEdgeRow[] }
-    > = {};
-    const [nodes, edges] = await Promise.all([
-      db.nodes.toArray(),
-      db.edges.toArray(),
-    ]);
+    console.log("[v0] Reading workflows from Dexie...")
+    const wfs = await db.workflows.toArray()
+    console.log("[v0] Found", wfs.length, "workflows in Dexie")
+
+    const byWorkflow: Record<string, { nodes: DBNodeRow[]; edges: DBEdgeRow[] }> = {}
+
+    const [nodes, edges] = await Promise.all([db.nodes.toArray(), db.edges.toArray()])
+
+    console.log("[v0] Found", nodes.length, "nodes and", edges.length, "edges in Dexie")
+
     nodes.forEach((n) => {
-      (byWorkflow[n.workflowId] ||= { nodes: [], edges: [] }).nodes.push(n);
-    });
+      ;(byWorkflow[n.workflowId] ||= { nodes: [], edges: [] }).nodes.push(n)
+    })
     edges.forEach((e) => {
-      (byWorkflow[e.workflowId] ||= { nodes: [], edges: [] }).edges.push(e);
-    });
-    return wfs.map((wf) => ({
+      ;(byWorkflow[e.workflowId] ||= { nodes: [], edges: [] }).edges.push(e)
+    })
+
+    const result = wfs.map((wf) => ({
       id: wf.id,
       name: wf.name,
       nodes: byWorkflow[wf.id]?.nodes || [],
@@ -144,28 +148,31 @@ export async function hydrateWorkflows(): Promise<
       viewport: wf.viewport,
       updatedAt: wf.updatedAt,
       version: wf.version,
-    }));
+    }))
+
+    console.log("[v0] hydrateWorkflows() completed successfully from Dexie")
+    return result
   } catch (e) {
-    console.warn("[DB] Dexie failed, using fallback:", e);
-    useFallback = true;
-    return fallbackHydrateWorkflows();
+    console.warn("[v0] Dexie failed, switching to fallback storage:", e)
+    useFallback = true
+    return fallbackHydrateWorkflows()
   }
 }
 
 export async function writeWorkflowGraph(payload: {
-  id: string;
-  name: string;
-  nodes: DBNodeRow[];
-  edges: DBEdgeRow[];
-  viewport?: { x: number; y: number; zoom: number };
-  updatedAt: number;
-  version?: number;
+  id: string
+  name: string
+  nodes: DBNodeRow[]
+  edges: DBEdgeRow[]
+  viewport?: { x: number; y: number; zoom: number }
+  updatedAt: number
+  version?: number
 }) {
   if (useFallback || !db) {
-    return fallbackWriteWorkflowGraph(payload);
+    return fallbackWriteWorkflowGraph(payload)
   }
   try {
-    const now = Date.now();
+    const now = Date.now()
     await db.transaction("rw", db.workflows, db.nodes, db.edges, async () => {
       await db.workflows.put({
         id: payload.id,
@@ -173,66 +180,60 @@ export async function writeWorkflowGraph(payload: {
         updatedAt: payload.updatedAt || now,
         version: payload.version,
         viewport: payload.viewport,
-      });
+      })
       // Upsert nodes/edges: for simplicity, replace all for this workflow
       const existingNodeIds = new Set(
-        (await db!.nodes
-          .where("workflowId")
-          .equals(payload.id)
-          .primaryKeys()) as string[]
-      );
-      const incomingNodeIds = new Set(payload.nodes.map((n) => n.id));
-      const toDeleteNodes: string[] = [];
+        (await db!.nodes.where("workflowId").equals(payload.id).primaryKeys()) as string[],
+      )
+      const incomingNodeIds = new Set(payload.nodes.map((n) => n.id))
+      const toDeleteNodes: string[] = []
       existingNodeIds.forEach((id) => {
-        if (!incomingNodeIds.has(id)) toDeleteNodes.push(id);
-      });
-      if (toDeleteNodes.length) await db!.nodes.bulkDelete(toDeleteNodes);
-      if (payload.nodes.length) await db!.nodes.bulkPut(payload.nodes);
+        if (!incomingNodeIds.has(id)) toDeleteNodes.push(id)
+      })
+      if (toDeleteNodes.length) await db!.nodes.bulkDelete(toDeleteNodes)
+      if (payload.nodes.length) await db!.nodes.bulkPut(payload.nodes)
 
       const existingEdgeIds = new Set(
-        (await db!.edges
-          .where("workflowId")
-          .equals(payload.id)
-          .primaryKeys()) as string[]
-      );
-      const incomingEdgeIds = new Set(payload.edges.map((e) => e.id));
-      const toDeleteEdges: string[] = [];
+        (await db!.edges.where("workflowId").equals(payload.id).primaryKeys()) as string[],
+      )
+      const incomingEdgeIds = new Set(payload.edges.map((e) => e.id))
+      const toDeleteEdges: string[] = []
       existingEdgeIds.forEach((id) => {
-        if (!incomingEdgeIds.has(id)) toDeleteEdges.push(id);
-      });
-      if (toDeleteEdges.length) await db!.edges.bulkDelete(toDeleteEdges);
-      if (payload.edges.length) await db!.edges.bulkPut(payload.edges);
-    });
+        if (!incomingEdgeIds.has(id)) toDeleteEdges.push(id)
+      })
+      if (toDeleteEdges.length) await db!.edges.bulkDelete(toDeleteEdges)
+      if (payload.edges.length) await db!.edges.bulkPut(payload.edges)
+    })
   } catch (e) {
-    console.warn("[DB] Dexie write failed, using fallback:", e);
-    useFallback = true;
-    return fallbackWriteWorkflowGraph(payload);
+    console.warn("[v0] Dexie write failed, using fallback:", e)
+    useFallback = true
+    return fallbackWriteWorkflowGraph(payload)
   }
 }
 
 export async function putKV(key: string, value: any) {
   if (useFallback || !db) {
-    return fallbackPutKV(key, value);
+    return fallbackPutKV(key, value)
   }
   try {
-    await db.kv.put({ key, value });
+    await db.kv.put({ key, value })
   } catch (e) {
-    console.warn("[DB] Dexie putKV failed, using fallback:", e);
-    useFallback = true;
-    return fallbackPutKV(key, value);
+    console.warn("[v0] Dexie putKV failed, using fallback:", e)
+    useFallback = true
+    return fallbackPutKV(key, value)
   }
 }
 
 export async function getKV<T = any>(key: string): Promise<T | undefined> {
   if (useFallback || !db) {
-    return fallbackGetKV<T>(key);
+    return fallbackGetKV<T>(key)
   }
   try {
-    const row = await db.kv.get(key);
-    return row?.value as T | undefined;
+    const row = await db.kv.get(key)
+    return row?.value as T | undefined
   } catch (e) {
-    console.warn("[DB] Dexie getKV failed, using fallback:", e);
-    useFallback = true;
-    return fallbackGetKV<T>(key);
+    console.warn("[v0] Dexie getKV failed, using fallback:", e)
+    useFallback = true
+    return fallbackGetKV<T>(key)
   }
 }

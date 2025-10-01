@@ -136,7 +136,7 @@ This document defines requirements, proposes an industry-standard architecture, 
   - `assets/<assetId>.<ext>` — embedded binaries required by this workflow (when chosen)
 - Manifest schema (v1):
 
-  ```json
+  \`\`\`json
   {
     "packageVersion": 1,
     "app": { "name": "atelier", "version": "x.y.z" },
@@ -154,7 +154,7 @@ This document defines requirements, proposes an industry-standard architecture, 
       }
     ]
   }
-  ```
+  \`\`\`
 
 - Export policy (single workflow):
   - Include only assets referenced by this workflow.

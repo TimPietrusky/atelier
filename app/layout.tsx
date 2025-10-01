@@ -15,6 +15,7 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/apple-touch-icon.png" }],
   },
+    generator: 'v0.app'
 };
 
 export default function RootLayout({
