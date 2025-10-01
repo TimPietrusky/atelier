@@ -24,7 +24,12 @@ interface NodeGraphCanvasProps {
   executionStatus?: "idle" | "running" | "paused"
   onStatusChange?: (status: "idle" | "running" | "paused") => void
   queueCount?: number
-  onCanvasDoubleClick?: (position: { x: number; y: number }) => void
+  onCanvasDoubleClick?: (position: {
+    x: number
+    y: number
+    canvasX: number
+    canvasY: number
+  }) => void
 }
 
 export function NodeGraphCanvas({
@@ -40,6 +45,7 @@ export function NodeGraphCanvas({
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const isInteractingRef = useRef(false)
   const pendingSizesRef = useRef(new Map<string, { width: number; height: number }>())
 
@@ -353,7 +359,21 @@ export function NodeGraphCanvas({
         onEdgesChange={onEdgesChangeHandler}
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
-        onPaneDoubleClick={onCanvasDoubleClick}
+        onPaneDoubleClick={(pos) => {
+          if (onCanvasDoubleClick && reactFlowInstance) {
+            const canvasPos = reactFlowInstance.screenToFlowPosition({
+              x: pos.x,
+              y: pos.y,
+            })
+            onCanvasDoubleClick({
+              x: pos.x,
+              y: pos.y,
+              canvasX: canvasPos.x,
+              canvasY: canvasPos.y,
+            })
+          }
+        }}
+        onReactFlowInit={setReactFlowInstance}
       />
     </div>
   )

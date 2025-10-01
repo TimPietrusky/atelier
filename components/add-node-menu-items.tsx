@@ -29,48 +29,20 @@ export function AddNodeMenuItems({
     }
   }
 
-  if (variant === "dropdown") {
-    // For DropdownMenuItem usage
-    return (
-      <>
-        {nodeTypes.map((nt) => {
-          const Icon = nt.icon
-          return (
-            <div
-              key={nt.id}
-              onClick={() => onAdd(nt.id)}
-              className="flex items-start gap-3 p-3 cursor-pointer hover:bg-primary/10 rounded"
-            >
-              <Icon className={`w-5 h-5 ${getIconColor(nt.id)} mt-0.5 flex-shrink-0`} />
-              <div className="flex-1">
-                <div className="font-medium text-sm">{nt.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{nt.description}</div>
-              </div>
-            </div>
-          )
-        })}
-      </>
-    )
-  }
-
-  // For context menu (Button variant)
+  // Same rendering for both variants
   return (
     <>
       {nodeTypes.map((nt) => {
         const Icon = nt.icon
         return (
-          <Button
+          <div
             key={nt.id}
-            variant="ghost"
             onClick={() => onAdd(nt.id)}
-            className="w-full justify-start gap-3 p-3 h-auto text-left hover:bg-primary/10"
+            className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-primary/10 rounded text-white hover:text-white transition-colors"
           >
-            <Icon className={`w-5 h-5 ${getIconColor(nt.id)} flex-shrink-0`} />
-            <div className="flex-1">
-              <div className="font-medium text-sm">{nt.title}</div>
-              <div className="text-xs text-muted-foreground">{nt.description}</div>
-            </div>
-          </Button>
+            <Icon className={`w-4 h-4 ${getIconColor(nt.id)} flex-shrink-0`} />
+            <div className="font-medium text-sm lowercase">{nt.title}</div>
+          </div>
         )
       })}
     </>

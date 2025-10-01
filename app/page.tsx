@@ -23,12 +23,15 @@ export default function StudioDashboard() {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false)
   const [isConnectOpen, setIsConnectOpen] = useState(false)
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(
-    null
-  )
+  const [contextMenuPosition, setContextMenuPosition] = useState<{
+    x: number
+    y: number
+    canvasX: number
+    canvasY: number
+  } | null>(null)
   const [executionStatus, setExecutionStatus] = useState<"idle" | "running" | "paused">("idle")
   const [queueCount, setQueueCount] = useState(0)
-  const handleAddNode = (nodeType: string) => {
+  const handleAddNode = (nodeType: string, position?: { x: number; y: number }) => {
     if (!activeWorkflow) return
 
     const nodeTypeMap: Record<string, { type: string; title: string; config: any }> = {
@@ -69,7 +72,7 @@ export default function StudioDashboard() {
           type: nodeType as any,
           title: nodeConfig.title,
           status: "idle" as const,
-          position: {
+          position: position || {
             x: Math.random() * 400 + 200,
             y: Math.random() * 200 + 150,
           },
@@ -300,7 +303,10 @@ export default function StudioDashboard() {
               <AddNodeMenuItems
                 nodeTypes={NODE_TYPES}
                 onAdd={(id) => {
-                  handleAddNode(id)
+                  handleAddNode(id, {
+                    x: contextMenuPosition.canvasX,
+                    y: contextMenuPosition.canvasY,
+                  })
                   setContextMenuPosition(null)
                 }}
                 variant="context"
