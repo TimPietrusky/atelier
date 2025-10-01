@@ -1,92 +1,78 @@
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import { Handle, Position, NodeResizer } from "@xyflow/react";
-import { Settings2, ChevronDown } from "lucide-react";
-import { ReactNode } from "react";
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
+import { Handle, Position, NodeResizer } from "@xyflow/react"
+import { Settings2, ChevronDown } from "lucide-react"
+import { ReactNode, forwardRef } from "react"
 
 interface NodeContainerProps {
-  isRunning?: boolean;
-  isSelected?: boolean;
-  children: ReactNode;
+  isRunning?: boolean
+  isSelected?: boolean
+  children: ReactNode
   handles?: {
-    target?: { id: string; className?: string; style?: Record<string, any> };
-    source?: { id: string; className?: string; style?: Record<string, any> };
-  };
+    target?: { id: string; className?: string; style?: Record<string, any> }
+    source?: { id: string; className?: string; style?: Record<string, any> }
+  }
 }
 
-export function NodeContainer({
-  isRunning,
-  isSelected,
-  children,
-  handles,
-}: NodeContainerProps) {
-  return (
-    <Card
-      className={`w-full min-w-[16rem] p-3 border ${
-        isRunning
-          ? "border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.35)]"
-          : "border-border/50 hover:border-primary"
-      } bg-card/90 backdrop-blur-sm transition-all duration-300 relative`}
-    >
-      <NodeResizer
-        isVisible={!!isSelected}
-        minWidth={220}
-        minHeight={120}
-        color="#e5e7eb"
-        autoScale
-        handleStyle={{
-          width: 8,
-          height: 8,
-          borderRadius: 2,
-          pointerEvents: "auto",
-        }}
-        lineStyle={{ pointerEvents: "none" }}
-      />
-      {handles?.target && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          id={handles.target.id}
-          className={handles.target.className}
-          style={{
-            ...(handles.target.style || {}),
-            pointerEvents: "auto",
-            zIndex: 10000,
-          }}
+export const NodeContainer = forwardRef<HTMLDivElement, NodeContainerProps>(
+  ({ isRunning, isSelected, children, handles }, ref) => {
+    return (
+      <Card
+        ref={ref}
+        className={`w-full h-full min-w-[16rem] p-3 border ${
+          isRunning
+            ? "border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.35)]"
+            : "border-border/50 hover:border-primary"
+        } bg-card/90 backdrop-blur-sm transition-all duration-300 relative flex flex-col`}
+      >
+        <NodeResizer
+          minWidth={220}
+          minHeight={120}
+          handleClassName="!w-3 !h-3"
+          lineClassName="!border-0"
         />
-      )}
-      {handles?.source && (
-        <Handle
-          type="source"
-          position={Position.Right}
-          id={handles.source.id}
-          className={handles.source.className}
-          style={{
-            ...(handles.source.style || {}),
-            pointerEvents: "auto",
-            zIndex: 10000,
-          }}
-        />
-      )}
-      {children}
-    </Card>
-  );
-}
+        {handles?.target && (
+          <Handle
+            type="target"
+            position={Position.Left}
+            id={handles.target.id}
+            className={handles.target.className}
+            style={{
+              ...(handles.target.style || {}),
+              pointerEvents: "auto",
+              zIndex: 10000,
+            }}
+          />
+        )}
+        {handles?.source && (
+          <Handle
+            type="source"
+            position={Position.Right}
+            id={handles.source.id}
+            className={handles.source.className}
+            style={{
+              ...(handles.source.style || {}),
+              pointerEvents: "auto",
+              zIndex: 10000,
+            }}
+          />
+        )}
+        {children}
+      </Card>
+    )
+  }
+)
+NodeContainer.displayName = "NodeContainer"
 
 interface NodeHeaderProps {
-  icon: ReactNode;
-  title: string;
-  actions?: ReactNode;
-  onSettingsClick?: () => void;
+  icon: ReactNode
+  title: string
+  actions?: ReactNode
+  onSettingsClick?: () => void
 }
 
-export function NodeHeader({
-  icon,
-  title,
-  actions,
-  onSettingsClick,
-}: NodeHeaderProps) {
+export function NodeHeader({ icon, title, actions, onSettingsClick }: NodeHeaderProps) {
   return (
     <div className="flex items-center gap-2">
       {icon}
@@ -106,24 +92,26 @@ export function NodeHeader({
         )}
       </div>
     </div>
-  );
+  )
 }
 
 interface NodeContentProps {
-  children: ReactNode;
+  children: ReactNode
 }
 
 export function NodeContent({ children }: NodeContentProps) {
-  return <div className="space-y-2 overflow-hidden">{children}</div>;
+  return (
+    <div className="space-y-2 flex-1 overflow-y-auto overflow-x-hidden min-h-0">{children}</div>
+  )
 }
 
 interface NodeSettingsProps {
-  isExpanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
-  showMeta: boolean;
-  onShowMetaChange: (show: boolean) => void;
-  metaData?: any;
-  children?: ReactNode;
+  isExpanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+  showMeta: boolean
+  onShowMetaChange: (show: boolean) => void
+  metaData?: any
+  children?: ReactNode
 }
 
 export function NodeSettings({
@@ -146,9 +134,7 @@ export function NodeSettings({
             onClick={() => onShowMetaChange(!showMeta)}
           >
             <ChevronDown
-              className={`w-3 h-3 mr-2 transition-transform ${
-                showMeta ? "rotate-180" : ""
-              }`}
+              className={`w-3 h-3 mr-2 transition-transform ${showMeta ? "rotate-180" : ""}`}
             />
             Debug Info
           </Button>
@@ -160,5 +146,5 @@ export function NodeSettings({
         </div>
       </CollapsibleContent>
     </Collapsible>
-  );
+  )
 }

@@ -18,6 +18,7 @@ import { NODE_TYPES } from "@/lib/nodes/config"
 import { PromptNode as PromptNodeExt } from "@/components/nodes/prompt-node"
 import { ImageNode as ImageNodeExt } from "@/components/nodes/image-node"
 import { CustomNode as CustomNodeExt } from "@/components/nodes/custom-node"
+import { TestNode as TestNodeExt } from "@/components/nodes/test-node"
 
 interface NodeGraphCanvasProps {
   activeWorkflow: string
@@ -160,6 +161,7 @@ export function NodeGraphCanvas({
     promptNode: PromptNodeExt,
     imageGenNode: ImageNodeExt,
     customNode: CustomNodeExt,
+    testNode: TestNodeExt,
   }
 
   const proOptions = { hideAttribution: true }
@@ -172,6 +174,8 @@ export function NodeGraphCanvas({
           ? "promptNode"
           : n.type === "image-gen" || n.type === "image-edit"
           ? "imageGenNode"
+          : n.type === "test"
+          ? "testNode"
           : "customNode",
       position: n.position,
       width: (n as any).size?.width ?? undefined,

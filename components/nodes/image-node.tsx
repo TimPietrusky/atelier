@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { ImageIcon, ImagePlus, X, Trash2 } from "lucide-react"
 import {
   Select,
@@ -20,6 +20,8 @@ export function ImageNode({ data, id, selected }: { data: any; id: string; selec
   const meta = getImageModelMeta(model)
   const [isExpanded, setIsExpanded] = useState(false)
   const [showMeta, setShowMeta] = useState(false)
+  const [nodeWidth, setNodeWidth] = useState(256)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const imageHistory: string[] = (data?.resultHistory || [])
     .filter((r: any) => r.type === "image")
@@ -27,6 +29,22 @@ export function ImageNode({ data, id, selected }: { data: any; id: string; selec
     .reverse() // Most recent first
 
   const isRunning = data.status === "running"
+
+  // Calculate grid columns based on node width: 2 cols at 256px, up to 5 cols max
+  const gridCols = Math.min(5, Math.max(2, Math.floor(nodeWidth / 128)))
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const updateWidth = () => {
+        const width = containerRef.current?.offsetWidth || 256
+        setNodeWidth(width)
+      }
+      updateWidth()
+      const observer = new ResizeObserver(updateWidth)
+      observer.observe(containerRef.current)
+      return () => observer.disconnect()
+    }
+  }, [])
   const [localImage, setLocalImage] = useState<string | undefined>(
     data.config?.localImage || undefined
   )
@@ -115,6 +133,7 @@ export function ImageNode({ data, id, selected }: { data: any; id: string; selec
 
   return (
     <NodeContainer
+      ref={containerRef}
       isRunning={isRunning}
       isSelected={selected}
       handles={{
@@ -196,11 +215,15 @@ export function ImageNode({ data, id, selected }: { data: any; id: string; selec
             </div>
 
             {/* Image Grid */}
-            <div className="grid grid-cols-2 gap-2">
+            <div
+              className={`grid gap-2`}
+              style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+            >
               {imageHistory.map((url, idx) => (
                 <div
                   key={`${url}-${idx}`}
-                  className="relative overflow-hidden rounded border group aspect-square"
+                  className="relative overflow-hidden rounded border group"
+                  style={{ aspectRatio: "1/1" }}
                 >
                   <img
                     src={url || "/placeholder.svg"}
