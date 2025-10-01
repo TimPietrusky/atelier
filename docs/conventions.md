@@ -101,8 +101,9 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Seed default workflows client-side only.
   - Use deterministic timestamp-rendering and `suppressHydrationWarning` where needed.
 - Avoid cross-component state updates during render:
-  - Defer persistence in canvas event handlers using `queueMicrotask` or `setTimeout(..., 0)`.
+  - Defer persistence in canvas event handlers using `queueMicrotask`.
 - Radix `asChild` integration: UI primitives use `React.forwardRef`.
+- Component size: Split large components (>300 lines) into smaller, focused components. Extract reusable UI patterns (popovers, menus, forms) into separate files.
 
 ### General interaction & persistence rules (agent playbook)
 
@@ -164,11 +165,13 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Do reset node statuses before runs and update status during execution.
 - Do store originals in OPFS or via FS Access and reference them with `AssetRef`.
 - Do control DropdownMenu state explicitly; close it before opening dialogs to avoid lingering `pointer-events: none` on body.
+- Do use `queueMicrotask` for deferred state updates when needed.
 - Don't auto-switch models in the engine—let users pick (but hint in UI).
 - Don't send unsupported params (e.g., guidance for Seedream; undefined seed).
 - Don't use raw `fetch` to RunPod model endpoints—always go through the provider adapter.
 - Don't persist large base64 media in JSON/localStorage.
 - Don't filter image inputs by handle alone; always validate node type and result type to avoid accepting text as images.
+- **NEVER use `setTimeout` for timing hacks or event ordering** — these are band-aids that hide real problems. Use proper state management, `queueMicrotask`, or fix the root cause.
 
 ## Quick glossary
 

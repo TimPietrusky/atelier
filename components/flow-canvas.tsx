@@ -20,7 +20,6 @@ export function FlowCanvas({
   onConnect,
   onMoveEnd,
   onPaneDoubleClick,
-  onReactFlowInit,
 }: {
   children?: ReactNode
   nodes: any[]
@@ -31,7 +30,6 @@ export function FlowCanvas({
   onConnect: any
   onMoveEnd: any
   onPaneDoubleClick?: (position: { x: number; y: number }) => void
-  onReactFlowInit?: (instance: any) => void
 }) {
   const proOptions = { hideAttribution: true } as const
   return (
@@ -41,11 +39,6 @@ export function FlowCanvas({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
-      onInit={(instance) => {
-        if (onReactFlowInit) {
-          onReactFlowInit(instance)
-        }
-      }}
       nodeTypes={nodeTypes}
       fitView={false}
       className="bg-background rf-panel-tight"

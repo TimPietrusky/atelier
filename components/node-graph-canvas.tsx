@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect, useRef } from "react"
 import {
   useNodesState,
   useEdgesState,
+  useReactFlow,
   addEdge,
   type Connection,
   type Edge,
@@ -45,7 +46,7 @@ export function NodeGraphCanvas({
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
+  const reactFlowInstance = useReactFlow()
   const isInteractingRef = useRef(false)
   const pendingSizesRef = useRef(new Map<string, { width: number; height: number }>())
 
@@ -360,7 +361,7 @@ export function NodeGraphCanvas({
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
         onPaneDoubleClick={(pos) => {
-          if (onCanvasDoubleClick && reactFlowInstance) {
+          if (onCanvasDoubleClick) {
             const canvasPos = reactFlowInstance.screenToFlowPosition({
               x: pos.x,
               y: pos.y,
@@ -373,7 +374,6 @@ export function NodeGraphCanvas({
             })
           }
         }}
-        onReactFlowInit={setReactFlowInstance}
       />
     </div>
   )

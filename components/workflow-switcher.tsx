@@ -2,11 +2,22 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
-import { WorkflowIcon, MoreVertical, Pencil, Plus, X, Check } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { WorkflowIcon, MoreVertical, Pencil, Plus, Download, Upload } from "lucide-react"
+import { WorkflowCreatePopover } from "@/components/workflow-create-popover"
+import { WorkflowRenamePopover } from "@/components/workflow-rename-popover"
 import { workflowStore, type Workflow as WorkflowDoc } from "@/lib/store/workflows"
 import { putKV } from "@/lib/store/db"
 
@@ -18,46 +29,114 @@ interface WorkflowSwitcherProps {
 export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowSwitcherProps) {
   const [workflows, setWorkflows] = useState<WorkflowDoc[]>([])
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [isCreatePopoverOpen, setIsCreatePopoverOpen] = useState(false)
-  const [isRenamePopoverOpen, setIsRenamePopoverOpen] = useState(false)
-  const [newWorkflowName, setNewWorkflowName] = useState("")
-  const [renameWorkflowName, setRenameWorkflowName] = useState("")
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isRenameOpen, setIsRenameOpen] = useState(false)
 
-  const handleCreateWorkflow = () => {
-    if (newWorkflowName.trim()) {
-      const wf = workflowStore.create(newWorkflowName)
-      setNewWorkflowName("")
-      setIsCreatePopoverOpen(false)
-      setWorkflows(workflowStore.list())
-      onWorkflowChange(wf.id)
-    }
+  const currentWorkflow = workflows.find((w) => w.id === activeWorkflow)
+
+  const handleCreateWorkflow = (name: string) => {
+    const wf = workflowStore.create(name)
+    setWorkflows(workflowStore.list())
+    onWorkflowChange(wf.id)
   }
 
-  const handleCancelCreate = () => {
-    setNewWorkflowName("")
-    setIsCreatePopoverOpen(false)
-  }
-
-  const handleRenameWorkflow = () => {
-    if (renameWorkflowName.trim() && activeWorkflow) {
-      workflowStore.rename(activeWorkflow, renameWorkflowName)
-      setRenameWorkflowName("")
-      setIsRenamePopoverOpen(false)
+  const handleRenameWorkflow = (name: string) => {
+    if (activeWorkflow) {
+      workflowStore.rename(activeWorkflow, name)
       setWorkflows(workflowStore.list())
     }
   }
 
-  const handleCancelRename = () => {
-    setRenameWorkflowName("")
-    setIsRenamePopoverOpen(false)
+  const handleExport = async () => {
+    const workflow = workflows.find((w) => w.id === activeWorkflow)
+    if (!workflow) return
+
+    // For now, export as JSON until we implement ZIP
+    const exportData = {
+      packageVersion: 1,
+      app: { name: "atelier", version: "0.1.0" },
+      createdAt: new Date().toISOString(),
+      workflow: {
+        id: workflow.id,
+        name: workflow.name,
+      },
+      data: workflow,
+    }
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${workflow.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.atelier.jetzt.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
-  const handleOpenRenamePopover = () => {
-    const currentWorkflow = workflows.find((w) => w.id === activeWorkflow)
-    if (currentWorkflow) {
-      setRenameWorkflowName(currentWorkflow.name)
-      setIsRenamePopoverOpen(true)
+  const handleImport = () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".atelier.jetzt.json,.json"
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      try {
+        const text = await file.text()
+        const imported = JSON.parse(text)
+
+        console.log("[import] Imported data:", imported)
+        console.log("[import] Workflow data:", imported.data)
+        console.log("[import] Nodes:", imported.data?.nodes?.length || 0)
+        console.log("[import] Edges:", imported.data?.edges?.length || 0)
+
+        // Check if workflow with this ID already exists
+        const existing = workflows.find((w) => w.id === imported.data.id)
+
+        if (existing) {
+          const shouldOverwrite = confirm(
+            `Workflow "${existing.name}" already exists. Overwrite it? (Cancel to import as new workflow)`
+          )
+
+          if (shouldOverwrite) {
+            // Overwrite existing
+            workflowStore.upsert({
+              ...imported.data,
+              id: existing.id, // Keep existing ID
+            })
+            onWorkflowChange(existing.id)
+          } else {
+            // Fork: create new workflow with same data but new ID and name
+            const newId = `${imported.data.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`
+            const forked = {
+              id: newId,
+              name: `${imported.data.name} (copy)`,
+              nodes: imported.data.nodes || [],
+              edges: imported.data.edges || [],
+              viewport: imported.data.viewport,
+              chat: imported.data.chat || [],
+              history: imported.data.history || [],
+            }
+            console.log("[import] Creating forked workflow:", forked)
+            workflowStore.upsert(forked)
+            console.log("[import] After upsert, workflows:", workflowStore.list())
+            onWorkflowChange(newId)
+            console.log("[import] Switched to workflow:", newId)
+          }
+        } else {
+          // No conflict, import as-is
+          workflowStore.upsert(imported.data)
+          onWorkflowChange(imported.data.id)
+        }
+
+        setWorkflows(workflowStore.list())
+      } catch (err) {
+        console.error("Import failed:", err)
+        alert("Failed to import workflow")
+      }
     }
+    input.click()
   }
 
   useEffect(() => {
@@ -108,101 +187,62 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <Popover open={isCreatePopoverOpen} onOpenChange={setIsCreatePopoverOpen}>
-            <PopoverTrigger asChild>
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault()
-                  setIsDropdownOpen(false)
-                  setIsCreatePopoverOpen(true)
-                }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                new
-              </DropdownMenuItem>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 p-3">
-              <div className="space-y-2">
-                <Input
-                  value={newWorkflowName}
-                  onChange={(e) => setNewWorkflowName(e.target.value)}
-                  placeholder="Workflow name..."
-                  className="text-sm"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleCreateWorkflow()
-                    } else if (e.key === "Escape") {
-                      handleCancelCreate()
-                    }
-                  }}
-                />
-                <div className="flex items-center justify-end gap-1">
-                  <Button variant="ghost" size="sm" onClick={handleCancelCreate} className="h-7 w-7 p-0">
-                    <X className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCreateWorkflow}
-                    className="h-7 w-7 p-0"
-                    disabled={!newWorkflowName.trim()}
-                  >
-                    <Check className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <DropdownMenuItem
+            onClick={() => {
+              setIsDropdownOpen(false)
+              setIsCreateOpen(true)
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            new
+          </DropdownMenuItem>
 
-          <Popover open={isRenamePopoverOpen} onOpenChange={setIsRenamePopoverOpen}>
-            <PopoverTrigger asChild>
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault()
-                  setIsDropdownOpen(false)
-                  handleOpenRenamePopover()
-                }}
-              >
-                <Pencil className="w-4 h-4 mr-2" />
-                rename
-              </DropdownMenuItem>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 p-3">
-              <div className="space-y-2">
-                <Input
-                  value={renameWorkflowName}
-                  onChange={(e) => setRenameWorkflowName(e.target.value)}
-                  placeholder="Workflow name..."
-                  className="text-sm"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleRenameWorkflow()
-                    } else if (e.key === "Escape") {
-                      handleCancelRename()
-                    }
-                  }}
-                />
-                <div className="flex items-center justify-end gap-1">
-                  <Button variant="ghost" size="sm" onClick={handleCancelRename} className="h-7 w-7 p-0">
-                    <X className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleRenameWorkflow}
-                    className="h-7 w-7 p-0"
-                    disabled={!renameWorkflowName.trim()}
-                  >
-                    <Check className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <DropdownMenuItem
+            onClick={() => {
+              setIsDropdownOpen(false)
+              setIsRenameOpen(true)
+            }}
+          >
+            <Pencil className="w-4 h-4 mr-2" />
+            rename
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => {
+              setIsDropdownOpen(false)
+              handleExport()
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            export
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => {
+              setIsDropdownOpen(false)
+              handleImport()
+            }}
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            import
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <WorkflowCreatePopover
+        isOpen={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onCreate={handleCreateWorkflow}
+        trigger={<div />}
+      />
+
+      <WorkflowRenamePopover
+        isOpen={isRenameOpen}
+        onOpenChange={setIsRenameOpen}
+        currentName={currentWorkflow?.name || ""}
+        onRename={handleRenameWorkflow}
+        trigger={<div />}
+      />
     </div>
   )
 }
