@@ -103,3 +103,4 @@ export async function fallbackDeleteWorkflow(id: string) {
   delete data.workflows[id];
   writeFallback(data);
 }
+

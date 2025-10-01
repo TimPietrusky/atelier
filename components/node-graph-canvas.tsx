@@ -11,7 +11,6 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { workflowStore } from "@/lib/store/workflows";
-import { CanvasToolbar } from "@/components/canvas-toolbar";
 import { AddNodeDialog } from "@/components/add-node-dialog";
 import { FlowCanvas } from "@/components/flow-canvas";
 import { makeSolidEdge } from "@/lib/flow/utils";
@@ -34,13 +33,17 @@ export function NodeGraphCanvas({
   executionStatus = "idle",
   onStatusChange,
   queueCount = 0,
-}: NodeGraphCanvasProps) {
+  isAddNodeModalOpen,
+  setIsAddNodeModalOpen,
+}: NodeGraphCanvasProps & {
+  isAddNodeModalOpen: boolean;
+  setIsAddNodeModalOpen: (open: boolean) => void;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [isAddNodeModalOpen, setIsAddNodeModalOpen] = useState(false);
   const isInteractingRef = useRef(false);
   const pendingSizesRef = useRef(
     new Map<string, { width: number; height: number }>()
@@ -384,23 +387,16 @@ export function NodeGraphCanvas({
         onEdgesChange={onEdgesChangeHandler}
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
-        toolbar={
-          <>
-            <CanvasToolbar
-              style={{ height: 105 }}
-              queueCount={queueCount}
-              onRun={handleRun}
-              onOpenAdd={setIsAddNodeModalOpen}
-            />
-            <AddNodeDialog
-              open={isAddNodeModalOpen}
-              onOpenChange={setIsAddNodeModalOpen}
-              nodeTypes={nodeTypeConfig}
-              onAdd={addNewNode}
-              showTrigger={false}
-            />
-          </>
-        }
+        onAddNode={() => setIsAddNodeModalOpen(true)}
+      />
+
+      {/* Add Node Dialog */}
+      <AddNodeDialog
+        open={isAddNodeModalOpen}
+        onOpenChange={setIsAddNodeModalOpen}
+        nodeTypes={nodeTypeConfig}
+        onAdd={addNewNode}
+        showTrigger={false}
       />
     </div>
   );

@@ -12,6 +12,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Grid3X3 } from "lucide-react";
 
 export function FlowCanvas({
   children,
@@ -22,7 +24,7 @@ export function FlowCanvas({
   onEdgesChange,
   onConnect,
   onMoveEnd,
-  toolbar,
+  onAddNode,
 }: {
   children?: ReactNode;
   nodes: any[];
@@ -32,7 +34,7 @@ export function FlowCanvas({
   onEdgesChange: any;
   onConnect: any;
   onMoveEnd: any;
-  toolbar?: ReactNode;
+  onAddNode?: () => void;
 }) {
   const proOptions = { hideAttribution: true } as const;
   return (
@@ -65,18 +67,32 @@ export function FlowCanvas({
       onError={() => {}}
     >
       {children}
-      <Panel position="top-left" className="!p-3 bg-card/90 backdrop-blur-sm">
-        <div className="flex items-end gap-3">
+      <Panel
+        position="top-left"
+        className="!p-1.5 bg-card/90 backdrop-blur-sm rounded-md"
+      >
+        <div className="flex items-stretch gap-1.5">
           <Controls
-            className="bg-background/90 backdrop-blur-sm border border-border/50 rounded-md [&>button]:text-foreground [&>button]:hover:bg-muted [&>button]:bg-transparent [&>button]:border-border/50 [&>button>svg]:text-foreground"
-            style={{ position: "static", height: 105 }}
+            className="bg-background/90 backdrop-blur-sm border border-border/0 [&>button]:text-foreground [&>button]:hover:bg-muted [&>button]:bg-transparent [&>button]:border-0 [&>button>svg]:text-foreground [&>button]:w-2 [&>button]:h-2 [&>button]:p-0 [&>button>svg]:w-3 [&>button>svg]:h-3 grid grid-cols-2 gap-0 p-0.5"
+            style={{ position: "static", height: "auto" }}
+            showZoom={true}
+            showFitView={true}
+            showInteractive={false}
           />
           <MiniMap
-            className="bg-card/90 backdrop-blur-sm border border-border/50 rounded-md"
+            className="bg-card/90 backdrop-blur-sm border border-border/50 rounded"
             nodeColor="#ff0080"
-            style={{ position: "static", height: 105 }}
+            style={{ position: "static", width: 60, height: 42 }}
           />
-          {toolbar}
+          {onAddNode && (
+            <Button
+              onClick={onAddNode}
+              className="h-[42px] px-2 gap-1.5 bg-black rounded border border-border/50 hover:border-white/70 hover:bg-white/10 hover:text-white transition-all duration-200 text-white text-xs"
+            >
+              add
+              <Grid3X3 className="w-3 h-3" />
+            </Button>
+          )}
         </div>
       </Panel>
       <Background

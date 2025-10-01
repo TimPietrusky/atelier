@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Database, Grid3X3, Activity } from "lucide-react";
+import { Grid3X3 } from "lucide-react";
 import { WorkflowSwitcher } from "@/components/workflow-switcher";
 import { NodeGraphCanvas } from "@/components/node-graph-canvas";
 import { MediaManager } from "@/components/media-manager";
@@ -18,6 +18,7 @@ export default function StudioDashboard() {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false);
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false);
   const [isConnectOpen, setIsConnectOpen] = useState(false);
+  const [isAddNodeModalOpen, setIsAddNodeModalOpen] = useState(false);
   const [executionStatus, setExecutionStatus] = useState<
     "idle" | "running" | "paused"
   >("idle");
@@ -122,48 +123,52 @@ export default function StudioDashboard() {
   return (
     <div className="h-screen bg-background text-foreground flex flex-col">
       {/* Top Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-rainbow">atelier</h1>
-          </div>
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm px-4 py-2 flex items-center gap-3">
+        {/* Logo */}
+        <h1 className="text-lg font-bold text-rainbow">atelier</h1>
 
-          {activeWorkflow ? (
-            <WorkflowSwitcher
-              activeWorkflow={activeWorkflow}
-              onWorkflowChange={setActiveWorkflow}
-            />
-          ) : (
-            <div className="w-48 h-9 rounded-md bg-muted/50 animate-pulse" />
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsExecutionQueueOpen(!isExecutionQueueOpen)}
-            className="gap-2 border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300"
+        {/* Workflow Switcher */}
+        {activeWorkflow ? (
+          <WorkflowSwitcher
+            activeWorkflow={activeWorkflow}
+            onWorkflowChange={setActiveWorkflow}
+          />
+        ) : (
+          <div className="w-48 h-8 rounded-md bg-muted/50 animate-pulse" />
+        )}
+
+        {/* Run Button */}
+        <Button
+          onClick={handleRun}
+          className="h-8 px-3 font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+        >
+          run
+        </Button>
+
+        {/* Queue Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsExecutionQueueOpen(!isExecutionQueueOpen)}
+          className="h-8 gap-2 border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300"
+        >
+          <span>queue</span>
+          <Badge
+            variant={queueCount > 0 ? "default" : "secondary"}
+            className={`min-w-[20px] h-4 flex items-center justify-center px-1 font-mono text-xs ${
+              queueCount > 0
+                ? "bg-accent text-accent-foreground"
+                : "bg-muted text-muted-foreground"
+            }`}
           >
-            <span>queue</span>
-            <Badge
-              variant={queueCount > 0 ? "default" : "secondary"}
-              className={`min-w-[24px] h-5 flex items-center justify-center px-1.5 font-mono text-xs ${
-                queueCount > 0
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {queueCount}
-            </Badge>
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Empty space where run button used to be */}
-        </div>
+            {queueCount}
+          </Badge>
+        </Button>
       </header>
 
       {/* Main Content Area */}
       <div className="flex-1 flex">
-        {/* Left Panel - Node Graph Canvas */}
+        {/* Node Graph Canvas */}
         <div className="flex-1 relative">
           {activeWorkflow && (
             <NodeGraphCanvas
@@ -172,6 +177,8 @@ export default function StudioDashboard() {
               executionStatus={executionStatus}
               onStatusChange={setExecutionStatus}
               queueCount={queueCount}
+              isAddNodeModalOpen={isAddNodeModalOpen}
+              setIsAddNodeModalOpen={setIsAddNodeModalOpen}
             />
           )}
         </div>
