@@ -122,9 +122,8 @@ class WorkflowStoreCompat {
   remove(workflowId: string) {
     ensureInit()
     const s = useWorkflowStore.getState()
-    // Clear nodes/edges to trigger persistence, then rely on DB deletion in zustand actions
-    s.setNodes(workflowId, [] as any)
-    s.setEdges(workflowId, [] as any)
+    // Perform atomic removal using the zustand action (handles Dexie transaction)
+    s.removeWorkflow(workflowId)
   }
 
   setNodes(workflowId: string, nodes: WorkflowNode[]) {

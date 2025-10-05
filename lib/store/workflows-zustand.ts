@@ -183,11 +183,17 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
       return { workflows: next } as any
     })
     // Hard delete from DB
-    void db.transaction("rw", db.workflows, db.nodes, db.edges, async () => {
-      await db.workflows.delete(id)
-      await db.nodes.where("workflowId").equals(id).delete()
-      await db.edges.where("workflowId").equals(id).delete()
-    })
+    void db
+      .transaction("rw", db.workflows, db.nodes, db.edges, async () => {
+        await db.workflows.delete(id)
+        await db.nodes.where("workflowId").equals(id).delete()
+        await db.edges.where("workflowId").equals(id).delete()
+      })
+      .then(() => {
+        try {
+          bus.post({ id, updatedAt: Date.now() })
+        } catch {}
+      })
   },
   setNodes(workflowId, nodes) {
     set((s) => {

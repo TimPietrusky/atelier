@@ -15,9 +15,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { WorkflowIcon, MoreVertical, Pencil, Plus, Download, Upload } from "lucide-react"
+import { WorkflowIcon, MoreVertical, Pencil, Plus, Download, Upload, Trash } from "lucide-react"
 import { WorkflowCreatePopover } from "@/components/workflow-create-popover"
 import { WorkflowRenamePopover } from "@/components/workflow-rename-popover"
+import { WorkflowDeletePopover } from "@/components/workflow-delete-popover"
 import { workflowStore, type Workflow as WorkflowDoc } from "@/lib/store/workflows"
 import { putKV } from "@/lib/store/db"
 
@@ -31,6 +32,7 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isRenameOpen, setIsRenameOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const currentWorkflow = workflows.find((w) => w.id === activeWorkflow)
 
@@ -139,6 +141,28 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
     input.click()
   }
 
+  const handleDeleteConfirm = () => {
+    const wf = workflows.find((w) => w.id === activeWorkflow)
+    if (!wf) return
+    workflowStore.remove(wf.id)
+    // Choose fallback workflow: first remaining or create new
+    const remaining = workflowStore.list()
+    if (remaining.length > 0) {
+      onWorkflowChange(remaining[0].id)
+    } else {
+      const created = workflowStore.create("untitled")
+      onWorkflowChange(created.id)
+    }
+    try {
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem("active-workflow-id", workflowStore.list()[0]?.id || "")
+      }
+      const nextId = workflowStore.list()[0]?.id
+      if (nextId) void putKV("lastActiveWorkflowId", nextId)
+    } catch {}
+    setIsDeleteDialogOpen(false)
+  }
+
   useEffect(() => {
     setWorkflows(workflowStore.list())
     const unsub = workflowStore.subscribe(() => setWorkflows(workflowStore.list()))
@@ -226,6 +250,19 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
             <Upload className="w-4 h-4 mr-2" />
             import
           </DropdownMenuItem>
+
+          <div className="h-px my-1 bg-border/50" />
+
+          <DropdownMenuItem
+            className="text-red-500 focus:text-red-500"
+            onClick={() => {
+              setIsDropdownOpen(false)
+              setIsDeleteDialogOpen(true)
+            }}
+          >
+            <Trash className="w-4 h-4 mr-2" />
+            delete
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -241,6 +278,14 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
         onOpenChange={setIsRenameOpen}
         currentName={currentWorkflow?.name || ""}
         onRename={handleRenameWorkflow}
+        trigger={<div />}
+      />
+
+      <WorkflowDeletePopover
+        isOpen={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        workflowName={currentWorkflow?.name || ""}
+        onDelete={handleDeleteConfirm}
         trigger={<div />}
       />
     </div>

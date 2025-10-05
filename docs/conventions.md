@@ -104,6 +104,13 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Defer persistence in canvas event handlers using `queueMicrotask`.
 - Radix `asChild` integration: UI primitives use `React.forwardRef`.
 - Component size: Split large components (>300 lines) into smaller, focused components. Extract reusable UI patterns (popovers, menus, forms) into separate files.
+- **Component reuse (CRITICAL)**:
+  - **ALWAYS check existing components before creating new ones for the same use case**.
+  - If a pattern exists (e.g., workflow action popovers for create/rename/delete), **REUSE IT** with the same structure, props, and styling.
+  - For workflow actions: use the inline Popover pattern (see `WorkflowCreatePopover`, `WorkflowRenamePopover`, `WorkflowDeletePopover`) for all dropdown-triggered actions. Do NOT introduce AlertDialog, Modal, or other patterns for the same use case.
+  - For confirmation flows: follow the existing inline popover pattern with cancel/confirm buttons.
+  - Only introduce new UI patterns when the use case is fundamentally different, not just visually similar.
+  - Document new patterns here when they become canonical.
 
 ### General interaction & persistence rules (agent playbook)
 

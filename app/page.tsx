@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ReactFlowProvider, MiniMap } from "@xyflow/react"
+import { Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { WorkflowSwitcher } from "@/components/workflow-switcher"
@@ -230,6 +231,7 @@ export default function StudioDashboard() {
                 onClick={handleRun}
                 className="h-8 px-3 text-sm font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
               >
+                <Play className="w-4 h-4 mr-1.5" />
                 run
               </Button>
 
