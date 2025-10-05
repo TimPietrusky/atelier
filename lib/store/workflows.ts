@@ -171,6 +171,16 @@ class WorkflowStoreCompat {
     useWorkflowStore.getState().updateNodeResult(workflowId, nodeId, result, resultHistory)
   }
 
+  removeFromResultHistory(workflowId: string, nodeId: string, resultId: string) {
+    ensureInit()
+    useWorkflowStore.getState().removeFromResultHistory(workflowId, nodeId, resultId)
+  }
+
+  clearResultHistory(workflowId: string, nodeId: string) {
+    ensureInit()
+    useWorkflowStore.getState().clearResultHistory(workflowId, nodeId)
+  }
+
   updateNodeStatus(workflowId: string, nodeId: string, status: WorkflowNode["status"]) {
     ensureInit()
     useWorkflowStore.getState().updateNodeStatus(workflowId, nodeId, status)

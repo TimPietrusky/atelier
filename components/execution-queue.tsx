@@ -164,7 +164,10 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
                 ) : (
                   <>
                     {executions.map((execution) => {
-                      const { name, timestamp } = getWorkflowDisplay(execution.workflowId, execution.startTime)
+                      const { name, timestamp } = getWorkflowDisplay(
+                        execution.workflowId,
+                        execution.startTime
+                      )
 
                       return (
                         <div
@@ -176,12 +179,18 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
                               <Loader2 className="w-3 h-3 animate-spin text-primary flex-shrink-0" />
                             ) : (
                               <div
-                                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor(execution.status)}`}
+                                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusColor(
+                                  execution.status
+                                )}`}
                               />
                             )}
-                            <span className="text-xs text-card-foreground truncate flex-1 font-mono">{name}</span>
+                            <span className="text-xs text-card-foreground truncate flex-1 font-mono">
+                              {name}
+                            </span>
                             {timestamp && (
-                              <span className="text-[10px] text-muted-foreground/60 font-mono">{timestamp}</span>
+                              <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                {timestamp}
+                              </span>
                             )}
                             <span className="text-xs text-muted-foreground">
                               {formatCost(execution.actualCost || execution.estimatedCost)}
@@ -189,7 +198,9 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
                           </div>
 
                           {execution.error && (
-                            <p className="text-destructive text-xs mt-1 truncate">{execution.error}</p>
+                            <p className="text-destructive text-xs mt-1 truncate">
+                              {execution.error}
+                            </p>
                           )}
                         </div>
                       )
@@ -199,11 +210,20 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
                       const { name } = getWorkflowDisplay(item.workflowId)
 
                       return (
-                        <div key={item.id} className="px-2 py-1.5 rounded bg-muted/30 border border-border/30">
+                        <div
+                          key={item.id}
+                          className="px-2 py-1.5 rounded bg-muted/30 border border-border/30"
+                        >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground font-mono">#{index + 1}</span>
-                            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{name}</span>
-                            <span className="text-xs text-muted-foreground">{formatCost(item.estimatedCost)}</span>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              #{index + 1}
+                            </span>
+                            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">
+                              {name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatCost(item.estimatedCost)}
+                            </span>
                           </div>
                         </div>
                       )
@@ -220,17 +240,29 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground font-mono">
-                {formatCost(executions.reduce((sum, e) => sum + (e.actualCost || e.estimatedCost), 0))}
+                {formatCost(
+                  executions.reduce((sum, e) => sum + (e.actualCost || e.estimatedCost), 0)
+                )}
               </span>
 
               <span className="text-muted-foreground">
                 ✓ {executions.filter((e) => e.status === "completed").length}
               </span>
 
-              <span className="text-muted-foreground">✗ {executions.filter((e) => e.status === "failed").length}</span>
+              <span className="text-muted-foreground">
+                ✗ {executions.filter((e) => e.status === "failed").length}
+              </span>
             </div>
 
-            <Button variant="ghost" size="sm" className="h-6 text-xs px-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => {
+                workflowEngine.clearExecutions()
+                setExecutions(workflowEngine.getAllExecutions())
+              }}
+            >
               clear
             </Button>
           </div>

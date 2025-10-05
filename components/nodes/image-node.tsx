@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { NodeContainer, NodeHeader, NodeContent, NodeSettings } from "@/components/node-components"
 import { getImageModelMeta } from "@/lib/config"
 import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb"
+import { workflowStore } from "@/lib/store/workflows"
 
 export function ImageNode({
   data,
@@ -26,6 +27,8 @@ export function ImageNode({
   selected?: boolean
   width?: number
 }) {
+  // workflowId is passed via data.workflowId from the canvas
+  const workflowId = data.workflowId
   const [model, setModel] = useState(data.config?.model || "black-forest-labs/flux-1-schnell")
   const meta = getImageModelMeta(model)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -33,9 +36,10 @@ export function ImageNode({
   const nodeWidth = width || 256
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const imageHistory: string[] = (data?.resultHistory || [])
+  // Map resultHistory to include id for deletions
+  const imageHistory: Array<{ id: string; url: string }> = (data?.resultHistory || [])
     .filter((r: any) => r.type === "image")
-    .map((r: any) => r.data)
+    .map((r: any) => ({ id: r.id, url: r.data }))
     .reverse() // Most recent first
 
   const isRunning = data.status === "running"
@@ -216,7 +220,9 @@ export function ImageNode({
                 size="sm"
                 className="h-6 px-2 text-xs text-destructive hover:text-destructive"
                 onClick={() => {
-                  data?.onChange?.({ result: undefined, resultHistory: [] })
+                  if (workflowId) {
+                    workflowStore.clearResultHistory(workflowId, id)
+                  }
                 }}
                 title="Clear all images"
               >
@@ -233,14 +239,14 @@ export function ImageNode({
               className={`grid gap-2`}
               style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
             >
-              {imageHistory.map((url, idx) => (
+              {imageHistory.map((item, idx) => (
                 <div
-                  key={`${url}-${idx}`}
+                  key={item.id || `${item.url}-${idx}`}
                   className="relative overflow-hidden rounded border group"
                   style={{ aspectRatio: "1/1" }}
                 >
                   <img
-                    src={url || "/placeholder.svg"}
+                    src={item.url || "/placeholder.svg"}
                     alt={`Generation ${imageHistory.length - idx}`}
                     className="block w-full h-full object-cover"
                   />
@@ -248,15 +254,11 @@ export function ImageNode({
                     variant="ghost"
                     size="sm"
                     className="absolute top-1 right-1 h-6 w-6 p-0 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => {
-                      const newHistory = [...(data.resultHistory || [])]
-                      newHistory.splice(imageHistory.length - 1 - idx, 1)
-                      const newResult =
-                        newHistory.length > 0 ? newHistory[newHistory.length - 1] : undefined
-                      data?.onChange?.({
-                        result: newResult,
-                        resultHistory: newHistory,
-                      })
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (workflowId && item.id) {
+                        workflowStore.removeFromResultHistory(workflowId, id, item.id)
+                      }
                     }}
                     title="Remove this image"
                   >

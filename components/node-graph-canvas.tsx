@@ -60,6 +60,50 @@ export function NodeGraphCanvas({
     })
   }, [activeWorkflow])
 
+  const isValidConnection = useCallback(
+    (connection: Connection) => {
+      // Don't allow self-connections
+      if (connection.source === connection.target) return false
+
+      // Get source and target nodes from current workflow
+      const wf = workflowStore.get(activeWorkflow)
+      if (!wf) return true // Allow if workflow not loaded yet
+
+      const sourceNode = wf.nodes.find((n) => n.id === connection.source)
+      const targetNode = wf.nodes.find((n) => n.id === connection.target)
+
+      if (!sourceNode || !targetNode) return true
+
+      // Validate prompt → image-gen connections
+      if (
+        sourceNode.type === "prompt" &&
+        (targetNode.type === "image-gen" || targetNode.type === "image-edit")
+      ) {
+        // Prompt nodes can only connect to the prompt handle, not image-input
+        if (connection.targetHandle === "image-input") {
+          return false
+        }
+        return true
+      }
+
+      // Validate image → image-gen connections
+      if (
+        (sourceNode.type === "image-gen" || sourceNode.type === "image-edit") &&
+        (targetNode.type === "image-gen" || targetNode.type === "image-edit")
+      ) {
+        // Image nodes can connect to image-input handle
+        if (connection.targetHandle === "image-input") {
+          return true
+        }
+        // But not to the default/prompt handle
+        return false
+      }
+
+      return true
+    },
+    [activeWorkflow]
+  )
+
   const onConnect = useCallback(
     (params: Connection) => {
       const newEdge = makeSolidEdge(params)
@@ -184,6 +228,7 @@ export function NodeGraphCanvas({
           ? (n as any).size?.height
           : undefined,
       data: {
+        workflowId: activeWorkflow,
         type: n.type,
         title: n.title,
         status: n.status,
@@ -367,6 +412,7 @@ export function NodeGraphCanvas({
         onNodesChange={onNodesChangeHandler}
         onEdgesChange={onEdgesChangeHandler}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onMoveEnd={onMoveEnd}
         defaultViewport={(workflowStore.get(activeWorkflow)?.viewport as any) || undefined}
         onPaneDoubleClick={(pos) => {

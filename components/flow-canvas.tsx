@@ -18,6 +18,7 @@ export function FlowCanvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  isValidConnection,
   onMoveEnd,
   onPaneDoubleClick,
   defaultViewport,
@@ -29,6 +30,7 @@ export function FlowCanvas({
   onNodesChange: any
   onEdgesChange: any
   onConnect: any
+  isValidConnection?: any
   onMoveEnd: any
   onPaneDoubleClick?: (position: { x: number; y: number }) => void
   defaultViewport?: { x: number; y: number; zoom: number }
@@ -41,6 +43,7 @@ export function FlowCanvas({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
+      isValidConnection={isValidConnection}
       nodeTypes={nodeTypes}
       fitView={false}
       className="bg-background rf-panel-tight"

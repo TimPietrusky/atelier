@@ -43,6 +43,8 @@ type Actions = {
     result: WorkflowNode["result"],
     resultHistory?: WorkflowNode["resultHistory"]
   ) => void
+  removeFromResultHistory: (workflowId: string, nodeId: string, resultId: string) => void
+  clearResultHistory: (workflowId: string, nodeId: string) => void
   updateNodeStatus: (workflowId: string, nodeId: string, status: WorkflowNode["status"]) => void
   updateNodeDimensions: (
     workflowId: string,
@@ -281,12 +283,18 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
         const incomingHistory = resultHistory || []
         const mergedHistory = [...existingHistory]
 
-        // Append only new items (check by comparing result data to avoid duplicates)
+        // Append only new items (check by id first, then data to avoid duplicates)
         incomingHistory.forEach((newItem: any) => {
           const isDuplicate = existingHistory.some(
-            (existing: any) => existing.data === newItem.data && existing.type === newItem.type
+            (existing: any) =>
+              (newItem.id && existing.id === newItem.id) ||
+              (existing.data === newItem.data && existing.type === newItem.type)
           )
           if (!isDuplicate) {
+            // Add id if not present
+            if (!newItem.id) {
+              newItem.id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            }
             mergedHistory.push(newItem)
           }
         })
@@ -296,6 +304,53 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
           result,
           resultHistory: mergedHistory,
           status: "complete",
+        }
+      })
+      const next = {
+        ...doc,
+        nodes,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      }
+      void persistGraph(next)
+      return { workflows: { ...s.workflows, [workflowId]: next } }
+    })
+  },
+  removeFromResultHistory(workflowId, nodeId, resultId) {
+    set((s) => {
+      const doc = s.workflows[workflowId]
+      if (!doc) return s
+      const nodes = doc.nodes.map((n) => {
+        if (n.id !== nodeId) return n
+        const filteredHistory = (n.resultHistory || []).filter((r: any) => r.id !== resultId)
+        const newResult =
+          filteredHistory.length > 0 ? filteredHistory[filteredHistory.length - 1] : undefined
+        return {
+          ...n,
+          result: newResult,
+          resultHistory: filteredHistory,
+        }
+      })
+      const next = {
+        ...doc,
+        nodes,
+        updatedAt: Date.now(),
+        version: (doc.version || 0) + 1,
+      }
+      void persistGraph(next)
+      return { workflows: { ...s.workflows, [workflowId]: next } }
+    })
+  },
+  clearResultHistory(workflowId, nodeId) {
+    set((s) => {
+      const doc = s.workflows[workflowId]
+      if (!doc) return s
+      const nodes = doc.nodes.map((n) => {
+        if (n.id !== nodeId) return n
+        return {
+          ...n,
+          result: undefined,
+          resultHistory: [],
         }
       })
       const next = {

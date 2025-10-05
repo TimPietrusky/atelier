@@ -854,6 +854,13 @@ export class WorkflowEngine {
     return [...this.queue]
   }
 
+  clearExecutions(): void {
+    // Clear completed and failed executions, keep running ones
+    const running = Array.from(this.executions.values()).filter((e) => e.status === "running")
+    this.executions.clear()
+    running.forEach((e) => this.executions.set(e.id, e))
+  }
+
   getActiveJobsCount(): number {
     // Returns count of queued + running jobs
     const runningCount = Array.from(this.executions.values()).filter(
