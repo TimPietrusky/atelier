@@ -24,6 +24,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Nodes (including `resultHistory`), edges, and viewport via `workflowStore.setNodes/setEdges/setViewport`.
   - Node config changes via `workflowStore.updateNodeConfig`.
   - Node results via `workflowStore.updateNodeResult(workflowId, nodeId, result, resultHistory)` — merges incoming history with existing to preserve all generations.
+  - **Result history items must have unique IDs** to support race-condition-free deletions while queue is running.
 - Metadata is persisted via Dexie; writes are batched and transactional.
 - Zustand `set()` must return new object references (immutable updates) to trigger subscribers; avoid direct mutation.
 - Seed default workflows on the client only (avoid SSR hydration mismatch).
@@ -32,10 +33,19 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Fallback to IndexedDB blobs when OPFS/FS Access is unavailable.
   - Only store tiny previews as data URLs when beneficial; never store originals base64 in JSON/localStorage.
 - `AssetRef` is the only allowed reference to media in workflow state (see Glossary).
+- **Result history management**:
+  - Each result in `resultHistory` has a unique `id` (auto-generated as `${Date.now()}-${random}`).
+  - Use `removeFromResultHistory(workflowId, nodeId, resultId)` to delete specific results by ID (race-condition safe).
+  - Use `clearResultHistory(workflowId, nodeId)` to clear all results.
+  - Never splice by index or replace entire array during concurrent operations.
 - Deletions:
   - When nodes are deleted, persist the updated node list and prune edges referencing removed nodes.
 - Statuses:
   - Transient `running` status is never persisted; on write it is coerced to `idle`, and on load any persisted `running` becomes `idle`.
+- Viewport:
+  - Each workflow has independent viewport state (position, zoom).
+  - Persisted asynchronously via lightweight `updateWorkflowViewport()` to avoid heavy writes during pan/zoom.
+  - Restored on workflow switch using `reactFlowInstance.setViewport()`.
 
 ## Workflow execution
 
@@ -129,12 +139,17 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 - Drag/move vs persist:
   - Do not persist node position continuously while dragging; commit once on drag end.
-  - Use the change object’s `dragging === false` (position events) as the commit signal.
+  - Use the change object's `dragging === false` (position events) as the commit signal.
 - Resize vs persist:
   - Treat `dimensions` changes as transient; buffer the latest width/height during resize and persist once on pointerup (resize end). Do not write on every `dimensions` event.
   - Keep a simple interaction guard (e.g., `isInteractingRef`) to temporarily pause store→UI remaps while dragging/resizing. Resume remaps only after committing the final value to avoid oscillation.
 - Selection preservation:
   - When mapping store nodes back to ReactFlow nodes, preserve the previous `selected` state so the `NodeResizer` remains visible during interactions.
+- **Real-time data updates during interactions** (CRITICAL):
+  - The interaction guard should ONLY block position/size updates, NOT data updates (result, status, resultHistory).
+  - During interactions, preserve `position`, `width`, `height` from previous state, but allow `data` to flow through from store.
+  - This ensures queue-generated results appear immediately while drag/resize operations remain smooth.
+  - Pattern: `if (isInteractingRef.current && prevNode) { return { ...newNode, position: prevNode.position, width: prevNode.width, height: prevNode.height } }`
 - Reconciliation:
   - Do not run periodic DB→store reconciliation while an interaction is in flight. Reconcile only when idle to avoid fighting in-flight UI state.
 
@@ -168,16 +183,21 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Do persist node/edge/viewport changes via `workflowStore` methods.
 - Do use immutable updates in Zustand `set()` — return new objects, never mutate `s.workflows[id]` directly.
 - Do merge `resultHistory` when updating node results to preserve all generations across queue runs.
+- Do use unique IDs for result history items; delete by ID, not by index.
 - Do use `providerOptions.runpod.images` for img2img; keep logs sanitized.
 - Do reset node statuses before runs and update status during execution.
 - Do store originals in OPFS or via FS Access and reference them with `AssetRef`.
 - Do control DropdownMenu state explicitly; close it before opening dialogs to avoid lingering `pointer-events: none` on body.
 - Do use `queueMicrotask` for deferred state updates when needed.
+- Do preserve position/size during interactions but allow data (result, status) to flow through for real-time updates.
+- Do validate connections by node type and handle compatibility (prevent prompt→image-input, etc).
 - Don't auto-switch models in the engine—let users pick (but hint in UI).
 - Don't send unsupported params (e.g., guidance for Seedream; undefined seed).
 - Don't use raw `fetch` to RunPod model endpoints—always go through the provider adapter.
 - Don't persist large base64 media in JSON/localStorage.
 - Don't filter image inputs by handle alone; always validate node type and result type to avoid accepting text as images.
+- Don't block ALL node updates during interactions—only block position/size, not data.
+- Don't splice resultHistory by index during concurrent operations—use ID-based removal.
 - **NEVER use `setTimeout` for timing hacks or event ordering** — these are band-aids that hide real problems. Use proper state management, `queueMicrotask`, or fix the root cause.
 
 ## Quick glossary
