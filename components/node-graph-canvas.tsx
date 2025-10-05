@@ -311,16 +311,32 @@ export function NodeGraphCanvas({
     const unsub = workflowStore.subscribe(() => {
       const wf = workflowStore.get(activeWorkflow)
       if (!wf) return
-      if (!isInteractingRef.current) {
-        setNodes((prev) => {
-          const prevSel = new Map(prev.map((p) => [p.id, p.selected]))
-          const mapped = wf.nodes.map(mapStoreNodeToRF).map((n) => ({
+
+      // Update nodes: during interaction, only update data (result, status), not position/size
+      setNodes((prev) => {
+        const prevSel = new Map(prev.map((p) => [p.id, p.selected]))
+        const mapped = wf.nodes.map(mapStoreNodeToRF).map((n) => {
+          const prevNode = prev.find((p) => p.id === n.id)
+
+          // If interacting and this node exists, preserve its position and dimensions
+          if (isInteractingRef.current && prevNode) {
+            return {
+              ...n,
+              position: prevNode.position,
+              width: prevNode.width,
+              height: prevNode.height,
+              selected: prevSel.get(n.id) || false,
+            }
+          }
+
+          return {
             ...n,
             selected: prevSel.get(n.id) || false,
-          }))
-          return mapped
+          }
         })
-      }
+        return mapped
+      })
+
       if (wf.edges)
         setEdges(
           (wf.edges as any).map((e: any) => ({
