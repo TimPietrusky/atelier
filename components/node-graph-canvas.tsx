@@ -304,6 +304,10 @@ export function NodeGraphCanvas({
             animated: false,
           }))
         )
+      // Restore viewport for this workflow
+      if (wf0.viewport) {
+        reactFlowInstance.setViewport(wf0.viewport, { duration: 0 })
+      }
     }
     const handleError = (event: ErrorEvent) => {
       if (event.message.includes("ResizeObserver loop completed with undelivered notifications")) {
