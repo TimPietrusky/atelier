@@ -3,7 +3,7 @@
 import { create } from "zustand"
 import type { WorkflowNode } from "@/lib/workflow-engine"
 import { BroadcastBus } from "@/lib/store/storage"
-import { db, hydrateWorkflows, writeWorkflowGraph } from "@/lib/store/db"
+import { db, hydrateWorkflows, writeWorkflowGraph, updateWorkflowViewport } from "@/lib/store/db"
 
 export interface WorkflowEdge {
   id: string
@@ -230,7 +230,17 @@ export const useWorkflowStore = create<State & Actions>()((set, get) => ({
         version: (doc.version || 0) + 1,
       }
       ;(s.workflows as any)[workflowId] = next
-      void persistGraph(next)
+      // Lightweight async persist only for viewport
+      void updateWorkflowViewport({
+        id: next.id,
+        viewport: next.viewport!,
+        updatedAt: next.updatedAt,
+        version: next.version,
+      })
+      // Broadcast to other tabs
+      try {
+        bus.post({ id: next.id, updatedAt: next.updatedAt })
+      } catch {}
       return { workflows: { ...s.workflows } } as any
     })
   },

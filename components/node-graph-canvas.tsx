@@ -364,6 +364,7 @@ export function NodeGraphCanvas({
         onEdgesChange={onEdgesChangeHandler}
         onConnect={onConnect}
         onMoveEnd={onMoveEnd}
+        defaultViewport={(workflowStore.get(activeWorkflow)?.viewport as any) || undefined}
         onPaneDoubleClick={(pos) => {
           if (onCanvasDoubleClick) {
             const canvasPos = reactFlowInstance.screenToFlowPosition({

@@ -256,13 +256,13 @@ export default function StudioDashboard() {
 
           <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={handleAddNode} />
 
-          <div className="flex items-center gap-0.5 h-8">
+          <div className="flex items-center gap-2">
             <CanvasControls />
             <MiniMap
               className="bg-card/90 backdrop-blur-sm rounded-md"
               nodeColor="#ff0080"
               maskColor="rgba(0, 0, 0, 0.6)"
-              style={{ position: "static", width: 75, height: 32 }}
+              style={{ position: "static", width: 75, height: 32, margin: 0 }}
             />
           </div>
         </header>

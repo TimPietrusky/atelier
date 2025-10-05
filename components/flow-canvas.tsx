@@ -20,6 +20,7 @@ export function FlowCanvas({
   onConnect,
   onMoveEnd,
   onPaneDoubleClick,
+  defaultViewport,
 }: {
   children?: ReactNode
   nodes: any[]
@@ -30,6 +31,7 @@ export function FlowCanvas({
   onConnect: any
   onMoveEnd: any
   onPaneDoubleClick?: (position: { x: number; y: number }) => void
+  defaultViewport?: { x: number; y: number; zoom: number }
 }) {
   const proOptions = { hideAttribution: true } as const
   return (
@@ -56,6 +58,7 @@ export function FlowCanvas({
       defaultEdgeOptions={{ type: "default", style: { stroke: "#e5e7eb", strokeWidth: 2 } } as any}
       proOptions={proOptions as any}
       colorMode="dark"
+      defaultViewport={defaultViewport as any}
       onMoveEnd={(_, viewport) => onMoveEnd(viewport)}
       onPaneClick={(e: any) => {
         if (e.detail === 2 && onPaneDoubleClick) {

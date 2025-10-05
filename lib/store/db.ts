@@ -163,6 +163,20 @@ export async function writeWorkflowGraph(payload: {
   })
 }
 
+// Lightweight update for viewport only to avoid heavy writes during panning/zooming
+export async function updateWorkflowViewport(params: {
+  id: string
+  viewport: { x: number; y: number; zoom: number }
+  updatedAt: number
+  version?: number
+}) {
+  await db.workflows.update(params.id, {
+    viewport: params.viewport,
+    updatedAt: params.updatedAt,
+    version: params.version,
+  })
+}
+
 export async function putKV(key: string, value: any) {
   await db.kv.put({ key, value })
 }
