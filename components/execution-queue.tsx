@@ -96,10 +96,6 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
-  const formatCost = (cost: number) => {
-    return `$${cost.toFixed(3)}`
-  }
-
   const getWorkflowDisplay = (workflowId: string, startTime?: Date) => {
     const workflow = workflows[workflowId]
     const name = workflow?.name || workflowId.slice(0, 12)
@@ -192,9 +188,6 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
                                 {timestamp}
                               </span>
                             )}
-                            <span className="text-xs text-muted-foreground">
-                              {formatCost(execution.actualCost || execution.estimatedCost)}
-                            </span>
                           </div>
 
                           {execution.error && (
@@ -221,9 +214,6 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
                             <span className="text-xs text-muted-foreground truncate flex-1 font-mono">
                               {name}
                             </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatCost(item.estimatedCost)}
-                            </span>
                           </div>
                         </div>
                       )
@@ -239,12 +229,6 @@ export function ExecutionQueueComponent({ isOpen, onClose }: ExecutionQueueProps
         <div className="px-3 py-2 border-t border-border/50 flex-shrink-0">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-3">
-              <span className="text-muted-foreground font-mono">
-                {formatCost(
-                  executions.reduce((sum, e) => sum + (e.actualCost || e.estimatedCost), 0)
-                )}
-              </span>
-
               <span className="text-muted-foreground">
                 ✓ {executions.filter((e) => e.status === "completed").length}
               </span>
