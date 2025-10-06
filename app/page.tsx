@@ -5,6 +5,7 @@ import { ReactFlowProvider, MiniMap } from "@xyflow/react"
 import { Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { AtelierLogo } from "@/components/atelier-logo"
 import { WorkflowSwitcher } from "@/components/workflow-switcher"
 import { NodeGraphCanvas } from "@/components/node-graph-canvas"
 import { MediaManager } from "@/components/media-manager"
@@ -226,9 +227,9 @@ export default function StudioDashboard() {
     <ReactFlowProvider>
       <div className="h-screen bg-background text-foreground flex flex-col">
         {/* Top Header */}
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-2 py-1 gap-4">
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-0 py-1 gap-4">
           <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold text-rainbow mr-2">atelier</h1>
+            <AtelierLogo className="h-8 w-auto text-foreground" />
 
             {activeWorkflow ? (
               <WorkflowSwitcher
