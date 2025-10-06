@@ -93,6 +93,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Remove visual noise (no animated edges; no round status dot in titles).
 - Run button is stateless; queue count updates instantly.
 - ReactFlow Controls and MiniMap live in the app header; entire app wrapped with `ReactFlowProvider`.
+- **Single handle rule (CRITICAL)**: Each node has exactly ONE input handle and ONE output handle. NEVER add multiple input or output handles to make users choose between them. The backend/engine resolves what data to use based on connected node types. Keep UX simple.
 - Image node:
   - Model selector includes edit models.
   - “Load image” writes originals to OPFS (or user folder via FS Access). The node stores only an `AssetRef` to the file; small previews may be cached as data URLs.

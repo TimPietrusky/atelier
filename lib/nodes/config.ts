@@ -13,12 +13,6 @@ export const NODE_TYPES = [
     icon: ImageIcon,
     description: "Generate images from text prompts",
   },
-  {
-    id: "test",
-    title: "Test Resize",
-    icon: TestTube,
-    description: "Empty node for testing resize",
-  },
   // Hidden: Image Edit – Image node covers both txt2img and img2img
   // Hidden: Video Gen – not implemented yet
   // {

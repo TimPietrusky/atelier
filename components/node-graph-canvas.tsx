@@ -71,40 +71,8 @@ export function NodeGraphCanvas({
       // Don't allow self-connections
       if (connection.source === connection.target) return false
 
-      // Get source and target nodes from current workflow
-      const wf = workflowStore.get(activeWorkflow)
-      if (!wf) return true // Allow if workflow not loaded yet
-
-      const sourceNode = wf.nodes.find((n) => n.id === connection.source)
-      const targetNode = wf.nodes.find((n) => n.id === connection.target)
-
-      if (!sourceNode || !targetNode) return true
-
-      // Validate prompt → image-gen connections
-      if (
-        sourceNode.type === "prompt" &&
-        (targetNode.type === "image-gen" || targetNode.type === "image-edit")
-      ) {
-        // Prompt nodes can only connect to the prompt handle, not image-input
-        if (connection.targetHandle === "image-input") {
-          return false
-        }
-        return true
-      }
-
-      // Validate image → image-gen connections
-      if (
-        (sourceNode.type === "image-gen" || sourceNode.type === "image-edit") &&
-        (targetNode.type === "image-gen" || targetNode.type === "image-edit")
-      ) {
-        // Image nodes can connect to image-input handle
-        if (connection.targetHandle === "image-input") {
-          return true
-        }
-        // But not to the default/prompt handle
-        return false
-      }
-
+      // Allow all other connections - nodes have single input/output handles
+      // Backend will handle resolving the correct inputs
       return true
     },
     [activeWorkflow]

@@ -51,11 +51,6 @@ export default function StudioDashboard() {
         title: "Image",
         config: { model: "black-forest-labs/flux-1-schnell", steps: 30 },
       },
-      test: {
-        type: "testNode",
-        title: "Test Resize",
-        config: {},
-      },
       "video-gen": {
         type: "customNode",
         title: "Video Gen",
