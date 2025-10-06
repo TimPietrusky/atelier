@@ -195,20 +195,37 @@ export function ImageNode({
                       className="block w-full h-full object-cover cursor-pointer"
                       onDoubleClick={() => setEnlargedImage({ url: item.url, id: item.id })}
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute top-1 right-1 h-6 w-6 p-0 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (workflowId && item.id) {
-                          workflowStore.removeFromResultHistory(workflowId, id, item.id)
-                        }
-                      }}
-                      title="Remove this image"
-                    >
-                      <X className="w-3 h-3 text-destructive" />
-                    </Button>
+                    <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const link = document.createElement("a")
+                          link.href = item.url
+                          link.download = `image-${item.id}.png`
+                          link.click()
+                        }}
+                        title="Download image"
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (workflowId && item.id) {
+                            workflowStore.removeFromResultHistory(workflowId, id, item.id)
+                          }
+                        }}
+                        title="Remove this image"
+                      >
+                        <X className="w-3 h-3 text-destructive" />
+                      </Button>
+                    </div>
                     {idx === 0 && (
                       <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
                         latest
