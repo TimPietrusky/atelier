@@ -9,6 +9,9 @@ import { WorkflowSwitcher } from "@/components/workflow-switcher"
 import { NodeGraphCanvas } from "@/components/node-graph-canvas"
 import { MediaManager } from "@/components/media-manager"
 import { ExecutionQueue } from "@/components/execution-queue"
+import { NodeInspectorPanel } from "@/components/node-inspector-panel"
+import { PromptInspector } from "@/components/node-inspector-sections/prompt-inspector"
+import { ImageInspector } from "@/components/node-inspector-sections/image-inspector"
 import { ConnectProvider } from "@/components/connect-provider"
 import { CanvasControls } from "@/components/canvas-controls"
 import { AddNodeMenu } from "@/components/add-node-menu"
@@ -24,6 +27,7 @@ export default function StudioDashboard() {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false)
   const [isConnectOpen, setIsConnectOpen] = useState(false)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     x: number
     y: number
@@ -101,6 +105,17 @@ export default function StudioDashboard() {
       } catch {}
     }
   }
+
+  // Close inspector panel when workflow changes
+  useEffect(() => {
+    setSelectedNodeId(null)
+  }, [activeWorkflow])
+
+  // Get selected node from store
+  const selectedNode =
+    selectedNodeId && activeWorkflow
+      ? workflowStore.get(activeWorkflow)?.nodes.find((n) => n.id === selectedNodeId)
+      : null
 
   useEffect(() => {
     const update = () => {
@@ -280,6 +295,9 @@ export default function StudioDashboard() {
                 onStatusChange={setExecutionStatus}
                 queueCount={queueCount}
                 onCanvasDoubleClick={(pos) => setContextMenuPosition(pos)}
+                onNodeClick={(nodeId) => setSelectedNodeId(nodeId)}
+                onPaneClick={() => setSelectedNodeId(null)}
+                selectedNodeId={selectedNodeId}
               />
             )}
           </div>
@@ -288,6 +306,33 @@ export default function StudioDashboard() {
         <footer className="hidden border-t border-border bg-card/50 backdrop-blur-sm px-6 py-3" />
 
         {isMediaManagerOpen && <MediaManager onClose={() => setIsMediaManagerOpen(false)} />}
+
+        <NodeInspectorPanel
+          isOpen={!!selectedNodeId}
+          selectedNode={selectedNode || null}
+          onClose={() => setSelectedNodeId(null)}
+        >
+          {selectedNode?.type === "prompt" && (
+            <PromptInspector
+              node={selectedNode}
+              onChange={(cfg) => {
+                if (activeWorkflow) {
+                  workflowStore.updateNodeConfig(activeWorkflow, selectedNode.id, cfg)
+                }
+              }}
+            />
+          )}
+          {(selectedNode?.type === "image-gen" || selectedNode?.type === "image-edit") && (
+            <ImageInspector
+              node={selectedNode}
+              onChange={(cfg) => {
+                if (activeWorkflow) {
+                  workflowStore.updateNodeConfig(activeWorkflow, selectedNode.id, cfg)
+                }
+              }}
+            />
+          )}
+        </NodeInspectorPanel>
 
         <ExecutionQueue
           isOpen={isExecutionQueueOpen}

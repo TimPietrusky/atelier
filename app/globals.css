@@ -155,6 +155,11 @@
     margin: 0px !important;
   }
 
+  /* Prevent node dragging when interacting with input elements */
+  .react-flow__node .nodrag {
+    pointer-events: all !important;
+  }
+
   /* Minimal scrollbar styling */
   * {
     scrollbar-width: thin;

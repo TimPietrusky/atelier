@@ -43,6 +43,8 @@ export interface WorkflowExecution {
 export interface ExecutionQueue {
   id: string
   workflowId: string
+  nodes: WorkflowNode[] // Snapshot at queue time
+  edges: Array<{ source: string; target: string; sourceHandle?: string; targetHandle?: string }>
   priority: number
   estimatedDuration: number
   estimatedCost: number
@@ -55,11 +57,21 @@ export class WorkflowEngine {
   private isProcessing = false
   private maxConcurrency = 5
   private runningCount = 0
+  // Snapshots captured at queue time to isolate executions from live edits
+  private queuedSnapshots: Map<string, { nodes: WorkflowNode[]; edges: any[] }> = new Map()
   // live node snapshots during an execution to avoid stale localStorage reads
   private runtimeNodesByWorkflow: Map<string, WorkflowNode[]> = new Map()
 
   async executeWorkflow(workflowId: string, nodes: WorkflowNode[]): Promise<string> {
     const executionId = `exec_${Date.now()}`
+
+    // Get current workflow state to snapshot edges as well
+    let edges: any[] = []
+    try {
+      const s = useWorkflowStore.getState()
+      const workflow = s.workflows[workflowId]
+      edges = (workflow?.edges as any[]) || []
+    } catch {}
 
     const execution: WorkflowExecution = {
       id: executionId,
@@ -71,10 +83,18 @@ export class WorkflowEngine {
 
     this.executions.set(executionId, execution)
 
+    // Snapshot nodes and edges at queue time to isolate from future edits
+    this.queuedSnapshots.set(executionId, {
+      nodes: nodes.map((n) => ({ ...n })),
+      edges: edges.map((e) => ({ ...e })),
+    })
+
     // Add to queue
     this.queue.push({
       id: executionId,
       workflowId,
+      nodes: [], // Legacy field, not used (snapshot is in queuedSnapshots map)
+      edges: [],
       priority: 1,
       estimatedDuration: this.calculateEstimatedDuration(nodes),
       estimatedCost: execution.estimatedCost,
@@ -114,6 +134,8 @@ export class WorkflowEngine {
         execution.error = error instanceof Error ? error.message : "Unknown error"
         execution.endTime = new Date()
       } finally {
+        // Clean up snapshot after execution completes
+        this.queuedSnapshots.delete(execution.id)
         this.runningCount--
         setTimeout(() => this.processQueue(), 50)
       }
@@ -126,19 +148,14 @@ export class WorkflowEngine {
   }
 
   private async runWorkflowExecution(execution: WorkflowExecution) {
-    // Prefer in-memory store state to avoid stale/localStorage quota issues
-    // Pull from Zustand store (source of truth)
-    let workflow: any | undefined
-    try {
-      const s = useWorkflowStore.getState()
-      workflow = s.workflows[execution.workflowId]
-    } catch {}
-    if (!workflow) throw new Error("Workflow not found")
+    // Use snapshot from queue time to ensure edits don't affect already-queued workflows
+    const snapshot = this.queuedSnapshots.get(execution.id)
+    if (!snapshot) throw new Error("Queue snapshot not found for execution")
 
     // Order nodes using a simple topological sort based on edges so that
     // upstream nodes execute before their dependents.
-    const edges: Array<{ source: string; target: string }> = (workflow.edges as any[]) || []
-    const nodes: WorkflowNode[] = (workflow.nodes as WorkflowNode[]) || []
+    const edges: Array<{ source: string; target: string }> = snapshot.edges
+    const nodes: WorkflowNode[] = snapshot.nodes
 
     const idToNode = new Map(nodes.map((n: WorkflowNode) => [n.id, n]))
     const indegree = new Map<string, number>()

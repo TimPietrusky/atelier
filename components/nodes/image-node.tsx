@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { ImageIcon, ImagePlus, X } from "lucide-react"
+import { ImageIcon, X } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -9,9 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { NodeContainer, NodeHeader, NodeContent, NodeSettings } from "@/components/node-components"
+import { NodeContainer, NodeHeader, NodeContent } from "@/components/node-components"
 import { getImageModelMeta } from "@/lib/config"
 import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb"
 import { workflowStore } from "@/lib/store/workflows"
@@ -31,8 +30,6 @@ export function ImageNode({
   const workflowId = data.workflowId
   const [model, setModel] = useState(data.config?.model || "black-forest-labs/flux-1-schnell")
   const meta = getImageModelMeta(model)
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [showMeta, setShowMeta] = useState(false)
   const nodeWidth = width || 256
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -95,57 +92,6 @@ export function ImageNode({
     }
   }, [id, data.config?.localImageRef, data.config?.localImage])
 
-  const metaData = {
-    id,
-    type: data.type,
-    schema: {
-      inputs: [
-        { name: "prompt", type: "text", optional: true },
-        { name: "image", type: "image", optional: true },
-      ],
-      outputs: [{ name: "image", type: "image" }],
-    },
-    inputs: data.result?.metadata?.inputsUsed,
-    config: data.config,
-    result: data.result,
-  }
-
-  const imageUploadAction = (
-    <label className="h-6 w-6 p-0 flex items-center justify-center cursor-pointer hover:bg-accent/20 rounded">
-      <input
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (!file) return
-          const reader = new FileReader()
-          reader.onload = async () => {
-            const url = String(reader.result)
-            setLocalImage(url)
-            try {
-              if (typeof indexedDB !== "undefined") {
-                const key = `img_${id}`
-                await idbPutImage(key, url)
-                data?.onChange?.({
-                  localImageRef: key,
-                  localImage: undefined,
-                  mode: "uploaded",
-                })
-              } else {
-                data?.onChange?.({ localImage: url, mode: "uploaded" })
-              }
-            } catch {
-              data?.onChange?.({ localImage: url, mode: "uploaded" })
-            }
-          }
-          reader.readAsDataURL(file)
-        }}
-      />
-      <ImagePlus className="w-4 h-4 text-white" />
-    </label>
-  )
-
   return (
     <NodeContainer
       ref={containerRef}
@@ -166,12 +112,7 @@ export function ImageNode({
         },
       }}
     >
-      <NodeHeader
-        icon={<ImageIcon className="w-3 h-3 text-purple-500" />}
-        title="image"
-        actions={imageUploadAction}
-        onSettingsClick={() => setIsExpanded((v) => !v)}
-      />
+      <NodeHeader icon={<ImageIcon className="w-3 h-3 text-purple-500" />} title="image" />
 
       <NodeContent>
         {/* Fixed section: Model selector and header - doesn't scroll */}
@@ -314,70 +255,6 @@ export function ImageNode({
             </div>
           </div>
         )}
-
-        <NodeSettings
-          isExpanded={isExpanded}
-          onExpandedChange={setIsExpanded}
-          showMeta={showMeta}
-          onShowMetaChange={setShowMeta}
-          metaData={metaData}
-        >
-          <div>
-            <label className="text-xs text-muted-foreground">Steps</label>
-            <Input
-              type="number"
-              defaultValue="30"
-              min="1"
-              max="150"
-              className="h-6 text-xs"
-              onChange={(e) => data?.onChange?.({ steps: Number(e.target.value) })}
-            />
-          </div>
-          {meta?.supportsGuidance && (
-            <div>
-              <label className="text-xs text-muted-foreground">CFG Scale</label>
-              <Input
-                type="number"
-                defaultValue="7.5"
-                step="0.5"
-                min="1"
-                max="20"
-                className="h-6 text-xs"
-                onChange={(e) => data?.onChange?.({ guidance: Number(e.target.value) })}
-              />
-            </div>
-          )}
-          <div>
-            <label className="text-xs text-muted-foreground">Resolution</label>
-            <Select
-              defaultValue="1024x1024"
-              onValueChange={(v) => {
-                const [w, h] = v.split("x").map(Number)
-                data?.onChange?.({ width: w, height: h })
-              }}
-            >
-              <SelectTrigger className="h-6 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="512x512">512x512</SelectItem>
-                <SelectItem value="768x768">768x768</SelectItem>
-                <SelectItem value="1024x1024">1024x1024</SelectItem>
-                <SelectItem value="1024x768">1024x768</SelectItem>
-                <SelectItem value="768x1024">768x1024</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Seed</label>
-            <Input
-              type="number"
-              placeholder="Random"
-              className="h-6 text-xs"
-              onChange={(e) => data?.onChange?.({ seed: Number(e.target.value) })}
-            />
-          </div>
-        </NodeSettings>
       </NodeContent>
     </NodeContainer>
   )

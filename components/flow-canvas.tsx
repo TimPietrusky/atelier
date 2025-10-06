@@ -20,6 +20,8 @@ export function FlowCanvas({
   onConnect,
   isValidConnection,
   onMoveEnd,
+  onNodeClick,
+  onPaneClick,
   onPaneDoubleClick,
   defaultViewport,
 }: {
@@ -32,6 +34,8 @@ export function FlowCanvas({
   onConnect: any
   isValidConnection?: any
   onMoveEnd: any
+  onNodeClick?: (nodeId: string) => void
+  onPaneClick?: () => void
   onPaneDoubleClick?: (position: { x: number; y: number }) => void
   defaultViewport?: { x: number; y: number; zoom: number }
 }) {
@@ -63,9 +67,12 @@ export function FlowCanvas({
       colorMode="dark"
       defaultViewport={defaultViewport as any}
       onMoveEnd={(_, viewport) => onMoveEnd(viewport)}
+      onNodeClick={(_, node) => onNodeClick?.(node.id)}
       onPaneClick={(e: any) => {
         if (e.detail === 2 && onPaneDoubleClick) {
           onPaneDoubleClick({ x: e.clientX, y: e.clientY })
+        } else if (e.detail === 1) {
+          onPaneClick?.()
         }
       }}
       zoomOnDoubleClick={false}

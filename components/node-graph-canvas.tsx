@@ -32,6 +32,9 @@ interface NodeGraphCanvasProps {
     canvasX: number
     canvasY: number
   }) => void
+  onNodeClick?: (nodeId: string) => void
+  onPaneClick?: () => void
+  selectedNodeId?: string | null
 }
 
 export function NodeGraphCanvas({
@@ -41,6 +44,9 @@ export function NodeGraphCanvas({
   onStatusChange,
   queueCount = 0,
   onCanvasDoubleClick,
+  onNodeClick,
+  onPaneClick,
+  selectedNodeId,
 }: NodeGraphCanvasProps) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -238,8 +244,10 @@ export function NodeGraphCanvas({
         result: n.result,
         resultHistory: n.resultHistory,
       },
+      className: n.id === selectedNodeId ? "selected-node" : "",
+      style: n.id === selectedNodeId ? { boxShadow: "0 0 0 2px #ff0080" } : {},
     }),
-    [activeWorkflow]
+    [activeWorkflow, selectedNodeId]
   )
 
   const onNodesChangeHandler = useCallback(
@@ -284,6 +292,10 @@ export function NodeGraphCanvas({
 
       const removed = changes.filter((c) => c.type === "remove").map((c) => c.id as string)
       if (removed.length > 0) {
+        // Close inspector panel if selected node was deleted
+        removed.forEach((nodeId) => {
+          if (onPaneClick) onPaneClick() // This will clear selection
+        })
         setTimeout(() => {
           const wf = workflowStore.get(activeWorkflow)
           if (!wf) return
@@ -297,7 +309,7 @@ export function NodeGraphCanvas({
         }, 0)
       }
     },
-    [onNodesChange, activeWorkflow, nodes]
+    [onNodesChange, activeWorkflow, nodes, onPaneClick]
   )
 
   useEffect(() => {
@@ -431,6 +443,8 @@ export function NodeGraphCanvas({
         isValidConnection={isValidConnection}
         onMoveEnd={onMoveEnd}
         defaultViewport={(workflowStore.get(activeWorkflow)?.viewport as any) || undefined}
+        onNodeClick={(nodeId) => onNodeClick?.(nodeId)}
+        onPaneClick={() => onPaneClick?.()}
         onPaneDoubleClick={(pos) => {
           if (onCanvasDoubleClick) {
             const canvasPos = reactFlowInstance.screenToFlowPosition({
