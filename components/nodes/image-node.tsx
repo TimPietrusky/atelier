@@ -115,7 +115,11 @@ export function ImageNode({
           },
         }}
       >
-        <NodeHeader icon={<ImageIcon className="w-3 h-3 text-purple-500" />} title="image" />
+        <NodeHeader
+          icon={<ImageIcon className="w-3 h-3 text-purple-500" />}
+          title="image"
+          onSettingsClick={data?.onOpenInspector}
+        />
 
         <NodeContent>
           {/* Fixed section: Model selector and header - doesn't scroll */}

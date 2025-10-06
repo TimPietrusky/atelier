@@ -67,7 +67,6 @@ export function FlowCanvas({
       colorMode="dark"
       defaultViewport={defaultViewport as any}
       onMoveEnd={(_, viewport) => onMoveEnd(viewport)}
-      onNodeClick={(_, node) => onNodeClick?.(node.id)}
       onPaneClick={(e: any) => {
         if (e.detail === 2 && onPaneDoubleClick) {
           onPaneDoubleClick({ x: e.clientX, y: e.clientY })

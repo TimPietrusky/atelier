@@ -1,49 +1,38 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import {
-  NodeContainer,
-  NodeHeader,
-  NodeContent,
-  NodeSettings,
-} from "@/components/node-components";
-import { Settings2, Video, Wand2 } from "lucide-react";
+import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
+import { NodeContainer, NodeHeader, NodeContent, NodeSettings } from "@/components/node-components"
+import { Settings2, Video, Wand2 } from "lucide-react"
 
-export function CustomNode({
-  data,
-  selected,
-}: {
-  data: any;
-  selected?: boolean;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showMeta, setShowMeta] = useState(false);
+export function CustomNode({ data, selected }: { data: any; selected?: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [showMeta, setShowMeta] = useState(false)
 
   const getNodeIcon = (type: string) => {
     switch (type) {
       case "video-gen":
-        return Video;
+        return Video
       case "background-replace":
-        return Wand2;
+        return Wand2
       default:
-        return Settings2;
+        return Settings2
     }
-  };
+  }
 
   const getNodeIconColor = (type: string) => {
     switch (type) {
       case "video-gen":
-        return "text-orange-500";
+        return "text-orange-500"
       case "background-replace":
-        return "text-green-500";
+        return "text-green-500"
       default:
-        return "text-gray-500";
+        return "text-gray-500"
     }
-  };
+  }
 
-  const Icon = getNodeIcon(data.type);
-  const isRunning = data.status === "running";
+  const Icon = getNodeIcon(data.type)
+  const isRunning = data.status === "running"
 
   const metaData = {
     id: data.id,
@@ -55,7 +44,7 @@ export function CustomNode({
     inputs: data.result?.metadata?.inputsUsed,
     config: data.config,
     result: data.result,
-  };
+  }
 
   return (
     <NodeContainer
@@ -71,7 +60,7 @@ export function CustomNode({
       <NodeHeader
         icon={<Icon className={`w-3 h-3 ${getNodeIconColor(data.type)}`} />}
         title={data.title}
-        onSettingsClick={() => setIsExpanded((v) => !v)}
+        onSettingsClick={data?.onOpenInspector}
       />
 
       <NodeContent>
@@ -102,5 +91,5 @@ export function CustomNode({
         />
       </NodeContent>
     </NodeContainer>
-  );
+  )
 }

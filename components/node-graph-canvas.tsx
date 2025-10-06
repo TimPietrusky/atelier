@@ -56,6 +56,12 @@ export function NodeGraphCanvas({
   const reactFlowInstance = useReactFlow()
   const isInteractingRef = useRef(false)
   const pendingSizesRef = useRef(new Map<string, { width: number; height: number }>())
+  const selectedNodeIdRef = useRef(selectedNodeId)
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId
+  }, [selectedNodeId])
 
   const commitPendingSizes = useCallback(() => {
     if (pendingSizesRef.current.size === 0) return
@@ -209,13 +215,21 @@ export function NodeGraphCanvas({
         config: n.config,
         onChange: (cfg: Record<string, any>) =>
           workflowStore.updateNodeConfig(activeWorkflow, n.id, cfg),
+        onOpenInspector: () => {
+          // Toggle: if this node is already the selected one, close the panel
+          if (selectedNodeIdRef.current === n.id) {
+            onPaneClick?.()
+          } else {
+            onNodeClick?.(n.id)
+          }
+        },
         result: n.result,
         resultHistory: n.resultHistory,
       },
       className: n.id === selectedNodeId ? "selected-node" : "",
       style: n.id === selectedNodeId ? { boxShadow: "0 0 0 2px #ff0080" } : {},
     }),
-    [activeWorkflow, selectedNodeId]
+    [activeWorkflow, selectedNodeId, onNodeClick, onPaneClick]
   )
 
   const onNodesChangeHandler = useCallback(

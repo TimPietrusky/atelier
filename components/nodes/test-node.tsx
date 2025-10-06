@@ -12,7 +12,7 @@ export function TestNode({ data, id, selected }: { data: any; id: string; select
       <NodeHeader
         icon={<TestTube className="w-3 h-3 text-green-500" />}
         title="test resize"
-        onSettingsClick={() => setIsExpanded((v) => !v)}
+        onSettingsClick={data?.onOpenInspector}
       />
 
       <NodeContent>

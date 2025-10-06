@@ -34,7 +34,11 @@ export function PromptNode({ data, id, selected }: { data: any; id: string; sele
         },
       }}
     >
-      <NodeHeader icon={<MessageSquare className="w-3 h-3 text-blue-500" />} title="prompt" />
+      <NodeHeader
+        icon={<MessageSquare className="w-3 h-3 text-blue-500" />}
+        title="prompt"
+        onSettingsClick={data?.onOpenInspector}
+      />
 
       <NodeContent>
         <Textarea
