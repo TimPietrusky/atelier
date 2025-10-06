@@ -34,6 +34,7 @@ export function ImageNode({
   const nodeWidth = width || 256
   const containerRef = useRef<HTMLDivElement>(null)
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; id: string } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Map resultHistory to include id for deletions
   const imageHistory: Array<{ id: string; url: string }> = (data?.resultHistory || [])
@@ -55,10 +56,6 @@ export function ImageNode({
   }
   const gridCols = getGridCols(nodeWidth)
 
-  // Debug: log width changes (remove after testing)
-  useEffect(() => {
-    console.log("[ImageNode] Width:", nodeWidth, "Cols:", gridCols)
-  }, [nodeWidth, gridCols])
   const [localImage, setLocalImage] = useState<string | undefined>(
     data.config?.localImage || undefined
   )
@@ -70,24 +67,20 @@ export function ImageNode({
     let cancelled = false
     ;(async () => {
       try {
-        if (!localImage && data.config?.localImageRef && typeof indexedDB !== "undefined") {
+        // Fetch from IDB if we have a reference
+        if (data.config?.localImageRef && typeof indexedDB !== "undefined") {
           const url = await idbGetImage(data.config.localImageRef)
           if (!cancelled && url) setLocalImage(url)
-        } else if (
-          data.config?.localImage &&
-          !data.config?.localImageRef &&
-          typeof indexedDB !== "undefined"
-        ) {
-          const key = `img_${id}`
-          await idbPutImage(key, data.config.localImage)
+        } else if (data.config?.localImage) {
+          // Fallback: use localImage directly if no ref (legacy support)
           if (!cancelled) setLocalImage(data.config.localImage)
-          data?.onChange?.({
-            localImageRef: key,
-            localImage: undefined,
-            mode: "uploaded",
-          })
+        } else {
+          // Clear if both are undefined
+          if (!cancelled) setLocalImage(undefined)
         }
-      } catch {}
+      } catch (err) {
+        console.error("[ImageNode] Failed to load uploaded image:", err)
+      }
     })()
     return () => {
       cancelled = true
@@ -273,12 +266,47 @@ export function ImageNode({
             </div>
           )}
           {imageHistory.length === 0 && !localImage && (
-            <div className="h-32 border-2 border-dashed border-border/30 rounded flex items-center justify-center text-muted-foreground/50">
-              <div className="text-center">
-                <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <span className="text-xs">Image</span>
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = async () => {
+                    const url = String(reader.result)
+                    try {
+                      if (typeof indexedDB !== "undefined") {
+                        const key = `img_${id}`
+                        await idbPutImage(key, url)
+                        data?.onChange?.({
+                          localImageRef: key,
+                          localImage: undefined,
+                          mode: "uploaded",
+                        })
+                      } else {
+                        data?.onChange?.({ localImage: url, mode: "uploaded" })
+                      }
+                    } catch {
+                      data?.onChange?.({ localImage: url, mode: "uploaded" })
+                    }
+                  }
+                  reader.readAsDataURL(file)
+                }}
+              />
+              <div
+                className="h-32 border-2 border-dashed border-border/30 rounded flex items-center justify-center text-muted-foreground/50 cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="text-center">
+                  <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <span className="text-xs">click to upload</span>
+                </div>
               </div>
-            </div>
+            </>
           )}
         </NodeContent>
       </NodeContainer>
