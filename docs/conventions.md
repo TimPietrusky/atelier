@@ -53,6 +53,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Maintains a live snapshot (`runtimeNodesByWorkflow`) so resolving inputs uses the latest in-memory state.
 - Updates node `status` to `running` → `complete` (or `error`) and persists.
 - Queue is managed in-memory; the Run button is stateless and only enqueues runs.
+- **Execution queue panel** (right panel): Shows running/queued executions with timestamps and status. Costs are NOT displayed (hardcoded estimates were removed; only show if API returns actual costs).
 
 ### Node behaviors
 
@@ -94,11 +95,18 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Run button is stateless; queue count updates instantly.
 - ReactFlow Controls and MiniMap live in the app header; entire app wrapped with `ReactFlowProvider`.
 - **Single handle rule (CRITICAL)**: Each node has exactly ONE input handle and ONE output handle. NEVER add multiple input or output handles to make users choose between them. The backend/engine resolves what data to use based on connected node types. Keep UX simple.
+- **Inspector panel** (left panel):
+  - Opens ONLY when clicking the gear icon in a node header (not on node body click).
+  - Clicking the gear icon again toggles/closes the panel.
+  - Panel width defaults to 280px (min: 240px, max: 600px), persisted in sessionStorage.
 - Image node:
   - Model selector includes edit models.
-  - “Load image” writes originals to OPFS (or user folder via FS Access). The node stores only an `AssetRef` to the file; small previews may be cached as data URLs.
+  - Image upload: available via inspector panel "upload image" button OR by clicking the empty image skeleton in the node.
+  - "Load image" writes originals to IndexedDB; stores `localImageRef` in config (fallback: `localImage` data URL for legacy/non-IDB environments).
   - Model selector is hidden only in `mode: "uploaded"` (not just because a result image exists).
   - When an upstream image is connected and a non-edit model is selected, show a subtle hint to switch.
+  - **Result history**: Each image thumbnail has download and delete buttons (visible on hover). Double-click any image to view enlarged in a lightbox modal.
+  - **Lightbox modal**: Full-screen overlay with download and close buttons; rendered via portal to `document.body` for proper event handling.
 - Edges use bezier curves (type `default`) with a solid off-white stroke; the drag preview uses the same bezier curve for consistency. Gradient removed. Existing edges are normalized on load.
   - Canvas connection settings: `ConnectionMode.Loose`, `connectionRadius = 30`, `connectOnClick` enabled.
   - Canvas snapping: `snapToGrid` with `snapGrid = [8, 8]` for stable placement and connecting.
