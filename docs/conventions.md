@@ -85,6 +85,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - All items clickable to switch workflows (keeps queue panel open).
   - Panel width defaults to 320px (min: 280px, max: 600px).
   - Costs are NOT displayed (hardcoded estimates removed; only show if API returns actual costs).
+  - **Event-driven updates**: UI receives instant updates via callback, no polling.
 
 ### Node behaviors
 
