@@ -52,8 +52,21 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Engine performs a topological sort using `workflow.edges` to ensure upstream nodes execute first.
 - Maintains a live snapshot (`runtimeNodesByWorkflow`) so resolving inputs uses the latest in-memory state.
 - Updates node `status` to `running` → `complete` (or `error`) and persists.
-- Queue is managed in-memory; the Run button is stateless and only enqueues runs.
-- **Execution queue panel** (right panel): Shows running/queued executions with timestamps and status. Costs are NOT displayed (hardcoded estimates were removed; only show if API returns actual costs).
+- **Queue is ephemeral (in-memory only)**; the Run button is stateless and only enqueues runs. Queue does NOT persist across page reloads because:
+  - API calls are synchronous (no job IDs to poll)
+  - In-flight requests are lost on reload anyway
+  - User is warned via `beforeunload` event if queue has pending items (standard browser warning)
+  - Simpler architecture without persistence complexity
+- **Execution snapshots**: Node/edge snapshots captured at queue time are retained after execution completes (needed for queue UI to show settings). Cleaned up only when user clicks "clear" in queue panel.
+- **Execution queue panel** (right panel):
+  - Shows executions in order: Running (top), Queued (middle), Completed/Failed (bottom, collapsible).
+  - Completed section is collapsible with state persisted to sessionStorage (default: expanded).
+  - Completed items sorted by end time descending (most recent first).
+  - All items (running/queued/completed) show MessageSquare icon to view settings/prompts.
+  - Timestamps shown inside expanded settings view, not inline.
+  - All items clickable to switch workflows (keeps queue panel open).
+  - Panel width defaults to 320px (min: 280px, max: 600px).
+  - Costs are NOT displayed (hardcoded estimates removed; only show if API returns actual costs).
 
 ### Node behaviors
 
@@ -98,7 +111,9 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - **Inspector panel** (left panel):
   - Opens ONLY when clicking the gear icon in a node header (not on node body click).
   - Clicking the gear icon again toggles/closes the panel.
-  - Panel width defaults to 280px (min: 240px, max: 600px), persisted in sessionStorage.
+  - Panel width defaults to 320px (min: 280px, max: 600px), persisted in sessionStorage.
+  - Panels overlay the canvas; no automatic viewport shifting (keeps UX simple).
+  - **Future enhancement**: To shift viewport when panels open, use `reactFlowInstance.setViewport()` with delta-based x-offset converted to flow coordinates (`screenShift / viewport.zoom`), and `{ duration: 300 }` for smooth animation.
 - Image node:
   - Model selector includes edit models.
   - Image upload: available via inspector panel "upload image" button OR by clicking the empty image skeleton in the node.

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { ReactFlowProvider, MiniMap } from "@xyflow/react"
 import { Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -139,6 +139,21 @@ export default function StudioDashboard() {
     })()
   }, [activeWorkflow])
 
+  // Warn user before page reload if queue has pending items
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const activeJobs = workflowEngine.getActiveJobsCount()
+      if (activeJobs > 0) {
+        e.preventDefault()
+        e.returnValue = "" // Required for Chrome
+        return "" // Required for some browsers
+      }
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
@@ -239,7 +254,11 @@ export default function StudioDashboard() {
 
             <div className="flex items-center gap-1.5">
               <Button
-                onClick={handleRun}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  handleRun()
+                }}
                 className="h-8 px-3 text-sm font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
               >
                 <Play className="w-4 h-4 mr-1.5" />
@@ -333,6 +352,7 @@ export default function StudioDashboard() {
         <ExecutionQueue
           isOpen={isExecutionQueueOpen}
           onClose={() => setIsExecutionQueueOpen(false)}
+          onWorkflowChange={setActiveWorkflow}
         />
 
         <ConnectProvider open={isConnectOpen} onOpenChange={setIsConnectOpen} />

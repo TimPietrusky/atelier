@@ -63,7 +63,7 @@ export class WorkflowEngine {
   private runtimeNodesByWorkflow: Map<string, WorkflowNode[]> = new Map()
 
   async executeWorkflow(workflowId: string, nodes: WorkflowNode[]): Promise<string> {
-    const executionId = `exec_${Date.now()}`
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
     // Get current workflow state to snapshot edges as well
     let edges: any[] = []
@@ -89,12 +89,12 @@ export class WorkflowEngine {
       edges: edges.map((e) => ({ ...e })),
     })
 
-    // Add to queue
+    // Add to queue with snapshot
     this.queue.push({
       id: executionId,
       workflowId,
-      nodes: [], // Legacy field, not used (snapshot is in queuedSnapshots map)
-      edges: [],
+      nodes: nodes.map((n) => ({ ...n })), // Store snapshot in queue for persistence
+      edges: edges.map((e) => ({ ...e })),
       priority: 1,
       estimatedDuration: this.calculateEstimatedDuration(nodes),
       estimatedCost: execution.estimatedCost,
@@ -134,8 +134,8 @@ export class WorkflowEngine {
         execution.error = error instanceof Error ? error.message : "Unknown error"
         execution.endTime = new Date()
       } finally {
-        // Clean up snapshot after execution completes
-        this.queuedSnapshots.delete(execution.id)
+        // Keep snapshot for completed executions (needed for queue UI)
+        // Snapshots are cleaned up when executions are cleared via clearExecutions()
         this.runningCount--
         setTimeout(() => this.processQueue(), 50)
       }
@@ -871,11 +871,25 @@ export class WorkflowEngine {
     return [...this.queue]
   }
 
+  getQueueSnapshot(executionId: string) {
+    return this.queuedSnapshots.get(executionId)
+  }
+
   clearExecutions(): void {
     // Clear completed and failed executions, keep running ones
     const running = Array.from(this.executions.values()).filter((e) => e.status === "running")
+    const runningIds = new Set(running.map((e) => e.id))
+
+    // Clear executions but keep snapshots for running items
     this.executions.clear()
     running.forEach((e) => this.executions.set(e.id, e))
+
+    // Clean up snapshots for cleared executions only
+    Array.from(this.queuedSnapshots.keys()).forEach((id) => {
+      if (!runningIds.has(id) && !this.queue.some((q) => q.id === id)) {
+        this.queuedSnapshots.delete(id)
+      }
+    })
   }
 
   getActiveJobsCount(): number {

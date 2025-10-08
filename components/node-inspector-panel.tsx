@@ -19,7 +19,7 @@ export function NodeInspectorPanel({
   onClose,
   children,
 }: NodeInspectorPanelProps) {
-  const [width, setWidth] = useState(280)
+  const [width, setWidth] = useState(320)
   const panelRef = useRef<HTMLDivElement>(null)
   const isDraggingRef = useRef(false)
 
@@ -44,8 +44,8 @@ export function NodeInspectorPanel({
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingRef.current) return
       const newWidth = e.clientX
-      // Clamp between 240px and 600px
-      setWidth(Math.max(240, Math.min(600, newWidth)))
+      // Clamp between 280px and 600px
+      setWidth(Math.max(280, Math.min(600, newWidth)))
     }
 
     const handleMouseUp = () => {
