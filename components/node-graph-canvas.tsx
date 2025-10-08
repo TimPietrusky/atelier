@@ -101,8 +101,6 @@ export function NodeGraphCanvas({
 
   const addNewNode = useCallback(
     (nodeType: string) => {
-      console.log("[v0] addNewNode called with nodeType:", nodeType)
-
       const nodeTypeMap = {
         prompt: {
           type: "promptNode",
@@ -129,11 +127,9 @@ export function NodeGraphCanvas({
       const nodeConfig = nodeTypeMap[nodeType as keyof typeof nodeTypeMap]
 
       if (!nodeConfig) {
-        console.error("[v0] Invalid node type:", nodeType)
+        console.error("Invalid node type:", nodeType)
         return
       }
-
-      console.log("[v0] Creating node with config:", nodeConfig)
 
       const newNode: Node = {
         id: `${nodeType}-${Date.now()}`,
@@ -151,8 +147,6 @@ export function NodeGraphCanvas({
         },
       }
 
-      console.log("[v0] New node created:", newNode)
-
       setNodes((nds) => nds.concat(newNode))
       const wf = workflowStore.get(activeWorkflow)
       if (wf) {
@@ -169,8 +163,6 @@ export function NodeGraphCanvas({
           },
         ])
       }
-
-      console.log("[v0] Node added to workflow store")
     },
     [setNodes, activeWorkflow]
   )
@@ -243,7 +235,8 @@ export function NodeGraphCanvas({
       }
       const positionChanges = changes.filter((c) => c.type === "position" && c.dragging === false)
       if (positionChanges.length > 0) {
-        setTimeout(() => {
+        // Commit position changes immediately (using queueMicrotask for proper ordering)
+        queueMicrotask(() => {
           const wf = workflowStore.get(activeWorkflow)
           if (wf) {
             const updatedNodes = wf.nodes.map((n) => {
@@ -256,7 +249,7 @@ export function NodeGraphCanvas({
             workflowStore.setNodes(activeWorkflow, updatedNodes)
           }
           isInteractingRef.current = false
-        }, 0)
+        })
       }
 
       const resizeChanges = changes.filter((c) => c.type === "dimensions")
@@ -278,7 +271,7 @@ export function NodeGraphCanvas({
         removed.forEach((nodeId) => {
           if (onPaneClick) onPaneClick() // This will clear selection
         })
-        setTimeout(() => {
+        queueMicrotask(() => {
           const wf = workflowStore.get(activeWorkflow)
           if (!wf) return
           const remainingNodes = wf.nodes.filter((n) => !removed.includes(n.id))
@@ -288,7 +281,7 @@ export function NodeGraphCanvas({
           )
           workflowStore.setNodes(activeWorkflow, remainingNodes as any)
           workflowStore.setEdges(activeWorkflow, remainingEdges as any)
-        }, 0)
+        })
       }
     },
     [onNodesChange, activeWorkflow, nodes, onPaneClick]
@@ -396,12 +389,13 @@ export function NodeGraphCanvas({
   const onEdgesChangeHandler = useCallback(
     (changes: any[]) => {
       onEdgesChange(changes)
-      setTimeout(() => {
+      // Commit edge changes immediately using queueMicrotask
+      queueMicrotask(() => {
         setEdges((currentEdges) => {
-          queueMicrotask(() => workflowStore.setEdges(activeWorkflow, currentEdges as any))
+          workflowStore.setEdges(activeWorkflow, currentEdges as any)
           return currentEdges
         })
-      }, 0)
+      })
     },
     [onEdgesChange, activeWorkflow]
   )

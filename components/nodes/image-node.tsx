@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { ImageIcon, X, Download } from "lucide-react"
 import {
@@ -15,6 +15,7 @@ import { NodeContainer, NodeHeader, NodeContent } from "@/components/node-compon
 import { getImageModelMeta } from "@/lib/config"
 import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb"
 import { workflowStore } from "@/lib/store/workflows"
+import { useAssets } from "@/lib/hooks/use-asset"
 
 export function ImageNode({
   data,
@@ -36,11 +37,19 @@ export function ImageNode({
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; id: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Map resultHistory to include id for deletions
-  const imageHistory: Array<{ id: string; url: string }> = (data?.resultHistory || [])
-    .filter((r: any) => r.type === "image")
-    .map((r: any) => ({ id: r.id, url: r.data }))
-    .reverse() // Most recent first
+  // Resolve asset references from resultHistory
+  // useMemo to prevent recreating the array on every render (which would cause infinite loop)
+  const resultHistory = useMemo(
+    () => (data?.resultHistory || []).filter((r: any) => r.type === "image"),
+    [data?.resultHistory]
+  )
+  const resolvedAssets = useAssets(resultHistory)
+
+  // Map to include id for deletions, most recent first
+  const imageHistory: Array<{ id: string; url: string }> = useMemo(
+    () => [...resolvedAssets].reverse(),
+    [resolvedAssets]
+  )
 
   const isRunning = data.status === "running"
 

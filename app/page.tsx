@@ -158,77 +158,51 @@ export default function StudioDashboard() {
     let cancelled = false
 
     const init = async () => {
-      console.log("[v0] App initialization started")
       try {
-        console.log("[v0] Starting hydration from storage...")
         await useWorkflowStore.getState().hydrate()
-        console.log("[v0] Hydration completed successfully")
 
-        if (cancelled) {
-          console.log("[v0] Init cancelled (component unmounted)")
-          return
-        }
+        if (cancelled) return
 
         const ws = useWorkflowStore.getState().workflows
-        console.log("[v0] Workflows loaded:", Object.keys(ws).length, "workflows")
-
         const seeded = await getKV<boolean>("seeded")
-        console.log("[v0] Seeded flag:", seeded)
 
         if (Object.keys(ws).length === 0 && !seeded) {
-          console.log("[v0] No workflows found, creating default workflow...")
           await putKV("seeded", true)
 
-          if (cancelled) {
-            console.log("[v0] Init cancelled after seeding flag (component unmounted)")
-            return
-          }
+          if (cancelled) return
 
           const id = useWorkflowStore.getState().createWorkflow("Workflow A")
-          console.log("[v0] Created default workflow with id:", id)
           useWorkflowStore.getState().setNodes(id, [])
           useWorkflowStore.getState().setEdges(id, [])
-          console.log("[v0] Default workflow initialized")
         }
 
-        if (cancelled) {
-          console.log("[v0] Init cancelled before setting active workflow")
-          return
-        }
+        if (cancelled) return
 
         const ids = Object.keys(useWorkflowStore.getState().workflows)
-        console.log("[v0] Available workflow IDs:", ids)
 
         let savedSession: string | null = null
         if (typeof window !== "undefined") {
           savedSession = window.sessionStorage.getItem("active-workflow-id")
-          console.log("[v0] Session storage active workflow:", savedSession)
         }
 
         let savedKv: string | null = null
         try {
           const kvSaved = await getKV<string>("lastActiveWorkflowId")
           savedKv = kvSaved || null
-          console.log("[v0] KV storage active workflow:", savedKv)
-        } catch (e) {
-          console.warn("[v0] Failed to get KV active workflow:", e)
-        }
+        } catch {}
 
         const preferred = savedSession && ws[savedSession] ? savedSession : savedKv
         const candidate = preferred && ws[preferred] ? preferred : ids[0] || null
 
-        console.log("[v0] Selected active workflow:", candidate)
         setActiveWorkflow(candidate)
-        console.log("[v0] App initialization completed successfully")
       } catch (e) {
-        console.error("[v0] App initialization failed:", e)
+        console.error("App initialization failed:", e)
       }
     }
 
     init()
 
     return () => {
-      console.log("[v0] App component unmounting")
       cancelled = true
     }
   }, [])

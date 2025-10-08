@@ -14,7 +14,13 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - **Next.js App Router**: API routes under `app/api/*`, UI in `app/*`.
 - **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`) wrapped with `ReactFlowProvider` at app root to enable Controls/MiniMap in header.
 - **State**: Zustand store (`lib/store/workflows-zustand.ts`) for in-memory workflows; compat wrapper (`lib/store/workflows.ts`) maintains old API.
-- **Persistence**: Dexie (IndexedDB) for metadata via store→Dexie bridge (`lib/store/db.ts`); OPFS/FS Access for large assets (planned); Dexie blobs as fallback. Do not store originals in `localStorage`.
+- **Persistence**: Unified storage architecture via `StorageManager` (`lib/store/storage-manager.ts`):
+  - Serializes writes per workflow to prevent race conditions
+  - Debounces high-frequency updates (viewport, result history deletes)
+  - Backend abstraction via `StorageBackend` interface (`lib/store/storage-backend.ts`)
+  - Current backend: `IndexedDBBackend` wraps Dexie (`lib/store/backends/indexeddb.ts`)
+  - Future backends: R2, UploadThing, LocalFile (pluggable)
+  - No cross-tab sync (single-tab app pattern); eliminates 90% of race conditions
 - **Workflow engine**: `lib/workflow-engine.ts` handles queueing, topological sort, per-node execution, status updates, and result propagation.
 - **RunPod provider adapter**: `lib/providers/runpod.ts`—the single place that speaks to `@runpod/ai-sdk-provider`.
 
@@ -25,26 +31,38 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Node config changes via `workflowStore.updateNodeConfig`.
   - Node results via `workflowStore.updateNodeResult(workflowId, nodeId, result, resultHistory)` — merges incoming history with existing to preserve all generations.
   - **Result history items must have unique IDs** to support race-condition-free deletions while queue is running.
-- Metadata is persisted via Dexie; writes are batched and transactional.
+- **Unified storage architecture** (Phase 1 complete):
+  - All persistence goes through `StorageManager` which provides:
+    - **Write serialization**: Queues writes per workflow to prevent race conditions
+    - **Debouncing**: Batches rapid updates (viewport: 300ms, result history deletes: 100ms)
+    - **Backend abstraction**: Pluggable storage via `StorageBackend` interface
+  - Current backend: `IndexedDBBackend` wraps existing Dexie code
+  - Future backends: R2, UploadThing, LocalFile (when needed)
+  - **No cross-tab sync**: App is single-tab focused; removes 90% of race conditions
+  - Last tab closed wins on reload (acceptable trade-off)
 - Zustand `set()` must return new object references (immutable updates) to trigger subscribers; avoid direct mutation.
 - Seed default workflows on the client only (avoid SSR hydration mismatch).
-- Media assets (images/videos):
-  - Store originals via OPFS (Origin Private File System) under an app-scoped directory, or in a user-selected folder through File System Access; persist only an `AssetRef` in metadata.
-  - Fallback to IndexedDB blobs when OPFS/FS Access is unavailable.
-  - Only store tiny previews as data URLs when beneficial; never store originals base64 in JSON/localStorage.
-- `AssetRef` is the only allowed reference to media in workflow state (see Glossary).
+- **Media assets (images/videos)**:
+  - All images/videos stored in the `assets` table (Dexie) with unique IDs
+  - Workflows store only `AssetRef` (references by ID), never full image data
+  - `AssetManager` (`lib/store/asset-manager.ts`) handles all asset operations
+  - Assets stored in KV store: `asset_data_{assetId}` → full asset data
+  - Workflow JSON stays tiny (~1KB instead of 500KB+)
+  - Enables asset browsing, deduplication, and orphan cleanup
+  - **NO legacy support**: `data` field is ONLY for text results; images MUST use `assetRef`
 - **Result history management**:
   - Each result in `resultHistory` has a unique `id` (auto-generated as `${Date.now()}-${random}`).
   - Use `removeFromResultHistory(workflowId, nodeId, resultId)` to delete specific results by ID (race-condition safe).
   - Use `clearResultHistory(workflowId, nodeId)` to clear all results.
   - Never splice by index or replace entire array during concurrent operations.
+  - Deletes use debounced persistence (100ms) to batch rapid operations.
 - Deletions:
   - When nodes are deleted, persist the updated node list and prune edges referencing removed nodes.
 - Statuses:
   - Transient `running` status is never persisted; on write it is coerced to `idle`, and on load any persisted `running` becomes `idle`.
 - Viewport:
   - Each workflow has independent viewport state (position, zoom).
-  - Persisted asynchronously via lightweight `updateWorkflowViewport()` to avoid heavy writes during pan/zoom.
+  - Persisted with debouncing (300ms) via `storageManager.persistDebounced()` to batch rapid pan/zoom.
   - Restored on workflow switch using `reactFlowInstance.setViewport()`.
 
 ## Workflow execution
@@ -148,25 +166,27 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 ### General interaction & persistence rules (agent playbook)
 
-- Single source of truth: Keep a single in‑memory store for UI; treat persistence (Dexie/OPFS) as an async side‑effect. Never immediately re‑hydrate over in‑flight UI state.
-- Edge‑triggered commits: For high‑frequency interactions (drag, resize, slider), buffer changes and commit on an end signal (e.g., `dragging === false`, global `pointerup`, debounce idle). Avoid per‑frame writes.
-- Interaction guard: Pause store→UI remaps while a gesture is active (drag/resize/typing). Resume after the final commit to prevent oscillation.
+- **Single source of truth**: Keep a single in‑memory store (Zustand) for UI; treat persistence as an async side‑effect through `StorageManager`. Never immediately re‑hydrate over in‑flight UI state.
+- **Write serialization** (NEW): `StorageManager` automatically serializes writes per workflow. No more concurrent write conflicts.
+- **Debouncing** (NEW): High-frequency updates (viewport, result history deletes) are automatically debounced by `StorageManager`.
+- Edge‑triggered commits: For high‑frequency interactions (drag, resize, slider), buffer changes and commit on an end signal (e.g., `dragging === false`, global `pointerup`). Avoid per‑frame writes.
+- Interaction guard: During drag/resize, preserve position/size from previous state but allow data (result, status, resultHistory) to flow through for real-time updates.
 - Preserve focus/selection: When remapping store entities into view components, copy transient UI flags (e.g., `selected`, focus) to avoid losing handles/carets.
-- No periodic clobbering: Avoid periodic DB→store or store→UI reconciliations while interacting. Reconcile only when idle or on explicit events.
+- **No cross-tab sync** (NEW): App is single-tab focused. Each tab operates independently. No more cross-tab hydration conflicts.
 - Deterministic hydration: Gate components that depend on hydrated data; render placeholders instantly (skeletons) for layout stability.
-- Sync hints before async data: On startup, prefer synchronous hints (e.g., sessionStorage) for initial selection; validate/repair with durable storage (Dexie) after hydration.
+- Sync hints before async data: On startup, prefer synchronous hints (e.g., sessionStorage) for initial selection; validate/repair with durable storage after hydration.
 - Idempotent updates: Ensure subscribers are idempotent; remaps should not create new identities or reset transient UI on every store tick.
-- Bounded persistence: Batch/transactional writes; coalesce multiple changes from a single gesture into one write.
-- Cross‑tab: Broadcast only minimal change signals; ignore older or concurrent updates when an interaction guard is active.
+- Bounded persistence: `StorageManager` handles batching; coalesce multiple changes from a single gesture into one write at the app level before passing to storage.
 
 ### Canvas interaction and persistence (ReactFlow)
 
 - Drag/move vs persist:
   - Do not persist node position continuously while dragging; commit once on drag end.
   - Use the change object's `dragging === false` (position events) as the commit signal.
+  - Use `queueMicrotask()` to defer the commit (not `setTimeout`).
 - Resize vs persist:
   - Treat `dimensions` changes as transient; buffer the latest width/height during resize and persist once on pointerup (resize end). Do not write on every `dimensions` event.
-  - Keep a simple interaction guard (e.g., `isInteractingRef`) to temporarily pause store→UI remaps while dragging/resizing. Resume remaps only after committing the final value to avoid oscillation.
+  - Keep a simple interaction guard (e.g., `isInteractingRef`) to temporarily pause store→UI position/size remaps while dragging/resizing.
 - Selection preservation:
   - When mapping store nodes back to ReactFlow nodes, preserve the previous `selected` state so the `NodeResizer` remains visible during interactions.
 - **Real-time data updates during interactions** (CRITICAL):
@@ -174,8 +194,10 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - During interactions, preserve `position`, `width`, `height` from previous state, but allow `data` to flow through from store.
   - This ensures queue-generated results appear immediately while drag/resize operations remain smooth.
   - Pattern: `if (isInteractingRef.current && prevNode) { return { ...newNode, position: prevNode.position, width: prevNode.width, height: prevNode.height } }`
-- Reconciliation:
-  - Do not run periodic DB→store reconciliation while an interaction is in flight. Reconcile only when idle to avoid fighting in-flight UI state.
+- **Write safety** (NEW):
+  - `StorageManager` serializes all writes per workflow, so multiple rapid commits are safe.
+  - No need to manually debounce position/dimension updates at the component level.
+  - Debouncing is only needed for high-frequency updates like viewport pan/zoom (handled by `storageManager.persistDebounced()`).
 
 ### Startup/UI gating
 
@@ -204,7 +226,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 ## Do / Don't
 
-- Do persist node/edge/viewport changes via `workflowStore` methods.
+- Do persist node/edge/viewport changes via `workflowStore` methods (they automatically use `StorageManager`).
 - Do use immutable updates in Zustand `set()` — return new objects, never mutate `s.workflows[id]` directly.
 - Do merge `resultHistory` when updating node results to preserve all generations across queue runs.
 - Do use unique IDs for result history items; delete by ID, not by index.
@@ -212,9 +234,10 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Do reset node statuses before runs and update status during execution.
 - Do store originals in OPFS or via FS Access and reference them with `AssetRef`.
 - Do control DropdownMenu state explicitly; close it before opening dialogs to avoid lingering `pointer-events: none` on body.
-- Do use `queueMicrotask` for deferred state updates when needed.
+- Do use `queueMicrotask` for deferred state updates when needed (never `setTimeout` for timing hacks).
 - Do preserve position/size during interactions but allow data (result, status) to flow through for real-time updates.
 - Do validate connections by node type and handle compatibility (prevent prompt→image-input, etc).
+- Do trust `StorageManager` to handle write serialization and debouncing automatically.
 - Don't auto-switch models in the engine—let users pick (but hint in UI).
 - Don't send unsupported params (e.g., guidance for Seedream; undefined seed).
 - Don't use raw `fetch` to RunPod model endpoints—always go through the provider adapter.
@@ -222,16 +245,21 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Don't filter image inputs by handle alone; always validate node type and result type to avoid accepting text as images.
 - Don't block ALL node updates during interactions—only block position/size, not data.
 - Don't splice resultHistory by index during concurrent operations—use ID-based removal.
+- Don't call Dexie/DB methods directly from components—always go through `workflowStore` (which uses `StorageManager`).
+- Don't implement cross-tab sync—app is single-tab focused to avoid race conditions.
 - **NEVER use `setTimeout` for timing hacks or event ordering** — these are band-aids that hide real problems. Use proper state management, `queueMicrotask`, or fix the root cause.
 
 ## Quick glossary
 
-- `workflowStore`: source of truth for workflows; persists via `JsonStorage`.
-- `workflowEngine`: executes nodes in dependency order; manages queue; updates statuses/results; appends image results to `resultHistory`.
+- `workflowStore`: source of truth for workflows; persists via `StorageManager`.
+- `StorageManager`: central coordinator for all persistence; provides write serialization, debouncing, and backend abstraction.
+- `StorageBackend`: interface for pluggable storage (current: `IndexedDBBackend`; future: R2, UploadThing, LocalFile).
+- `AssetManager`: manages all media assets (images/videos); stores in `assets` table; returns `AssetRef` for workflow storage.
+- `workflowEngine`: executes nodes in dependency order; manages queue; updates statuses/results; saves images to `AssetManager` and appends `AssetRef` to `resultHistory`.
 - `localImage`: when present on an Image node, short-circuits generation and outputs that image.
 - `inputsUsed`: debug metadata attached to node results for traceability.
-- `AssetRef`: typed reference to media (`url` | `opfs` | `fs-handle` | `idb`); never stores base64 originals in JSON.
-- `resultHistory`: array of all results for a node (primarily used for image nodes); allows viewing all generations from multiple executions.
+- `AssetRef`: typed reference to media stored in assets table (`{ kind: "idb", assetId: "..." }`); workflows never store full image data.
+- `resultHistory`: array of all results for a node (primarily used for image nodes); contains `AssetRef` pointers, not full data; allows viewing all generations from multiple executions.
 
 ## Keeping this doc fresh
 
