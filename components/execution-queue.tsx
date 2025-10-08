@@ -67,16 +67,23 @@ export function ExecutionQueueComponent({
   }, [expandedPromptId])
 
   useEffect(() => {
-    // Populate immediately for instant feedback, then poll
-    setExecutions(workflowEngine.getAllExecutions())
-    setQueue(workflowEngine.getQueue())
-    if (!isOpen) return
-    const interval = setInterval(() => {
+    // Set up callback to receive updates from workflow engine (replaces polling)
+    const handleExecutionsChange = () => {
       setExecutions(workflowEngine.getAllExecutions())
       setQueue(workflowEngine.getQueue())
-    }, 300)
-    return () => clearInterval(interval)
-  }, [isOpen])
+    }
+
+    // Register callback
+    workflowEngine.setOnExecutionsChange(handleExecutionsChange)
+
+    // Initial population
+    handleExecutionsChange()
+
+    // Clean up callback on unmount
+    return () => {
+      workflowEngine.setOnExecutionsChange(undefined)
+    }
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -542,6 +549,7 @@ export function ExecutionQueueComponent({
               onClick={() => {
                 workflowEngine.clearExecutions()
                 setExecutions(workflowEngine.getAllExecutions())
+                setQueue(workflowEngine.getQueue())
               }}
             >
               clear

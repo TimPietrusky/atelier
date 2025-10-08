@@ -62,6 +62,22 @@ export class WorkflowEngine {
   private queuedSnapshots: Map<string, { nodes: WorkflowNode[]; edges: any[] }> = new Map()
   // live node snapshots during an execution to avoid stale localStorage reads
   private runtimeNodesByWorkflow: Map<string, WorkflowNode[]> = new Map()
+  // Callback to notify UI of execution changes (replaces polling)
+  private onExecutionsChange?: () => void
+
+  /**
+   * Set callback to notify UI when executions change (replaces polling).
+   */
+  setOnExecutionsChange(callback: () => void) {
+    this.onExecutionsChange = callback
+  }
+
+  /**
+   * Notify UI that executions have changed.
+   */
+  private notifyChange() {
+    this.onExecutionsChange?.()
+  }
 
   async executeWorkflow(workflowId: string, nodes: WorkflowNode[]): Promise<string> {
     const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -83,6 +99,7 @@ export class WorkflowEngine {
     }
 
     this.executions.set(executionId, execution)
+    this.notifyChange() // Notify UI
 
     // Snapshot nodes and edges at queue time to isolate from future edits
     this.queuedSnapshots.set(executionId, {
@@ -126,14 +143,17 @@ export class WorkflowEngine {
       try {
         execution.status = "running"
         execution.startTime = new Date()
+        this.notifyChange() // Notify UI
         await this.runWorkflowExecution(execution)
         execution.status = "completed"
         execution.endTime = new Date()
         execution.progress = 100
+        this.notifyChange() // Notify UI
       } catch (error) {
         execution.status = "failed"
         execution.error = error instanceof Error ? error.message : "Unknown error"
         execution.endTime = new Date()
+        this.notifyChange() // Notify UI
       } finally {
         // Keep snapshot for completed executions (needed for queue UI)
         // Snapshots are cleaned up when executions are cleared via clearExecutions()
@@ -216,6 +236,7 @@ export class WorkflowEngine {
       const node = ordered[i]
       execution.progress = ((i + 1) / totalSteps) * 100
       execution.currentNodeId = node.id
+      this.notifyChange() // Notify UI of progress
       ;(node as any).workflowId = execution.workflowId
 
       try {
@@ -883,6 +904,8 @@ export class WorkflowEngine {
         this.queuedSnapshots.delete(id)
       }
     })
+
+    this.notifyChange() // Notify UI
   }
 
   getActiveJobsCount(): number {
