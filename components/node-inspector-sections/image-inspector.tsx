@@ -52,9 +52,16 @@ export function ImageInspector({
       const url = String(reader.result)
       try {
         // Save to AssetManager and get AssetRef
-        const assetRef = await assetManager.saveAsset(url, {
-          prompt: "User uploaded image",
-          model: "user-upload",
+        const assetRef = await assetManager.saveAsset({
+          kind: "idb",
+          type: "image",
+          data: url,
+          mime: file.type || "image/png",
+          bytes: file.size,
+          metadata: {
+            prompt: "User uploaded image",
+            model: "user-upload",
+          },
         })
         onChange({
           uploadedAssetRef: assetRef,
