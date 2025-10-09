@@ -200,9 +200,9 @@ export function ExecutionQueueComponent({
         {/* Content */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Current Executions */}
-          <div className="flex-1 px-3 py-2 min-h-0 flex flex-col">
+          <div className="flex-1 px-1 py-1 min-h-0 flex flex-col">
             <ScrollArea className="flex-1 min-h-0">
-              <div className="space-y-1.5 pr-2">
+              <div className="space-y-0.5 pr-2">
                 {executions.length === 0 && queue.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-xs text-muted-foreground">empty</p>
