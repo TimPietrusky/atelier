@@ -215,10 +215,10 @@ export function NodeGraphCanvas({
             onNodeClick?.(n.id)
           }
         },
-        onMetadataSelected: (metadata: any) => {
+        onMetadataSelected: (metadata: any, resultId: string) => {
           // Propagate to parent page.tsx via a custom event
           window.dispatchEvent(
-            new CustomEvent("metadata-selected", { detail: { metadata, nodeId: n.id } })
+            new CustomEvent("metadata-selected", { detail: { metadata, nodeId: n.id, resultId } })
           )
         },
         result: n.result,

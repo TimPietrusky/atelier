@@ -30,8 +30,16 @@ export default function StudioDashboard() {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState<"canvas" | "media">("canvas")
   const [isConnectOpen, setIsConnectOpen] = useState(false)
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
+
+  // Panel state: content-based approach for toggle behavior
+  // panelContentId format: "node-{nodeId}" or "metadata-{nodeId}-{resultId}"
+  const [panelContentId, setPanelContentId] = useState<string | null>(null)
+  const [panelContent, setPanelContent] = useState<{
+    type: "node" | "metadata"
+    nodeId: string
+    metadata?: any
+  } | null>(null)
+
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     x: number
     y: number
@@ -105,28 +113,65 @@ export default function StudioDashboard() {
     }
   }
 
-  // Close inspector panel when workflow changes
-  useEffect(() => {
-    setSelectedNodeId(null)
-  }, [activeWorkflow])
+  const handleCanvasDoubleClick = (position: {
+    x: number
+    y: number
+    canvasX: number
+    canvasY: number
+  }) => {
+    setContextMenuPosition(position)
+  }
+
+  const handleNodeClick = (nodeId: string) => {
+    const newContentId = `node-${nodeId}`
+
+    // Toggle logic: if same node, close; if different, switch
+    // Use functional setState to always have access to latest state
+    setPanelContentId((currentId) => {
+      if (currentId === newContentId) {
+        setPanelContent(null)
+        return null
+      } else {
+        setPanelContent({ type: "node", nodeId })
+        return newContentId
+      }
+    })
+  }
+
+  const handlePaneClick = () => {
+    setPanelContentId(null)
+    setPanelContent(null)
+  }
 
   // Get selected node from store
   const selectedNode =
-    selectedNodeId && activeWorkflow
-      ? workflowStore.get(activeWorkflow)?.nodes.find((n) => n.id === selectedNodeId)
+    panelContent?.nodeId && activeWorkflow
+      ? workflowStore.get(activeWorkflow)?.nodes.find((n) => n.id === panelContent.nodeId)
       : null
 
-  // If viewing metadata, close when workflow changes
+  // Close panel when workflow changes
   useEffect(() => {
-    setSelectedMetadata(null)
+    setPanelContentId(null)
+    setPanelContent(null)
   }, [activeWorkflow])
 
   // Listen for metadata selection from image nodes
   useEffect(() => {
     const handleMetadataSelected = (e: any) => {
-      const { metadata, nodeId } = e.detail
-      setSelectedMetadata(metadata)
-      setSelectedNodeId(nodeId)
+      const { metadata, nodeId, resultId } = e.detail
+      const newContentId = `metadata-${nodeId}-${resultId}`
+
+      // Toggle logic: if same content, close; if different, switch
+      // Use functional setState to always have access to latest state
+      setPanelContentId((currentId) => {
+        if (currentId === newContentId) {
+          setPanelContent(null)
+          return null
+        } else {
+          setPanelContent({ type: "metadata", nodeId, metadata })
+          return newContentId
+        }
+      })
     }
 
     window.addEventListener("metadata-selected", handleMetadataSelected)
@@ -313,10 +358,10 @@ export default function StudioDashboard() {
                   executionStatus={executionStatus}
                   onStatusChange={setExecutionStatus}
                   queueCount={queueCount}
-                  onCanvasDoubleClick={(pos) => setContextMenuPosition(pos)}
-                  onNodeClick={(nodeId) => setSelectedNodeId(nodeId)}
-                  onPaneClick={() => setSelectedNodeId(null)}
-                  selectedNodeId={selectedNodeId}
+                  onCanvasDoubleClick={handleCanvasDoubleClick}
+                  onNodeClick={handleNodeClick}
+                  onPaneClick={handlePaneClick}
+                  selectedNodeId={panelContent?.type === "node" ? panelContent.nodeId : null}
                 />
               )}
             </div>
@@ -333,17 +378,17 @@ export default function StudioDashboard() {
         <footer className="hidden border-t border-border bg-card/50 backdrop-blur-sm px-6 py-3" />
 
         <NodeInspectorPanel
-          isOpen={!!selectedNodeId || !!selectedMetadata}
+          isOpen={!!panelContentId}
           selectedNode={selectedNode || null}
           onClose={() => {
-            setSelectedNodeId(null)
-            setSelectedMetadata(null)
+            setPanelContentId(null)
+            setPanelContent(null)
           }}
         >
-          {selectedMetadata && selectedNodeId && activeWorkflow ? (
+          {panelContent?.type === "metadata" && panelContent.nodeId && activeWorkflow ? (
             <ExecutionInspector
-              metadata={selectedMetadata}
-              currentNodeId={selectedNodeId}
+              metadata={panelContent.metadata}
+              currentNodeId={panelContent.nodeId}
               currentWorkflowId={activeWorkflow}
             />
           ) : selectedNode?.type === "prompt" ? (

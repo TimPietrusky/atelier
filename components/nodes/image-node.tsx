@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { createPortal } from "react-dom"
-import { ImageIcon, X, Download, Loader2, Settings2, Copy } from "lucide-react"
+import { ImageIcon, X, Download, Loader2, Copy, Maximize2 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -116,14 +116,13 @@ export function ImageNode({
     data.config?.mode ||
     (data.config?.localImageRef || data.config?.localImage ? "uploaded" : "generate")
 
-  const handleViewSettings = (metadata: any) => {
+  const handleViewSettings = (metadata: any, resultId: string) => {
     setSelectedMetadata(metadata)
-    // Notify parent via callback (passed through data) with metadata instead of executionId
+    // Notify parent via callback (passed through data) with metadata and resultId for toggle logic
+    // The panel will react to this event automatically (no need to call onOpenInspector)
     if (data.onMetadataSelected) {
-      data.onMetadataSelected(metadata)
+      data.onMetadataSelected(metadata, resultId)
     }
-    // Open inspector panel
-    data.onOpenInspector?.()
   }
 
   const handleCopySettings = (metadata: any) => {
@@ -281,26 +280,26 @@ export function ImageNode({
                         <img
                           src={item.url || "/placeholder.svg"}
                           alt={`Generation ${imageHistory.length - idx}`}
-                          className="block w-full h-full object-cover"
-                          onDoubleClick={() => setEnlargedImage({ url: item.url, id: item.id })}
+                          className="block w-full h-full object-cover cursor-pointer"
+                          onClick={() => {
+                            if (item.metadata) {
+                              handleViewSettings(item.metadata, item.id)
+                            }
+                          }}
                         />
                         <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {/* View Settings - Opens left panel */}
-                          {item.metadata && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleViewSettings(item.metadata)
-                              }}
-                              title="View generation settings"
-                            >
-                              <Settings2 className="w-3 h-3" />
-                            </Button>
-                          )}
-
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEnlargedImage({ url: item.url, id: item.id })
+                            }}
+                            title="View fullscreen"
+                          >
+                            <Maximize2 className="w-3 h-3" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

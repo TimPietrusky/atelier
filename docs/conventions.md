@@ -117,18 +117,24 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - ReactFlow Controls and MiniMap live in the app header; entire app wrapped with `ReactFlowProvider`.
 - **Single handle rule (CRITICAL)**: Each node has exactly ONE input handle and ONE output handle. NEVER add multiple input or output handles to make users choose between them. The backend/engine resolves what data to use based on connected node types. Keep UX simple.
 - **Inspector panel** (left panel):
-  - Opens via gear icon in node header; toggles on repeat click.
+  - **Content-based reactive architecture**: Panel tracks a unique content ID (e.g., `node-${nodeId}` or `metadata-${nodeId}-${resultId}`).
+  - **Toggle behavior**: Clicking the same content source twice closes the panel; clicking different content switches without closing.
+  - Works uniformly for all content types: nodes, image metadata, future use cases.
   - Panel width: 320px default (280-600px), persisted in sessionStorage.
   - Overlays canvas (no viewport shift).
   - **Modes**: `PromptInspector`, `ImageInspector` (edit node), `ExecutionInspector` (view persistent metadata, read-only).
-  - Custom events for cross-component communication (`metadata-selected` → opens inspector with persistent metadata from result).
+  - Custom events for cross-component communication (`metadata-selected` → passes metadata + resultId for toggle logic).
+  - Panel state managed via `panelContentId` and `panelContent` (type, nodeId, metadata) in page.tsx.
 - Image node:
   - Model selector includes edit models.
   - Image upload: available via inspector panel "upload image" button OR by clicking the empty image skeleton in the node.
   - "Load image" writes originals to IndexedDB; stores `localImageRef` in config (fallback: `localImage` data URL for legacy/non-IDB environments).
   - Model selector is hidden only in `mode: "uploaded"` (not just because a result image exists).
   - When an upstream image is connected and a non-edit model is selected, show a subtle hint to switch.
-  - **Result history**: Each image thumbnail has download and delete buttons (visible on hover). Double-click any image to view enlarged in a lightbox modal.
+  - **Result history**:
+    - Single-click image → opens generation settings in left panel instantly (toggle behavior: click again to close, click different image to switch)
+    - Hover buttons: fullscreen (maximize icon), download, delete - all actions accessible without click delays
+    - Clean, responsive UX with no artificial delays
   - **Lightbox modal**: Full-screen overlay with download and close buttons; rendered via portal to `document.body` for proper event handling.
 - Edges use bezier curves (type `default`) with a solid off-white stroke; the drag preview uses the same bezier curve for consistency. Gradient removed. Existing edges are normalized on load.
   - Canvas connection settings: `ConnectionMode.Loose`, `connectionRadius = 30`, `connectOnClick` enabled.
