@@ -127,10 +127,22 @@ export function useAssets(
             // Cache it for next time
             assetCache.set(assetId, assetResult)
           } else {
-            console.warn(`[useAssets] Asset not found: ${assetId}`)
+            // Asset was deleted - show placeholder
+            console.warn(`[useAssets] Asset not found (deleted?): ${assetId}`)
+            const placeholderResult = {
+              id: result.id || assetId,
+              url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23333' width='400' height='400'/%3E%3Ctext x='50%25' y='50%25' font-family='monospace' font-size='14' fill='%23999' text-anchor='middle' dominant-baseline='middle'%3EAsset Deleted%3C/text%3E%3C/svg%3E",
+            }
+            loaded.push(placeholderResult)
           }
         } catch (err) {
           console.error("[useAssets] Failed to load asset:", assetId, err)
+          // Show error placeholder
+          const errorResult = {
+            id: result.id || assetId,
+            url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23333' width='400' height='400'/%3E%3Ctext x='50%25' y='50%25' font-family='monospace' font-size='14' fill='%23f00' text-anchor='middle' dominant-baseline='middle'%3ELoad Error%3C/text%3E%3C/svg%3E",
+          }
+          loaded.push(errorResult)
         }
       }
 

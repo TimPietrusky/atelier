@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { createPortal } from "react-dom"
-import { ImageIcon, X, Download } from "lucide-react"
+import { ImageIcon, X, Download, Loader2, Settings2, Copy } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ import { getImageModelMeta } from "@/lib/config"
 import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb"
 import { workflowStore } from "@/lib/store/workflows"
 import { useAssets } from "@/lib/hooks/use-asset"
+import { workflowEngine } from "@/lib/workflow-engine"
 
 export function ImageNode({
   data,
@@ -36,6 +38,7 @@ export function ImageNode({
   const containerRef = useRef<HTMLDivElement>(null)
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; id: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -45,11 +48,52 @@ export function ImageNode({
   )
   const resolvedAssets = useAssets(resultHistory)
 
-  // Map to include id for deletions, most recent first
-  const imageHistory: Array<{ id: string; url: string }> = useMemo(
-    () => [...resolvedAssets].reverse(),
-    [resolvedAssets]
-  )
+  // Keep metadata with resolved assets
+  const assetsWithMetadata = useMemo(() => {
+    return resolvedAssets.map((asset, idx) => ({
+      ...asset,
+      metadata: resultHistory[idx]?.metadata,
+    }))
+  }, [resolvedAssets, resultHistory])
+
+  // Get pending placeholders from queue (queued/running jobs for this node)
+  const [pendingCount, setPendingCount] = useState(0)
+  useEffect(() => {
+    const updatePending = () => {
+      if (!data.workflowId) return
+
+      // Get all executions for this workflow
+      const executions = workflowEngine.getAllExecutions()
+      const pending = executions.filter(
+        (e) =>
+          e.workflowId === data.workflowId &&
+          (e.status === "queued" || e.status === "running") &&
+          e.currentNodeId === id // Only count if this node is being executed
+      )
+
+      setPendingCount(pending.length)
+    }
+
+    // Register callback for instant updates
+    workflowEngine.setOnExecutionsChange(updatePending)
+    updatePending() // Initial check
+
+    return () => {
+      workflowEngine.setOnExecutionsChange(undefined)
+    }
+  }, [data.workflowId, id])
+
+  // Map to include id for deletions, most recent first, plus pending placeholders
+  const imageHistory: Array<{ id: string; url: string; isPending?: boolean; metadata?: any }> =
+    useMemo(() => {
+      const actual = [...assetsWithMetadata].reverse()
+      const placeholders = Array.from({ length: pendingCount }, (_, i) => ({
+        id: `pending-${i}`,
+        url: "",
+        isPending: true,
+      }))
+      return [...placeholders, ...actual]
+    }, [assetsWithMetadata, pendingCount])
 
   const isRunning = data.status === "running"
 
@@ -71,6 +115,34 @@ export function ImageNode({
   const mode: string =
     data.config?.mode ||
     (data.config?.localImageRef || data.config?.localImage ? "uploaded" : "generate")
+
+  const handleViewSettings = (metadata: any) => {
+    setSelectedMetadata(metadata)
+    // Notify parent via callback (passed through data) with metadata instead of executionId
+    if (data.onMetadataSelected) {
+      data.onMetadataSelected(metadata)
+    }
+    // Open inspector panel
+    data.onOpenInspector?.()
+  }
+
+  const handleCopySettings = (metadata: any) => {
+    if (!metadata?.inputsUsed || !workflowId) return
+
+    const settings: Record<string, any> = {}
+
+    // Copy relevant settings from metadata
+    if (metadata.model) settings.model = metadata.model
+    if (metadata.inputsUsed.ratio) settings.ratio = metadata.inputsUsed.ratio
+    if (metadata.inputsUsed.width) settings.width = metadata.inputsUsed.width
+    if (metadata.inputsUsed.height) settings.height = metadata.inputsUsed.height
+    if (metadata.inputsUsed.steps) settings.steps = metadata.inputsUsed.steps
+    if (metadata.inputsUsed.guidance) settings.guidance = metadata.inputsUsed.guidance
+    if (metadata.inputsUsed.seed) settings.seed = metadata.inputsUsed.seed
+
+    // Apply to current node
+    workflowStore.updateNodeConfig(workflowId, id, settings)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -162,8 +234,11 @@ export function ImageNode({
             {imageHistory.length > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {imageHistory.length} image
-                  {imageHistory.length !== 1 ? "s" : ""}
+                  {imageHistory.filter((i) => !i.isPending).length} image
+                  {imageHistory.filter((i) => !i.isPending).length !== 1 ? "s" : ""}
+                  {pendingCount > 0 && (
+                    <span className="text-muted-foreground/50"> (+{pendingCount} pending)</span>
+                  )}
                 </span>
                 <Button
                   variant="ghost"
@@ -192,47 +267,73 @@ export function ImageNode({
                 {imageHistory.map((item, idx) => (
                   <div
                     key={item.id || `${item.url}-${idx}`}
-                    className="relative overflow-hidden rounded border group"
+                    className={`relative overflow-hidden rounded border group ${
+                      item.isPending ? "cursor-default" : "cursor-pointer"
+                    }`}
                     style={{ aspectRatio: "1/1" }}
                   >
-                    <img
-                      src={item.url || "/placeholder.svg"}
-                      alt={`Generation ${imageHistory.length - idx}`}
-                      className="block w-full h-full object-cover cursor-pointer"
-                      onDoubleClick={() => setEnlargedImage({ url: item.url, id: item.id })}
-                    />
-                    <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const link = document.createElement("a")
-                          link.href = item.url
-                          link.download = `image-${item.id}.png`
-                          link.click()
-                        }}
-                        title="Download image"
-                      >
-                        <Download className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (workflowId && item.id) {
-                            workflowStore.removeFromResultHistory(workflowId, id, item.id)
-                          }
-                        }}
-                        title="Remove this image"
-                      >
-                        <X className="w-3 h-3 text-destructive" />
-                      </Button>
-                    </div>
-                    {idx === 0 && (
+                    {item.isPending ? (
+                      <div className="w-full h-full flex items-center justify-center bg-muted/40 animate-pulse">
+                        <Loader2 className="w-6 h-6 text-muted-foreground/50 animate-spin" />
+                      </div>
+                    ) : (
+                      <>
+                        <img
+                          src={item.url || "/placeholder.svg"}
+                          alt={`Generation ${imageHistory.length - idx}`}
+                          className="block w-full h-full object-cover"
+                          onDoubleClick={() => setEnlargedImage({ url: item.url, id: item.id })}
+                        />
+                        <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {/* View Settings - Opens left panel */}
+                          {item.metadata && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleViewSettings(item.metadata)
+                              }}
+                              title="View generation settings"
+                            >
+                              <Settings2 className="w-3 h-3" />
+                            </Button>
+                          )}
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const link = document.createElement("a")
+                              link.href = item.url
+                              link.download = `image-${item.id}.png`
+                              link.click()
+                            }}
+                            title="Download image"
+                          >
+                            <Download className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (workflowId && item.id) {
+                                workflowStore.removeFromResultHistory(workflowId, id, item.id)
+                              }
+                            }}
+                            title="Remove this image"
+                          >
+                            <X className="w-3 h-3 text-destructive" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                    {!item.isPending && idx === 0 && (
                       <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
                         latest
                       </div>

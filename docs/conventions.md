@@ -75,31 +75,20 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - In-flight requests are lost on reload anyway
   - User is warned via `beforeunload` event if queue has pending items (standard browser warning)
   - Simpler architecture without persistence complexity
-- **Execution snapshots**: Node/edge snapshots captured at queue time are retained after execution completes (needed for queue UI to show settings). Cleaned up only when user clicks "clear" in queue panel.
-- **Execution queue panel** (right panel):
-  - Shows executions in order: Running (top), Queued (middle), Completed/Failed (bottom, collapsible).
-  - Completed section is collapsible with state persisted to sessionStorage (default: expanded).
-  - Completed items sorted by end time descending (most recent first).
-  - All items (running/queued/completed) show MessageSquare icon to view settings/prompts.
-  - Timestamps shown inside expanded settings view, not inline.
-  - All items clickable to switch workflows (keeps queue panel open).
-  - Panel width defaults to 320px (min: 280px, max: 600px).
-  - Costs are NOT displayed (hardcoded estimates removed; only show if API returns actual costs).
-  - **Event-driven updates**: UI receives instant updates via callback, no polling.
+- **Execution snapshots**: Captured at queue time; retained after completion for settings view. Cleaned up when user clears queue.
+- **Queue updates**: Event-driven via `workflowEngine.setOnExecutionsChange()` callback. NO polling (wasteful, removed).
+- **Media Manager**: Full-screen page (not panel); toggled via header button. Settings persist to sessionStorage.
+- **Image metadata persistence**: ALL generation settings (prompt, model, steps, guidance, seed, resolution) are stored in `result.metadata.inputsUsed` and persist forever with the image. Settings icon in image history loads from this persistent metadata, NOT from ephemeral queue snapshots.
 
 ### Node behaviors
 
 - Prompt node: pass-through of `config.prompt` to `result.data` (text).
 - Image node (unified):
-  - Mode sub-type via `config.mode`:
-    - `generate` (default): acts as a generator; model selector visible.
-    - `uploaded`: user-loaded image; model selector hidden; generation short-circuits.
-  - Short-circuit in `uploaded` mode (or when `localImage`/`localImageRef` present): output the image without API calls.
-  - Otherwise resolves inputs from edges:
-    - Prompt: most recent upstream prompt.
-    - Image: most recent upstream image when the `image-input` handle is connected.
-  - Emits `inputsUsed` in `result.metadata` for transparency.
-  - **Result history**: stores all generated images in `resultHistory` array; displays in 2-column grid with most recent first. Each execution appends to history instead of replacing. Users can remove individual images or use "Clear All".
+  - Mode: `generate` (default) or `uploaded` (short-circuits API calls).
+  - Result metadata includes all generation settings (prompt, model, steps, guidance, seed, resolution) stored in `metadata.inputsUsed`.
+  - **Queue placeholders**: Live skeletons for pending jobs via `setOnExecutionsChange`; ephemeral (gone on reload).
+  - **Historical settings**: Settings icon opens left panel (`ExecutionInspector`) showing persistent metadata stored with the image result; "Copy to Node" applies settings. Does NOT rely on ephemeral queue snapshots.
+  - **Image source**: "From library" (asset table) or "upload" (local file); hidden in view-only mode.
 
 ## AI SDK integration (provider-agnostic)
 
@@ -128,11 +117,11 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - ReactFlow Controls and MiniMap live in the app header; entire app wrapped with `ReactFlowProvider`.
 - **Single handle rule (CRITICAL)**: Each node has exactly ONE input handle and ONE output handle. NEVER add multiple input or output handles to make users choose between them. The backend/engine resolves what data to use based on connected node types. Keep UX simple.
 - **Inspector panel** (left panel):
-  - Opens ONLY when clicking the gear icon in a node header (not on node body click).
-  - Clicking the gear icon again toggles/closes the panel.
-  - Panel width defaults to 320px (min: 280px, max: 600px), persisted in sessionStorage.
-  - Panels overlay the canvas; no automatic viewport shifting (keeps UX simple).
-  - **Future enhancement**: To shift viewport when panels open, use `reactFlowInstance.setViewport()` with delta-based x-offset converted to flow coordinates (`screenShift / viewport.zoom`), and `{ duration: 300 }` for smooth animation.
+  - Opens via gear icon in node header; toggles on repeat click.
+  - Panel width: 320px default (280-600px), persisted in sessionStorage.
+  - Overlays canvas (no viewport shift).
+  - **Modes**: `PromptInspector`, `ImageInspector` (edit node), `ExecutionInspector` (view persistent metadata, read-only).
+  - Custom events for cross-component communication (`metadata-selected` → opens inspector with persistent metadata from result).
 - Image node:
   - Model selector includes edit models.
   - Image upload: available via inspector panel "upload image" button OR by clicking the empty image skeleton in the node.
@@ -210,10 +199,10 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - `POST /api/generate-image`: Validates model, resolves dimensions via `resolveModelDimensions`, calls `generateImageWithRunpod`, and returns `{ success, imageUrl, executionId, applied, used }`.
 - Server-side sanitization: do not log full base64; log only truncated previews and counts.
 
-## Export / Import
+## Export / Import / Clone
 
-- Export a single workflow as a `.genaiw.zip` package containing `manifest.json`, `workflow.json` (no base64), and optionally embedded binaries under `assets/` for that workflow only.
-- Import a package by restoring the single workflow and materializing any embedded assets into OPFS; keep `url` assets as URLs by default.
+- Export/Import: `.genaiw.zip` with manifest + workflow JSON (no base64 in JSON).
+- **Clone**: New workflow/node/edge IDs; asset refs SHARED (not duplicated). Avoids bloating storage.
 
 ## Logging & debug
 
@@ -255,12 +244,11 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - `workflowStore`: source of truth for workflows; persists via `StorageManager`.
 - `StorageManager`: central coordinator for all persistence; provides write serialization, debouncing, and backend abstraction.
 - `StorageBackend`: interface for pluggable storage (current: `IndexedDBBackend`; future: R2, UploadThing, LocalFile).
-- `AssetManager`: manages all media assets (images/videos); stores in `assets` table; returns `AssetRef` for workflow storage.
-- `workflowEngine`: executes nodes in dependency order; manages queue; updates statuses/results; saves images to `AssetManager` and appends `AssetRef` to `resultHistory`.
-- `localImage`: when present on an Image node, short-circuits generation and outputs that image.
-- `inputsUsed`: debug metadata attached to node results for traceability.
-- `AssetRef`: typed reference to media stored in assets table (`{ kind: "idb", assetId: "..." }`); workflows never store full image data.
-- `resultHistory`: array of all results for a node (primarily used for image nodes); contains `AssetRef` pointers, not full data; allows viewing all generations from multiple executions.
+- `AssetManager`: stores images in `assets` table; returns `AssetRef`; tracks usage; prevents deletion of in-use assets (force-delete option available).
+- `workflowEngine`: executes nodes, manages queue, saves to `AssetManager`; event callbacks (`setOnExecutionsChange`) for UI updates (no polling).
+- `AssetRef`: pointer to asset table (`{ kind: "idb", assetId }`); workflows never store full image data.
+- `resultHistory`: contains `AssetRef` + `metadata` (including `executionId` linking to queue snapshot).
+- `ExecutionInspector`: read-only snapshot viewer; reuses left panel pattern; "Copy to Node" for settings.
 
 ## Keeping this doc fresh
 

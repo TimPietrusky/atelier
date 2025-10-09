@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge"
 import { AtelierLogo } from "@/components/atelier-logo"
 import { WorkflowSwitcher } from "@/components/workflow-switcher"
 import { NodeGraphCanvas } from "@/components/node-graph-canvas"
-import { MediaManager } from "@/components/media-manager"
 import { ExecutionQueue } from "@/components/execution-queue"
+import { MediaManager } from "@/components/media-manager"
 import { NodeInspectorPanel } from "@/components/node-inspector-panel"
 import { PromptInspector } from "@/components/node-inspector-sections/prompt-inspector"
 import { ImageInspector } from "@/components/node-inspector-sections/image-inspector"
+import { ExecutionInspector } from "@/components/node-inspector-sections/execution-inspector"
 import { ConnectProvider } from "@/components/connect-provider"
 import { CanvasControls } from "@/components/canvas-controls"
 import { AddNodeMenu } from "@/components/add-node-menu"
@@ -25,10 +26,12 @@ import { useWorkflowStore } from "@/lib/store/workflows-zustand"
 
 export default function StudioDashboard() {
   const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null)
-  const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false)
+  const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState<"canvas" | "media">("canvas")
   const [isConnectOpen, setIsConnectOpen] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     x: number
     y: number
@@ -112,6 +115,23 @@ export default function StudioDashboard() {
     selectedNodeId && activeWorkflow
       ? workflowStore.get(activeWorkflow)?.nodes.find((n) => n.id === selectedNodeId)
       : null
+
+  // If viewing metadata, close when workflow changes
+  useEffect(() => {
+    setSelectedMetadata(null)
+  }, [activeWorkflow])
+
+  // Listen for metadata selection from image nodes
+  useEffect(() => {
+    const handleMetadataSelected = (e: any) => {
+      const { metadata, nodeId } = e.detail
+      setSelectedMetadata(metadata)
+      setSelectedNodeId(nodeId)
+    }
+
+    window.addEventListener("metadata-selected", handleMetadataSelected)
+    return () => window.removeEventListener("metadata-selected", handleMetadataSelected)
+  }, [])
 
   useEffect(() => {
     const update = () => {
@@ -224,7 +244,7 @@ export default function StudioDashboard() {
               <div className="w-48 h-8 rounded-md bg-muted/50 animate-pulse" />
             )}
 
-            <div className="h-5 w-px bg-border/50" />
+            <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={handleAddNode} />
 
             <div className="flex items-center gap-1.5">
               <Button
@@ -257,10 +277,19 @@ export default function StudioDashboard() {
                   {queueCount}
                 </Badge>
               </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(currentPage === "media" ? "canvas" : "media")}
+                className={`h-8 gap-1.5 px-3 text-sm border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300 ${
+                  currentPage === "media" ? "bg-accent/10 border-accent" : ""
+                }`}
+              >
+                <span>media</span>
+              </Button>
             </div>
           </div>
-
-          <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={handleAddNode} />
 
           <div className="flex items-center gap-2">
             <CanvasControls />
@@ -275,33 +304,49 @@ export default function StudioDashboard() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex">
-          <div className="flex-1 relative">
-            {activeWorkflow && (
-              <NodeGraphCanvas
-                activeWorkflow={activeWorkflow}
-                onExecute={handleRun}
-                executionStatus={executionStatus}
-                onStatusChange={setExecutionStatus}
-                queueCount={queueCount}
-                onCanvasDoubleClick={(pos) => setContextMenuPosition(pos)}
-                onNodeClick={(nodeId) => setSelectedNodeId(nodeId)}
-                onPaneClick={() => setSelectedNodeId(null)}
-                selectedNodeId={selectedNodeId}
-              />
-            )}
-          </div>
+          {currentPage === "canvas" ? (
+            <div className="flex-1 relative">
+              {activeWorkflow && (
+                <NodeGraphCanvas
+                  activeWorkflow={activeWorkflow}
+                  onExecute={handleRun}
+                  executionStatus={executionStatus}
+                  onStatusChange={setExecutionStatus}
+                  queueCount={queueCount}
+                  onCanvasDoubleClick={(pos) => setContextMenuPosition(pos)}
+                  onNodeClick={(nodeId) => setSelectedNodeId(nodeId)}
+                  onPaneClick={() => setSelectedNodeId(null)}
+                  selectedNodeId={selectedNodeId}
+                />
+              )}
+            </div>
+          ) : (
+            <MediaManager
+              onClose={() => setCurrentPage("canvas")}
+              onSelectAsset={(assetId: string) => {
+                console.log("Selected asset:", assetId)
+              }}
+            />
+          )}
         </div>
 
         <footer className="hidden border-t border-border bg-card/50 backdrop-blur-sm px-6 py-3" />
 
-        {isMediaManagerOpen && <MediaManager onClose={() => setIsMediaManagerOpen(false)} />}
-
         <NodeInspectorPanel
-          isOpen={!!selectedNodeId}
+          isOpen={!!selectedNodeId || !!selectedMetadata}
           selectedNode={selectedNode || null}
-          onClose={() => setSelectedNodeId(null)}
+          onClose={() => {
+            setSelectedNodeId(null)
+            setSelectedMetadata(null)
+          }}
         >
-          {selectedNode?.type === "prompt" && (
+          {selectedMetadata && selectedNodeId && activeWorkflow ? (
+            <ExecutionInspector
+              metadata={selectedMetadata}
+              currentNodeId={selectedNodeId}
+              currentWorkflowId={activeWorkflow}
+            />
+          ) : selectedNode?.type === "prompt" ? (
             <PromptInspector
               node={selectedNode}
               onChange={(cfg) => {
@@ -310,8 +355,7 @@ export default function StudioDashboard() {
                 }
               }}
             />
-          )}
-          {(selectedNode?.type === "image-gen" || selectedNode?.type === "image-edit") && (
+          ) : selectedNode?.type === "image-gen" || selectedNode?.type === "image-edit" ? (
             <ImageInspector
               node={selectedNode}
               onChange={(cfg) => {
@@ -320,7 +364,7 @@ export default function StudioDashboard() {
                 }
               }}
             />
-          )}
+          ) : null}
         </NodeInspectorPanel>
 
         <ExecutionQueue

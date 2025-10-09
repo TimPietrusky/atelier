@@ -215,11 +215,15 @@ export function NodeGraphCanvas({
             onNodeClick?.(n.id)
           }
         },
+        onMetadataSelected: (metadata: any) => {
+          // Propagate to parent page.tsx via a custom event
+          window.dispatchEvent(
+            new CustomEvent("metadata-selected", { detail: { metadata, nodeId: n.id } })
+          )
+        },
         result: n.result,
         resultHistory: n.resultHistory,
       },
-      className: n.id === selectedNodeId ? "selected-node" : "",
-      style: n.id === selectedNodeId ? { boxShadow: "0 0 0 2px #ff0080" } : {},
     }),
     [activeWorkflow, selectedNodeId, onNodeClick, onPaneClick]
   )

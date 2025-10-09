@@ -15,7 +15,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { WorkflowIcon, MoreVertical, Pencil, Plus, Download, Upload, Trash } from "lucide-react"
+import {
+  WorkflowIcon,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Download,
+  Upload,
+  Trash,
+  Copy,
+} from "lucide-react"
 import { WorkflowCreatePopover } from "@/components/workflow-create-popover"
 import { WorkflowRenamePopover } from "@/components/workflow-rename-popover"
 import { WorkflowDeletePopover } from "@/components/workflow-delete-popover"
@@ -47,6 +56,53 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
       workflowStore.rename(activeWorkflow, name)
       setWorkflows(workflowStore.list())
     }
+  }
+
+  const handleCloneWorkflow = () => {
+    if (!activeWorkflow) return
+    const workflow = workflowStore.get(activeWorkflow)
+    if (!workflow) return
+
+    // Clone workflow with new IDs but same asset references
+    const timestamp = Date.now()
+    const clonedId = `${workflow.name.toLowerCase().replace(/\s+/g, "-")}-clone-${timestamp}`
+
+    // Map old node IDs to new node IDs
+    const nodeIdMap = new Map<string, string>()
+    workflow.nodes.forEach((node) => {
+      const newNodeId = `${node.type}-${timestamp}-${Math.random().toString(36).substr(2, 9)}`
+      nodeIdMap.set(node.id, newNodeId)
+    })
+
+    // Clone nodes with new IDs but keep asset references
+    const clonedNodes = workflow.nodes.map((node) => ({
+      ...node,
+      id: nodeIdMap.get(node.id)!,
+      // Keep result and resultHistory with same assetRefs (assets are shared)
+    }))
+
+    // Clone edges with updated node IDs
+    const clonedEdges = (workflow.edges || []).map((edge) => ({
+      ...edge,
+      id: `edge-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
+      source: nodeIdMap.get(edge.source)!,
+      target: nodeIdMap.get(edge.target)!,
+    }))
+
+    // Create the cloned workflow
+    const cloned: typeof workflow = {
+      id: clonedId,
+      name: `${workflow.name} (Copy)`,
+      nodes: clonedNodes,
+      edges: clonedEdges,
+      viewport: workflow.viewport,
+      chat: [],
+      history: [],
+    }
+
+    workflowStore.upsert(cloned)
+    setWorkflows(workflowStore.list())
+    onWorkflowChange(clonedId)
   }
 
   const handleExport = async () => {
@@ -229,6 +285,16 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
           >
             <Pencil className="w-4 h-4 mr-2" />
             rename
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => {
+              setIsDropdownOpen(false)
+              handleCloneWorkflow()
+            }}
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            clone
           </DropdownMenuItem>
 
           <DropdownMenuItem

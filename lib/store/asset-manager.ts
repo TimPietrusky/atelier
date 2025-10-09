@@ -60,10 +60,13 @@ export class AssetManager {
     // Store the row in the assets table
     await db.assets.put(row)
 
-    // Store the actual data in a separate blob store (could be optimized later)
-    // For now, we'll store it in the same table but in a separate field
-    // Actually, let's create a simple KV store for asset data
-    await db.kv.put({ key: `asset_data_${id}`, value: asset })
+    // Store the actual data in KV store with createdAt included
+    const fullAsset: Asset = {
+      ...asset,
+      id,
+      createdAt: now,
+    }
+    await db.kv.put({ key: `asset_data_${id}`, value: fullAsset })
 
     return {
       kind: "idb",
@@ -96,19 +99,101 @@ export class AssetManager {
   }
 
   /**
-   * Delete an asset from the assets table.
+   * Check if an asset is used in any workflow.
+   * Returns array of { workflowId, workflowName, nodeId } where asset is used.
    */
-  async deleteAsset(ref: AssetRef): Promise<void> {
+  async findAssetUsage(
+    assetId: string
+  ): Promise<
+    Array<{ workflowId: string; workflowName: string; nodeId: string; nodeTitle: string }>
+  > {
+    const { useWorkflowStore } = await import("@/lib/store/workflows-zustand")
+    const workflows = useWorkflowStore.getState().workflows
+    const usage: Array<{
+      workflowId: string
+      workflowName: string
+      nodeId: string
+      nodeTitle: string
+    }> = []
+
+    for (const [workflowId, workflow] of Object.entries(workflows)) {
+      for (const node of workflow.nodes) {
+        // Check result
+        if (node.result?.assetRef?.assetId === assetId) {
+          usage.push({
+            workflowId,
+            workflowName: workflow.name,
+            nodeId: node.id,
+            nodeTitle: node.title,
+          })
+        }
+
+        // Check resultHistory
+        if (node.resultHistory) {
+          for (const result of node.resultHistory) {
+            if ((result as any).assetRef?.assetId === assetId) {
+              usage.push({
+                workflowId,
+                workflowName: workflow.name,
+                nodeId: node.id,
+                nodeTitle: node.title,
+              })
+              break // Only count once per node
+            }
+          }
+        }
+
+        // Check config (uploaded images)
+        if (node.config?.localImageRef && node.config.localImageRef.includes(assetId)) {
+          usage.push({
+            workflowId,
+            workflowName: workflow.name,
+            nodeId: node.id,
+            nodeTitle: node.title,
+          })
+        }
+      }
+    }
+
+    return usage
+  }
+
+  /**
+   * Delete an asset from the assets table.
+   * Returns { success: boolean, usage?: Array } - if usage exists, deletion fails unless forced.
+   */
+  async deleteAsset(
+    ref: AssetRef,
+    options?: { force?: boolean }
+  ): Promise<{ success: boolean; usage?: any[] }> {
     if (ref.kind !== "idb") {
       console.error("[AssetManager] Unsupported asset kind:", ref.kind)
-      return
+      return { success: false }
+    }
+
+    // Check if asset is in use
+    const usage = await this.findAssetUsage(ref.assetId!)
+
+    if (usage.length > 0 && !options?.force) {
+      console.warn(`[AssetManager] Asset ${ref.assetId} is in use, cannot delete without force`)
+      return { success: false, usage }
     }
 
     try {
       await db.assets.delete(ref.assetId)
       await db.kv.delete(`asset_data_${ref.assetId}`)
+
+      // If forced deletion and asset was in use, we should mark those references as deleted
+      if (usage.length > 0 && options?.force) {
+        console.warn(
+          `[AssetManager] Force deleted asset ${ref.assetId}, ${usage.length} references now broken`
+        )
+      }
+
+      return { success: true }
     } catch (err) {
       console.error(`[AssetManager] Failed to delete asset ${ref.assetId}:`, err)
+      return { success: false }
     }
   }
 
