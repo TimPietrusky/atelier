@@ -188,7 +188,7 @@ export function ExecutionQueueComponent({
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-card-foreground">queue</h2>
             <Badge variant="outline" className="text-xs h-5">
-              {queue.length + executions.filter((e) => e.status === "running").length}
+              {executions.filter((e) => e.status === "running" || e.status === "queued").length}
             </Badge>
           </div>
 
