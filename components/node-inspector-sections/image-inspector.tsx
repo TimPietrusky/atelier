@@ -107,7 +107,7 @@ export function ImageInspector({
       {viewMode === "edit" && (
         <>
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">image</Label>
+            <Label className="text-sm text-muted-foreground">image source</Label>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -116,7 +116,7 @@ export function ImageInspector({
                 onClick={() => onRequestLibrarySelection?.()}
               >
                 <Library className="w-4 h-4 mr-2" />
-                from library
+                media
               </Button>
               <label className="flex-1">
                 <input

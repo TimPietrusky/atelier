@@ -144,9 +144,10 @@ export default function StudioDashboard() {
     setPanelContent(null)
   }
 
-  const handleRequestLibrarySelection = () => {
-    if (!panelContent?.nodeId) return
-    setMediaSelectionNodeId(panelContent.nodeId)
+  const handleRequestLibrarySelection = (nodeId?: string) => {
+    const targetNodeId = nodeId || panelContent?.nodeId
+    if (!targetNodeId) return
+    setMediaSelectionNodeId(targetNodeId)
     setCurrentPage("media")
   }
 
@@ -381,6 +382,7 @@ export default function StudioDashboard() {
                   onNodeClick={handleNodeClick}
                   onPaneClick={handlePaneClick}
                   selectedNodeId={panelContent?.type === "node" ? panelContent.nodeId : null}
+                  onRequestLibrarySelection={handleRequestLibrarySelection}
                 />
               )}
             </div>

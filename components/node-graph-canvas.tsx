@@ -35,6 +35,7 @@ interface NodeGraphCanvasProps {
   onNodeClick?: (nodeId: string) => void
   onPaneClick?: () => void
   selectedNodeId?: string | null
+  onRequestLibrarySelection?: (nodeId: string) => void
 }
 
 export function NodeGraphCanvas({
@@ -47,6 +48,7 @@ export function NodeGraphCanvas({
   onNodeClick,
   onPaneClick,
   selectedNodeId,
+  onRequestLibrarySelection,
 }: NodeGraphCanvasProps) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -221,11 +223,14 @@ export function NodeGraphCanvas({
             new CustomEvent("metadata-selected", { detail: { metadata, nodeId: n.id, resultId } })
           )
         },
+        onRequestLibrarySelection: () => {
+          onRequestLibrarySelection?.(n.id)
+        },
         result: n.result,
         resultHistory: n.resultHistory,
       },
     }),
-    [activeWorkflow, selectedNodeId, onNodeClick, onPaneClick]
+    [activeWorkflow, selectedNodeId, onNodeClick, onPaneClick, onRequestLibrarySelection]
   )
 
   const onNodesChangeHandler = useCallback(

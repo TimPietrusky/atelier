@@ -1,7 +1,18 @@
 "use client"
 
 import { useEffect, useState, useRef, useMemo } from "react"
-import { ImageIcon, X, Download, Loader2, Copy, Maximize2, Trash2, Check } from "lucide-react"
+import {
+  ImageIcon,
+  X,
+  Download,
+  Loader2,
+  Copy,
+  Maximize2,
+  Trash2,
+  Check,
+  Library,
+  Upload,
+} from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -136,6 +147,9 @@ export function ImageNode({
 
   const [localImage, setLocalImage] = useState<string | undefined>(undefined)
 
+  // Show empty state (upload buttons) when there's no content to display
+  const showEmptyState = imageHistory.length === 0 && !localImage
+
   const handleViewSettings = (metadata: any, resultId: string) => {
     setSelectedMetadata(metadata)
     setSelectedImageId(resultId)
@@ -218,9 +232,9 @@ export function ImageNode({
 
         <NodeContent>
           {/* Fixed section: Model selector and header - doesn't scroll */}
-          <div className="space-y-2 flex-shrink-0">
+          <div className={`flex flex-col gap-2 ${showEmptyState ? "flex-1" : "flex-shrink-0"}`}>
             {mode !== "uploaded" && (
-              <div className="bg-muted/30 rounded-md border border-border/30">
+              <div className="bg-muted/30 rounded-md">
                 <Select
                   value={model}
                   onValueChange={(v) => {
@@ -312,6 +326,72 @@ export function ImageNode({
                   </PopoverContent>
                 </Popover>
               </div>
+            )}
+
+            {showEmptyState && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const reader = new FileReader()
+                    reader.onload = async () => {
+                      const url = String(reader.result)
+                      try {
+                        // Save to AssetManager and get AssetRef
+                        const assetRef = await assetManager.saveAsset({
+                          kind: "idb",
+                          type: "image",
+                          data: url,
+                          mime: file.type || "image/png",
+                          bytes: file.size,
+                          metadata: {
+                            prompt: "User uploaded image",
+                            model: "user-upload",
+                          },
+                        })
+                        data?.onChange?.({
+                          uploadedAssetRef: assetRef,
+                          mode: "uploaded",
+                        })
+                      } catch (err) {
+                        console.error("[ImageNode] Failed to save uploaded image:", err)
+                        // Fallback to direct data URL
+                        data?.onChange?.({ localImage: url, mode: "uploaded" })
+                      }
+                    }
+                    reader.readAsDataURL(file)
+                  }}
+                />
+                <div className="flex-1 flex gap-2 min-h-0">
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-full min-h-[120px] flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                    style={{ borderColor: "var(--border-strong)" }}
+                    onClick={() => {
+                      if (data?.onRequestLibrarySelection) {
+                        data.onRequestLibrarySelection()
+                      }
+                    }}
+                  >
+                    <Library className="w-8 h-8" />
+                    <span className="text-xs">media</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-full min-h-[120px] flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                    style={{ borderColor: "var(--border-strong)" }}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="w-8 h-8" />
+                    <span className="text-xs">upload</span>
+                  </Button>
+                </div>
+              </>
             )}
           </div>
 
@@ -459,59 +539,6 @@ export function ImageNode({
                 <X className="w-3 h-3 text-destructive" />
               </Button>
             </div>
-          )}
-          {imageHistory.length === 0 && !localImage && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  const reader = new FileReader()
-                  reader.onload = async () => {
-                    const url = String(reader.result)
-                    try {
-                      // Save to AssetManager and get AssetRef
-                      const assetRef = await assetManager.saveAsset({
-                        kind: "idb",
-                        type: "image",
-                        data: url,
-                        mime: file.type || "image/png",
-                        bytes: file.size,
-                        metadata: {
-                          prompt: "User uploaded image",
-                          model: "user-upload",
-                        },
-                      })
-                      data?.onChange?.({
-                        uploadedAssetRef: assetRef,
-                        mode: "uploaded",
-                      })
-                    } catch (err) {
-                      console.error("[ImageNode] Failed to save uploaded image:", err)
-                      // Fallback to direct data URL
-                      data?.onChange?.({ localImage: url, mode: "uploaded" })
-                    }
-                  }
-                  reader.readAsDataURL(file)
-                }}
-              />
-              <div
-                className="h-32 border-2 border-dashed border-border/30 rounded-none flex items-center justify-center text-muted-foreground/50 cursor-pointer hover:bg-muted/20 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  borderColor: "var(--border)",
-                }}
-              >
-                <div className="text-center">
-                  <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <span className="text-xs">click to upload</span>
-                </div>
-              </div>
-            </>
           )}
         </NodeContent>
       </NodeContainer>
