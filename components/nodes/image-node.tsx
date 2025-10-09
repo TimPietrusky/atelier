@@ -2,7 +2,16 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { createPortal } from "react-dom"
-import { ImageIcon, X, Download, Loader2, Copy, Maximize2 } from "lucide-react"
+import {
+  ImageIcon,
+  X,
+  Download,
+  Loader2,
+  Copy,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -39,6 +48,7 @@ export function ImageNode({
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; id: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -118,12 +128,54 @@ export function ImageNode({
 
   const handleViewSettings = (metadata: any, resultId: string) => {
     setSelectedMetadata(metadata)
+    setSelectedImageId(resultId)
     // Notify parent via callback (passed through data) with metadata and resultId for toggle logic
     // The panel will react to this event automatically (no need to call onOpenInspector)
     if (data.onMetadataSelected) {
       data.onMetadataSelected(metadata, resultId)
     }
   }
+
+  // Navigate through images in lightbox
+  const navigateImage = (direction: "prev" | "next") => {
+    if (!enlargedImage) return
+    const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
+    if (currentIndex === -1) return
+
+    const newIndex = direction === "prev" ? currentIndex - 1 : currentIndex + 1
+    if (newIndex >= 0 && newIndex < imageHistory.length) {
+      const newImage = imageHistory[newIndex]
+      if (!newImage.isPending) {
+        setEnlargedImage({ url: newImage.url, id: newImage.id })
+        setSelectedImageId(newImage.id)
+      }
+    }
+  }
+
+  // Keyboard navigation in lightbox
+  useEffect(() => {
+    if (!enlargedImage) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault()
+        e.stopPropagation()
+        navigateImage("prev")
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault()
+        e.stopPropagation()
+        navigateImage("next")
+      } else if (e.key === "Escape") {
+        e.preventDefault()
+        e.stopPropagation()
+        setEnlargedImage(null)
+      }
+    }
+
+    // Use capture phase to intercept before ReactFlow gets the event
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
+  }, [enlargedImage, imageHistory])
 
   const handleCopySettings = (metadata: any) => {
     if (!metadata?.inputsUsed || !workflowId) return
@@ -268,6 +320,10 @@ export function ImageNode({
                     key={item.id || `${item.url}-${idx}`}
                     className={`relative overflow-hidden rounded border group ${
                       item.isPending ? "cursor-default" : "cursor-pointer"
+                    } ${
+                      selectedImageId === item.id || enlargedImage?.id === item.id
+                        ? "border-primary"
+                        : "border-border"
                     }`}
                     style={{ aspectRatio: "1/1" }}
                   >
@@ -284,6 +340,8 @@ export function ImageNode({
                           onClick={() => {
                             if (item.metadata) {
                               handleViewSettings(item.metadata, item.id)
+                            } else {
+                              setSelectedImageId(item.id)
                             }
                           }}
                         />
@@ -295,6 +353,7 @@ export function ImageNode({
                             onClick={(e) => {
                               e.stopPropagation()
                               setEnlargedImage({ url: item.url, id: item.id })
+                              setSelectedImageId(item.id)
                             }}
                             title="View fullscreen"
                           >
@@ -428,6 +487,7 @@ export function ImageNode({
             className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-8"
             onClick={() => setEnlargedImage(null)}
           >
+            {/* Top right controls */}
             <div className="absolute top-4 right-4 flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -449,11 +509,61 @@ export function ImageNode({
                 size="icon"
                 className="h-10 w-10 bg-background/10 hover:bg-background/20 text-white"
                 onClick={() => setEnlargedImage(null)}
-                title="Close"
+                title="Close (Esc)"
               >
                 <X className="w-6 h-6" />
               </Button>
             </div>
+
+            {/* Previous button */}
+            {(() => {
+              const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
+              const hasPrev = currentIndex > 0
+              return hasPrev ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-background/10 hover:bg-background/20 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigateImage("prev")
+                  }}
+                  title="Previous (←)"
+                >
+                  <ChevronLeft className="w-8 h-8" />
+                </Button>
+              ) : null
+            })()}
+
+            {/* Next button */}
+            {(() => {
+              const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
+              const hasNext =
+                currentIndex < imageHistory.length - 1 && !imageHistory[currentIndex + 1]?.isPending
+              return hasNext ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-background/10 hover:bg-background/20 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigateImage("next")
+                  }}
+                  title="Next (→)"
+                >
+                  <ChevronRight className="w-8 h-8" />
+                </Button>
+              ) : null
+            })()}
+
+            {/* Image counter */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/10 text-white px-3 py-1.5 rounded text-sm">
+              {(() => {
+                const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
+                return `${currentIndex + 1} / ${imageHistory.length}`
+              })()}
+            </div>
+
             <img
               src={enlargedImage.url}
               alt="Enlarged view"

@@ -133,9 +133,16 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - When an upstream image is connected and a non-edit model is selected, show a subtle hint to switch.
   - **Result history**:
     - Single-click image → opens generation settings in left panel instantly (toggle behavior: click again to close, click different image to switch)
+    - Selected image highlighted via primary-colored border (all images have `border`, color switches between `border-border` and `border-primary`) - shows when panel is open or lightbox is active
     - Hover buttons: fullscreen (maximize icon), download, delete - all actions accessible without click delays
     - Clean, responsive UX with no artificial delays
-  - **Lightbox modal**: Full-screen overlay with download and close buttons; rendered via portal to `document.body` for proper event handling.
+  - **Lightbox modal**:
+    - Full-screen overlay with navigation controls; rendered via portal to `document.body` for proper event handling
+    - **Navigation**: Previous/Next buttons on left/right sides (only shown when available)
+    - **Keyboard controls**: Arrow Left (←) for previous, Arrow Right (→) for next, Escape to close
+    - **Image counter**: Shows current position (e.g., "3 / 10") at bottom center
+    - **Actions**: Download and close buttons in top-right corner
+    - Navigating in lightbox updates the selected image border in the node
 - Edges use bezier curves (type `default`) with a solid off-white stroke; the drag preview uses the same bezier curve for consistency. Gradient removed. Existing edges are normalized on load.
   - Canvas connection settings: `ConnectionMode.Loose`, `connectionRadius = 30`, `connectOnClick` enabled.
   - Canvas snapping: `snapToGrid` with `snapGrid = [8, 8]` for stable placement and connecting.
