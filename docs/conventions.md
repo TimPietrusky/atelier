@@ -76,7 +76,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - User is warned via `beforeunload` event if queue has pending items (standard browser warning)
   - Simpler architecture without persistence complexity
 - **Execution snapshots**: Captured at queue time; retained after completion for settings view. Cleaned up when user clears queue.
-- **Queue updates**: Event-driven via `workflowEngine.setOnExecutionsChange()` callback. NO polling (wasteful, removed).
+- **Queue updates**: Event-driven via `workflowEngine.addExecutionChangeListener()` (supports multiple listeners). NO polling (wasteful, removed).
 - **Media Manager**: Full-screen page (not panel); toggled via header button. Settings persist to sessionStorage.
 - **Image metadata persistence**: ALL generation settings (prompt, model, steps, guidance, seed, resolution) are stored in `result.metadata.inputsUsed` and persist forever with the image. Settings icon in image history loads from this persistent metadata, NOT from ephemeral queue snapshots.
 
@@ -86,7 +86,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Image node (unified):
   - Mode: `generate` (default) or `uploaded` (short-circuits API calls).
   - Result metadata includes all generation settings (prompt, model, steps, guidance, seed, resolution) stored in `metadata.inputsUsed`.
-  - **Queue placeholders**: Live skeletons for pending jobs via `setOnExecutionsChange`; ephemeral (gone on reload).
+  - **Queue placeholders**: Live skeletons for ALL pending jobs (queued + running) that will execute this node via `addExecutionChangeListener`; filters out executions that already have results; disabled in "uploaded" mode; ephemeral (gone on reload).
   - **Historical settings**: Settings icon opens left panel (`ExecutionInspector`) showing persistent metadata stored with the image result; "Copy to Node" applies settings. Does NOT rely on ephemeral queue snapshots.
   - **Image source**: "From library" (asset table) or "upload" (local file); hidden in view-only mode.
 
@@ -258,7 +258,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - `StorageManager`: central coordinator for all persistence; provides write serialization, debouncing, and backend abstraction.
 - `StorageBackend`: interface for pluggable storage (current: `IndexedDBBackend`; future: R2, UploadThing, LocalFile).
 - `AssetManager`: stores images in `assets` table; returns `AssetRef`; tracks usage; prevents deletion of in-use assets (force-delete option available).
-- `workflowEngine`: executes nodes, manages queue, saves to `AssetManager`; event callbacks (`setOnExecutionsChange`) for UI updates (no polling).
+- `workflowEngine`: executes nodes, manages queue, saves to `AssetManager`; event listeners (`addExecutionChangeListener`) for UI updates (supports multiple listeners, no polling).
 - `AssetRef`: pointer to asset table (`{ kind: "idb", assetId }`); workflows never store full image data.
 - `resultHistory`: contains `AssetRef` + `metadata` (including `executionId` linking to queue snapshot).
 - `ExecutionInspector`: read-only snapshot viewer; reuses left panel pattern; "Copy to Node" for settings.

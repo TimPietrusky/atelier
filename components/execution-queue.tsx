@@ -73,16 +73,14 @@ export function ExecutionQueueComponent({
       setQueue(workflowEngine.getQueue())
     }
 
-    // Register callback
-    workflowEngine.setOnExecutionsChange(handleExecutionsChange)
+    // Register listener (supports multiple listeners)
+    const unsubscribe = workflowEngine.addExecutionChangeListener(handleExecutionsChange)
 
     // Initial population
     handleExecutionsChange()
 
-    // Clean up callback on unmount
-    return () => {
-      workflowEngine.setOnExecutionsChange(undefined)
-    }
+    // Clean up listener on unmount
+    return unsubscribe
   }, [])
 
   useEffect(() => {

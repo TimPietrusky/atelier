@@ -30,6 +30,7 @@ export default function StudioDashboard() {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState<"canvas" | "media">("canvas")
   const [isConnectOpen, setIsConnectOpen] = useState(false)
+  const [mediaSelectionNodeId, setMediaSelectionNodeId] = useState<string | null>(null)
 
   // Panel state: content-based approach for toggle behavior
   // panelContentId format: "node-{nodeId}" or "metadata-{nodeId}-{resultId}"
@@ -141,6 +142,29 @@ export default function StudioDashboard() {
   const handlePaneClick = () => {
     setPanelContentId(null)
     setPanelContent(null)
+  }
+
+  const handleRequestLibrarySelection = () => {
+    if (!panelContent?.nodeId) return
+    setMediaSelectionNodeId(panelContent.nodeId)
+    setCurrentPage("media")
+  }
+
+  const handleUseAsset = async (assetId: string) => {
+    if (!activeWorkflow || !mediaSelectionNodeId) return
+
+    try {
+      // Use the AssetRef directly - no need to load or re-store
+      const assetRef = { kind: "idb" as const, assetId }
+      workflowStore.updateNodeConfig(activeWorkflow, mediaSelectionNodeId, {
+        uploadedAssetRef: assetRef,
+        mode: "uploaded",
+      })
+      setMediaSelectionNodeId(null)
+      setCurrentPage("canvas")
+    } catch (err) {
+      console.error("Failed to select asset from library:", err)
+    }
   }
 
   // Get selected node from store
@@ -367,10 +391,15 @@ export default function StudioDashboard() {
             </div>
           ) : (
             <MediaManager
-              onClose={() => setCurrentPage("canvas")}
+              onClose={() => {
+                setCurrentPage("canvas")
+                setMediaSelectionNodeId(null)
+              }}
               onSelectAsset={(assetId: string) => {
                 console.log("Selected asset:", assetId)
               }}
+              selectionMode={!!mediaSelectionNodeId}
+              onUseAsset={handleUseAsset}
             />
           )}
         </div>
@@ -408,6 +437,7 @@ export default function StudioDashboard() {
                   workflowStore.updateNodeConfig(activeWorkflow, selectedNode.id, cfg)
                 }
               }}
+              onRequestLibrarySelection={handleRequestLibrarySelection}
             />
           ) : null}
         </NodeInspectorPanel>

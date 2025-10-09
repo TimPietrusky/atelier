@@ -62,21 +62,40 @@ export class WorkflowEngine {
   private queuedSnapshots: Map<string, { nodes: WorkflowNode[]; edges: any[] }> = new Map()
   // live node snapshots during an execution to avoid stale localStorage reads
   private runtimeNodesByWorkflow: Map<string, WorkflowNode[]> = new Map()
-  // Callback to notify UI of execution changes (replaces polling)
-  private onExecutionsChange?: () => void
+  // Multiple callbacks to notify UI of execution changes (replaces polling)
+  private executionChangeListeners: Set<() => void> = new Set()
 
   /**
-   * Set callback to notify UI when executions change (replaces polling).
+   * Add a listener for execution changes. Returns unsubscribe function.
    */
-  setOnExecutionsChange(callback: () => void) {
-    this.onExecutionsChange = callback
+  addExecutionChangeListener(callback: () => void): () => void {
+    this.executionChangeListeners.add(callback)
+    return () => {
+      this.executionChangeListeners.delete(callback)
+    }
   }
 
   /**
-   * Notify UI that executions have changed.
+   * @deprecated Use addExecutionChangeListener instead. This method only supports a single callback.
+   */
+  setOnExecutionsChange(callback: (() => void) | undefined) {
+    // Legacy support: convert to listener pattern
+    if (callback) {
+      this.executionChangeListeners.add(callback)
+    }
+  }
+
+  /**
+   * Notify all listeners that executions have changed.
    */
   private notifyChange() {
-    this.onExecutionsChange?.()
+    this.executionChangeListeners.forEach((listener) => {
+      try {
+        listener()
+      } catch (err) {
+        console.error("[WorkflowEngine] Listener error:", err)
+      }
+    })
   }
 
   async executeWorkflow(workflowId: string, nodes: WorkflowNode[]): Promise<string> {
@@ -336,28 +355,38 @@ export class WorkflowEngine {
   }
 
   private async executeImageGenNode(node: WorkflowNode) {
-    // Short-circuit: if user loaded a local image on this node, don't generate.
-    let localImageUrl: string | undefined =
-      typeof node.config?.localImage === "string" ? (node.config!.localImage as string) : undefined
-    if (!localImageUrl && typeof node.config?.localImageRef === "string") {
-      // Resolve from IndexedDB if available (client-side only)
-      if (typeof window !== "undefined") {
+    // Short-circuit: if user uploaded an image on this node, don't generate.
+    // Check for uploadedAssetRef (new) or localImage (legacy fallback)
+    if (node.config?.uploadedAssetRef) {
+      // Load from AssetManager
+      const asset = await assetManager.loadAsset(node.config.uploadedAssetRef)
+      if (asset) {
+        node.result = {
+          type: "image",
+          data: asset.data,
+          assetRef: node.config.uploadedAssetRef,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            inputsUsed: { mode: "uploaded", source: "user" },
+          },
+        }
+        // Notify workflow store so UI updates
         try {
-          const { idbGetImage } = await import("@/lib/store/idb")
-          localImageUrl = await idbGetImage(node.config!.localImageRef as string)
+          const wfId = (node as any).workflowId as string | undefined
+          if (wfId) {
+            const { updateNodeResult } = useWorkflowStore.getState()
+            // Uploaded image (not generated) - don't add to history
+            updateNodeResult(wfId, node.id, node.result, undefined)
+          }
         } catch {}
+        return
       }
-    }
-    if (localImageUrl) {
+    } else if (typeof node.config?.localImage === "string") {
+      // Legacy: direct data URL
       node.result = {
         type: "image",
-        data: localImageUrl,
-        assetRef:
-          typeof node.config?.localImageRef === "string"
-            ? { kind: "idb", blobKey: String(node.config.localImageRef) }
-            : node.config?.localImage
-            ? { kind: "url", url: String(node.config.localImage) }
-            : undefined,
+        data: node.config.localImage,
+        assetRef: undefined,
         metadata: {
           timestamp: new Date().toISOString(),
           inputsUsed: { mode: "local", source: "user" },
@@ -568,27 +597,37 @@ export class WorkflowEngine {
   }
 
   private async executeImageEditNode(node: WorkflowNode) {
-    // Short-circuit: if this node has a user-loaded image, act as a passthrough
-    let localImageUrl: string | undefined =
-      typeof node.config?.localImage === "string" ? (node.config!.localImage as string) : undefined
-    if (!localImageUrl && typeof node.config?.localImageRef === "string") {
-      if (typeof window !== "undefined") {
+    // Short-circuit: if this node has a user-uploaded image, act as a passthrough
+    // Check for uploadedAssetRef (new) or localImage (legacy fallback)
+    if (node.config?.uploadedAssetRef) {
+      // Load from AssetManager
+      const asset = await assetManager.loadAsset(node.config.uploadedAssetRef)
+      if (asset) {
+        node.result = {
+          type: "image",
+          data: asset.data,
+          assetRef: node.config.uploadedAssetRef,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            inputsUsed: { mode: "uploaded", source: "user" },
+          },
+        }
         try {
-          const { idbGetImage } = await import("@/lib/store/idb")
-          localImageUrl = await idbGetImage(node.config!.localImageRef as string)
+          const { workflowStore } = await import("@/lib/store/workflows")
+          const wfId = (node as any).workflowId as string | undefined
+          if (wfId) {
+            // Uploaded image (not generated) - don't add to history
+            workflowStore.updateNodeResult(wfId, node.id, node.result, undefined)
+          }
         } catch {}
+        return
       }
-    }
-    if (localImageUrl) {
+    } else if (typeof node.config?.localImage === "string") {
+      // Legacy: direct data URL
       node.result = {
         type: "image",
-        data: localImageUrl,
-        assetRef:
-          typeof node.config?.localImageRef === "string"
-            ? { kind: "idb", blobKey: String(node.config.localImageRef) }
-            : node.config?.localImage
-            ? { kind: "url", url: String(node.config.localImage) }
-            : undefined,
+        data: node.config.localImage,
+        assetRef: undefined,
         metadata: {
           timestamp: new Date().toISOString(),
           inputsUsed: { mode: "local", source: "user" },

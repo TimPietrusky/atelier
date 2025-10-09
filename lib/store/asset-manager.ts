@@ -144,7 +144,7 @@ export class AssetManager {
         }
 
         // Check config (uploaded images)
-        if (node.config?.localImageRef && node.config.localImageRef.includes(assetId)) {
+        if (node.config?.uploadedAssetRef && node.config.uploadedAssetRef.assetId === assetId) {
           usage.push({
             workflowId,
             workflowName: workflow.name,

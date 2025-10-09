@@ -29,6 +29,8 @@ import { useWorkflowStore } from "@/lib/store/workflows-zustand"
 interface MediaManagerProps {
   onClose: () => void
   onSelectAsset?: (assetId: string) => void
+  selectionMode?: boolean // If true, show "Use" and "Cancel" buttons
+  onUseAsset?: (assetId: string) => void // Called when "Use" is clicked in selection mode
 }
 
 interface MediaSettings {
@@ -47,11 +49,18 @@ const defaultSettings: MediaSettings = {
   searchQuery: "",
 }
 
-export function MediaManagerComponent({ onClose, onSelectAsset }: MediaManagerProps) {
+export function MediaManagerComponent({
+  onClose,
+  onSelectAsset,
+  selectionMode = false,
+  onUseAsset,
+}: MediaManagerProps) {
   const [assets, setAssets] = useState<Asset[]>([])
   const [settings, setSettings] = useState<MediaSettings>(defaultSettings)
   const [stats, setStats] = useState<any>(null)
   const [resetPopoverOpen, setResetPopoverOpen] = useState(false)
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const workflows = useWorkflowStore((s) => s.workflows)
 
   // Load media settings from sessionStorage
@@ -74,10 +83,12 @@ export function MediaManagerComponent({ onClose, onSelectAsset }: MediaManagerPr
   // Load assets on mount
   useEffect(() => {
     async function load() {
+      setIsLoading(true)
       const allAssets = await listAllAssets()
       const assetStats = await getAssetStats()
       setAssets(allAssets)
       setStats(assetStats)
+      setIsLoading(false)
     }
 
     load()
@@ -188,13 +199,15 @@ export function MediaManagerComponent({ onClose, onSelectAsset }: MediaManagerPr
   }
 
   return (
-    <div className="h-full w-full bg-background flex flex-col">
+    <div className="h-full w-full bg-background flex flex-col relative z-[60]">
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-border/50 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <ImageIcon className="w-6 h-6 text-accent" />
           <div>
-            <h1 className="text-2xl font-bold">Media Library</h1>
+            <h1 className="text-2xl font-bold">
+              {selectionMode ? "Select Image from Library" : "Media Library"}
+            </h1>
             {stats && (
               <p className="text-sm text-muted-foreground">
                 {assets.length} assets • {stats.totalMB} MB total
@@ -202,10 +215,43 @@ export function MediaManagerComponent({ onClose, onSelectAsset }: MediaManagerPr
             )}
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} className="h-9 px-3 hover:bg-accent/10">
-          <X className="w-5 h-5 mr-2" />
-          Back to Canvas
-        </Button>
+        <div className="flex items-center gap-3">
+          {selectionMode && (
+            <>
+              <Button
+                size="lg"
+                disabled={!selectedAssetId}
+                onClick={() => {
+                  if (selectedAssetId && onUseAsset) {
+                    onUseAsset(selectedAssetId)
+                  }
+                }}
+                className="h-11 px-6 text-base font-medium bg-accent text-accent-foreground hover:bg-accent/90"
+              >
+                Use Selected
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={onClose}
+                className="h-11 px-6 text-base font-medium"
+              >
+                Cancel
+              </Button>
+            </>
+          )}
+          {!selectionMode && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-9 px-3 hover:bg-accent/10"
+            >
+              <X className="w-5 h-5 mr-2" />
+              Back to Canvas
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters Toolbar */}
@@ -340,8 +386,13 @@ export function MediaManagerComponent({ onClose, onSelectAsset }: MediaManagerPr
       {/* Assets Grid */}
       <ScrollArea className="flex-1">
         <div className="p-6 grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-          {filtered.length === 0 ? (
-            <div className="col-span-full text-center py-24">
+          {isLoading ? (
+            <div key="loading" className="col-span-full text-center py-24">
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-accent border-t-transparent animate-spin" />
+              <p className="text-lg text-muted-foreground font-medium">Loading assets...</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div key="empty" className="col-span-full text-center py-24">
               <ImageIcon className="w-20 h-20 mx-auto text-muted-foreground/30 mb-4" />
               <p className="text-lg text-muted-foreground font-medium mb-2">
                 {assets.length === 0 ? "No media yet" : "No results found"}
@@ -356,13 +407,26 @@ export function MediaManagerComponent({ onClose, onSelectAsset }: MediaManagerPr
             filtered.map((asset) => (
               <div
                 key={asset.id}
-                className="group relative aspect-square rounded-xl overflow-hidden border-2 border-border/50 hover:border-accent transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02]"
-                onClick={() => onSelectAsset?.(asset.id)}
+                className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02] ${
+                  selectedAssetId === asset.id
+                    ? "border-accent shadow-lg ring-4 ring-accent/30"
+                    : "border-border/50 hover:border-accent"
+                }`}
+                onClick={() => {
+                  if (selectionMode) {
+                    setSelectedAssetId(asset.id)
+                  } else {
+                    onSelectAsset?.(asset.id)
+                  }
+                }}
               >
                 <img
                   src={asset.data}
                   alt={asset.metadata?.prompt || "Asset"}
                   className="w-full h-full object-cover"
+                  width={512}
+                  height={512}
+                  loading="lazy"
                 />
 
                 {/* Overlay with actions */}

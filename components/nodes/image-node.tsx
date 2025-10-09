@@ -23,10 +23,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { NodeContainer, NodeHeader, NodeContent } from "@/components/node-components"
 import { getImageModelMeta } from "@/lib/config"
-import { idbDeleteImage, idbGetImage, idbPutImage } from "@/lib/store/idb"
 import { workflowStore } from "@/lib/store/workflows"
 import { useAssets } from "@/lib/hooks/use-asset"
 import { workflowEngine } from "@/lib/workflow-engine"
+import { assetManager } from "@/lib/store/asset-manager"
 
 export function ImageNode({
   data,
@@ -66,32 +66,53 @@ export function ImageNode({
     }))
   }, [resolvedAssets, resultHistory])
 
+  // Determine mode early (needed for pending count logic)
+  const mode: string =
+    data.config?.mode ||
+    (data.config?.uploadedAssetRef || data.config?.localImage ? "uploaded" : "generate")
+
   // Get pending placeholders from queue (queued/running jobs for this node)
   const [pendingCount, setPendingCount] = useState(0)
   useEffect(() => {
     const updatePending = () => {
-      if (!data.workflowId) return
+      // Skip pending count for uploaded mode (it won't be executed during runs)
+      if (!data.workflowId || mode === "uploaded") {
+        setPendingCount(0)
+        return
+      }
+
+      // Get execution IDs that already have results in this node's history
+      const completedExecutionIds = new Set(
+        (data?.resultHistory || [])
+          .filter((r: any) => r.type === "image" && r.metadata?.executionId)
+          .map((r: any) => r.metadata.executionId)
+      )
 
       // Get all executions for this workflow
       const executions = workflowEngine.getAllExecutions()
-      const pending = executions.filter(
-        (e) =>
-          e.workflowId === data.workflowId &&
-          (e.status === "queued" || e.status === "running") &&
-          e.currentNodeId === id // Only count if this node is being executed
-      )
+      const pending = executions.filter((e) => {
+        if (e.workflowId !== data.workflowId) return false
+        if (e.status !== "queued" && e.status !== "running") return false
+
+        // Skip if this execution already has a result for this node
+        if (completedExecutionIds.has(e.id)) return false
+
+        // Check if this node exists in the workflow snapshot
+        // This covers both queued jobs and running jobs that haven't reached this node yet
+        const snapshot = workflowEngine.getQueueSnapshot?.(e.id)
+        const hasThisNode = snapshot?.nodes?.some((n: any) => n.id === id)
+        return hasThisNode || false
+      })
 
       setPendingCount(pending.length)
     }
 
-    // Register callback for instant updates
-    workflowEngine.setOnExecutionsChange(updatePending)
+    // Register listener for instant updates (supports multiple listeners per node)
+    const unsubscribe = workflowEngine.addExecutionChangeListener(updatePending)
     updatePending() // Initial check
 
-    return () => {
-      workflowEngine.setOnExecutionsChange(undefined)
-    }
-  }, [data.workflowId, id])
+    return unsubscribe
+  }, [data.workflowId, id, data?.resultHistory, mode])
 
   // Map to include id for deletions, most recent first, plus pending placeholders
   const imageHistory: Array<{ id: string; url: string; isPending?: boolean; metadata?: any }> =
@@ -119,12 +140,7 @@ export function ImageNode({
   }
   const gridCols = getGridCols(nodeWidth)
 
-  const [localImage, setLocalImage] = useState<string | undefined>(
-    data.config?.localImage || undefined
-  )
-  const mode: string =
-    data.config?.mode ||
-    (data.config?.localImageRef || data.config?.localImage ? "uploaded" : "generate")
+  const [localImage, setLocalImage] = useState<string | undefined>(undefined)
 
   const handleViewSettings = (metadata: any, resultId: string) => {
     setSelectedMetadata(metadata)
@@ -199,12 +215,12 @@ export function ImageNode({
     let cancelled = false
     ;(async () => {
       try {
-        // Fetch from IDB if we have a reference
-        if (data.config?.localImageRef && typeof indexedDB !== "undefined") {
-          const url = await idbGetImage(data.config.localImageRef)
-          if (!cancelled && url) setLocalImage(url)
+        // Load from AssetManager if we have an AssetRef
+        if (data.config?.uploadedAssetRef) {
+          const asset = await assetManager.loadAsset(data.config.uploadedAssetRef)
+          if (!cancelled && asset) setLocalImage(asset.data)
         } else if (data.config?.localImage) {
-          // Fallback: use localImage directly if no ref (legacy support)
+          // Fallback: use localImage directly (legacy support)
           if (!cancelled) setLocalImage(data.config.localImage)
         } else {
           // Clear if both are undefined
@@ -217,7 +233,7 @@ export function ImageNode({
     return () => {
       cancelled = true
     }
-  }, [id, data.config?.localImageRef, data.config?.localImage])
+  }, [id, data.config?.uploadedAssetRef, data.config?.localImage])
 
   return (
     <>
@@ -337,6 +353,9 @@ export function ImageNode({
                           src={item.url || "/placeholder.svg"}
                           alt={`Generation ${imageHistory.length - idx}`}
                           className="block w-full h-full object-cover cursor-pointer"
+                          width={512}
+                          height={512}
+                          loading="lazy"
                           onClick={() => {
                             if (item.metadata) {
                               handleViewSettings(item.metadata, item.id)
@@ -407,6 +426,9 @@ export function ImageNode({
                 src={localImage || "/placeholder.svg"}
                 alt="Local image"
                 className="block w-full h-auto max-h-[320px] object-contain"
+                width={512}
+                height={512}
+                loading="lazy"
               />
               <Button
                 variant="ghost"
@@ -415,14 +437,19 @@ export function ImageNode({
                 onClick={() => {
                   ;(async () => {
                     try {
-                      if (data.config?.localImageRef && typeof indexedDB !== "undefined") {
-                        await idbDeleteImage(data.config.localImageRef)
+                      // Delete from AssetManager if we have an AssetRef
+                      if (data.config?.uploadedAssetRef) {
+                        await assetManager.deleteAsset(data.config.uploadedAssetRef, {
+                          force: true,
+                        })
                       }
-                    } catch {}
+                    } catch (err) {
+                      console.error("[ImageNode] Failed to delete uploaded image:", err)
+                    }
                     setLocalImage(undefined)
                     data?.onChange?.({
                       localImage: undefined,
-                      localImageRef: undefined,
+                      uploadedAssetRef: undefined,
                       mode: "generate",
                     })
                   })()
@@ -447,18 +474,18 @@ export function ImageNode({
                   reader.onload = async () => {
                     const url = String(reader.result)
                     try {
-                      if (typeof indexedDB !== "undefined") {
-                        const key = `img_${id}`
-                        await idbPutImage(key, url)
-                        data?.onChange?.({
-                          localImageRef: key,
-                          localImage: undefined,
-                          mode: "uploaded",
-                        })
-                      } else {
-                        data?.onChange?.({ localImage: url, mode: "uploaded" })
-                      }
-                    } catch {
+                      // Save to AssetManager and get AssetRef
+                      const assetRef = await assetManager.saveAsset(url, {
+                        prompt: "User uploaded image",
+                        model: "user-upload",
+                      })
+                      data?.onChange?.({
+                        uploadedAssetRef: assetRef,
+                        mode: "uploaded",
+                      })
+                    } catch (err) {
+                      console.error("[ImageNode] Failed to save uploaded image:", err)
+                      // Fallback to direct data URL
                       data?.onChange?.({ localImage: url, mode: "uploaded" })
                     }
                   }
@@ -568,6 +595,9 @@ export function ImageNode({
               src={enlargedImage.url}
               alt="Enlarged view"
               className="max-w-full max-h-full object-contain"
+              width={1024}
+              height={1024}
+              loading="lazy"
               onClick={(e) => e.stopPropagation()}
             />
           </div>,

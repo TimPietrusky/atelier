@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ImagePlus, Library, Upload } from "lucide-react"
+import { Library, Upload } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -12,61 +12,36 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getImageModelMeta } from "@/lib/config"
-import { idbPutImage } from "@/lib/store/idb"
 import { assetManager } from "@/lib/store/asset-manager"
-import { listAllAssets } from "@/lib/utils/list-all-assets"
 import type { WorkflowNode } from "@/lib/workflow-engine"
-import type { Asset } from "@/lib/store/asset-manager"
 
 interface ImageInspectorProps {
   node: WorkflowNode
   onChange: (config: Record<string, any>) => void
   viewMode?: "edit" | "view" // "edit" = full controls, "view" = read-only (no upload)
+  onRequestLibrarySelection?: () => void // Called when user wants to select from library
 }
 
-export function ImageInspector({ node, onChange, viewMode = "edit" }: ImageInspectorProps) {
+export function ImageInspector({
+  node,
+  onChange,
+  viewMode = "edit",
+  onRequestLibrarySelection,
+}: ImageInspectorProps) {
   const [model, setModel] = useState(node.config?.model || "black-forest-labs/flux-1-schnell")
-  const [isLibraryOpen, setIsLibraryOpen] = useState(false)
-  const [libraryAssets, setLibraryAssets] = useState<Asset[]>([])
   const meta = getImageModelMeta(model)
   const mode: string =
     node.config?.mode ||
-    (node.config?.localImageRef || node.config?.localImage ? "uploaded" : "generate")
+    (node.config?.uploadedAssetRef || node.config?.localImage ? "uploaded" : "generate")
 
   useEffect(() => {
     setModel(node.config?.model || "black-forest-labs/flux-1-schnell")
   }, [node.id, node.config?.model])
 
-  // Load library assets when dialog opens
-  useEffect(() => {
-    if (isLibraryOpen) {
-      listAllAssets().then(setLibraryAssets)
-    }
-  }, [isLibraryOpen])
-
   const handleModelChange = (value: string) => {
     setModel(value)
     onChange({ model: value })
-  }
-
-  const handleSelectFromLibrary = async (assetId: string) => {
-    try {
-      const asset = await assetManager.loadAsset({ kind: "idb", assetId })
-      if (asset) {
-        const key = `img_${node.id}_from_lib_${assetId}`
-        await idbPutImage(key, asset.data)
-        onChange({
-          localImageRef: key,
-          localImage: undefined,
-          mode: "uploaded",
-        })
-        setIsLibraryOpen(false)
-      }
-    } catch (err) {
-      console.error("Failed to load asset from library:", err)
-    }
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,18 +51,18 @@ export function ImageInspector({ node, onChange, viewMode = "edit" }: ImageInspe
     reader.onload = async () => {
       const url = String(reader.result)
       try {
-        if (typeof indexedDB !== "undefined") {
-          const key = `img_${node.id}`
-          await idbPutImage(key, url)
-          onChange({
-            localImageRef: key,
-            localImage: undefined,
-            mode: "uploaded",
-          })
-        } else {
-          onChange({ localImage: url, mode: "uploaded" })
-        }
-      } catch {
+        // Save to AssetManager and get AssetRef
+        const assetRef = await assetManager.saveAsset(url, {
+          prompt: "User uploaded image",
+          model: "user-upload",
+        })
+        onChange({
+          uploadedAssetRef: assetRef,
+          mode: "uploaded",
+        })
+      } catch (err) {
+        console.error("Failed to save uploaded image:", err)
+        // Fallback to direct data URL
         onChange({ localImage: url, mode: "uploaded" })
       }
     }
@@ -131,7 +106,7 @@ export function ImageInspector({ node, onChange, viewMode = "edit" }: ImageInspe
                 variant="outline"
                 size="sm"
                 className="flex-1"
-                onClick={() => setIsLibraryOpen(true)}
+                onClick={() => onRequestLibrarySelection?.()}
               >
                 <Library className="w-4 h-4 mr-2" />
                 from library
@@ -152,37 +127,6 @@ export function ImageInspector({ node, onChange, viewMode = "edit" }: ImageInspe
               </label>
             </div>
           </div>
-
-          {/* Library Picker Dialog */}
-          <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Choose from Library</DialogTitle>
-              </DialogHeader>
-              <div className="grid grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-                {libraryAssets.length === 0 ? (
-                  <div className="col-span-3 text-center py-12">
-                    <Library className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-                    <p className="text-sm text-muted-foreground">No assets in library yet</p>
-                  </div>
-                ) : (
-                  libraryAssets.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="aspect-square rounded-lg overflow-hidden border border-border hover:border-accent cursor-pointer transition-colors"
-                      onClick={() => handleSelectFromLibrary(asset.id)}
-                    >
-                      <img
-                        src={asset.data}
-                        alt={asset.metadata?.prompt || "Asset"}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
         </>
       )}
 
