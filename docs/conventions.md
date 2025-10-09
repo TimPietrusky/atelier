@@ -130,6 +130,13 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - **Modes**: `PromptInspector`, `ImageInspector` (edit node), `ExecutionInspector` (view persistent metadata, read-only).
   - Custom events for cross-component communication (`metadata-selected` → passes metadata + resultId for toggle logic).
   - Panel state managed via `panelContentId` and `panelContent` (type, nodeId, metadata) in page.tsx.
+- **Image hover overlays** (unified pattern):
+  - Gradient overlay reveals action buttons on hover
+  - Buttons use solid backgrounds (NO backdrop-blur for performance)
+  - Button order: Maximize (lightbox), Download, Delete
+  - Identical appearance in image-node and media-manager for consistency
+  - Image node: clicks on image open inspector; media-manager: clicks select for library
+  - Performance: avoid expensive filters like backdrop-blur
 - Image node:
   - Model selector includes edit models.
   - **Image upload**: available via inspector panel "upload image" button OR "from library" button (opens full-screen media manager in selection mode) OR by clicking the empty image skeleton in the node.
@@ -139,8 +146,8 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - When an upstream image is connected and a non-edit model is selected, show a subtle hint to switch.
   - **Result history**:
     - Single-click image → opens generation settings in left panel instantly (toggle behavior: click again to close, click different image to switch)
-    - Selected image highlighted via primary-colored border (all images have `border`, color switches between `border-border` and `border-primary`) - shows when panel is open or lightbox is active
-    - Hover buttons: fullscreen (maximize icon), download, delete - all actions accessible without click delays
+    - Selected image highlighted via node-type colored border
+    - Hover overlay with actions: maximize (lightbox), download, delete - unified styling with media manager
     - Clean, responsive UX with no artificial delays
   - **Lightbox modal**:
     - Full-screen overlay with navigation controls; rendered via portal to `document.body` for proper event handling
@@ -149,12 +156,133 @@ This doc orients anyone working in this codebase. It captures the architectural 
     - **Image counter**: Shows current position (e.g., "3 / 10") at bottom center
     - **Actions**: Download and close buttons in top-right corner
     - Navigating in lightbox updates the selected image border in the node
+- Media Manager:
+  - **Image grid hover**: Same overlay styling as image node for consistency
+  - **Lightbox**: Simple fullscreen view (click image or maximize button to open, click backdrop to close)
+  - **Actions**: maximize (lightbox), download, delete - identical button styling to image node
+  - **Delete confirmation**: Uses inline Popover (NEVER alert/confirm) to show usage and request force-delete confirmation
 - Edges use bezier curves (type `default`) with a solid off-white stroke; the drag preview uses the same bezier curve for consistency. Gradient removed. Existing edges are normalized on load.
   - Canvas connection settings: `ConnectionMode.Loose`, `connectionRadius = 30`, `connectOnClick` enabled.
   - Canvas snapping: `snapToGrid` with `snapGrid = [8, 8]` for stable placement and connecting.
   - Node resizing uses `@xyflow/react` `NodeResizer` and is only visible when the node is selected (`minWidth=220`, `minHeight=120`).
     - Resizer lines have `pointer-events: none`; resize handles have `pointer-events: auto`; handles render above content to avoid blocking connections.
   - Node dimensions mapping on hydration: apply `size.height` only when `> 0` to avoid 0-height nodes breaking hit-testing; otherwise leave `height` undefined.
+
+## Minimal Design System (Studio Aesthetic)
+
+**Philosophy**: atelier is a professional art studio environment where the UI recedes and the user's work shines. Monochrome foundation with intentional color accents only for node-type identity.
+
+### Color Palette
+
+**Monochrome Foundation**: Pure black canvas, dark grey UI surfaces, white/grey text hierarchy
+
+**Node Type Accents** (ONLY colors):
+
+- Blue for prompt nodes
+- Purple for image nodes
+- Two versions: full brightness (for icons, handles, selected images), muted/dark (for selected node borders)
+- Visual hierarchy: selected images use bright color and pop; selected nodes use dark muted color (so content stands out)
+- NEVER use node colors for general UI elements
+
+**General UI Interactions**: Monochrome only (grey hover states for menus, buttons, etc.)
+
+**Functional Colors**: Red for errors, orange for running status, green for success (minimal use)
+
+**Typography**: 3 size tiers only (14px, 13px, 11px); semibold ONLY for primary actions
+
+**Border Radius**: Sharp corners (0px) for nodes and images; small radius (4px) for buttons/inputs only
+
+**Color System Tokens**: See `app/globals.css` for exact values - conventions define principles, not specific hex codes
+
+### Visual Hierarchy (5 Tiers)
+
+**Tier 1: User Content** - Maximum prominence (medium weight, primary color)
+
+- Prompt text, generated images, node titles
+
+**Tier 2: Primary Actions** - High prominence (semibold, white bg/black text)
+
+- Run button, "Use Selected", connection handles, selected nodes
+
+**Tier 3: Secondary Actions** - Medium prominence (normal weight, bordered)
+
+- Add node, queue, media buttons
+- Active state promotes to Tier 2 styling
+
+**Tier 4: Tertiary Actions** - Low prominence (low opacity, reveal on hover)
+
+- Settings icons, metadata icons, delete buttons
+
+**Tier 5: UI Chrome** - Minimal prominence (receded, monochrome)
+
+- Panel backgrounds, dividers, labels
+
+### Component Principles
+
+**Nodes**:
+
+- Default: dark grey surface, subtle border, sharp corners
+- Selected: border color changes to muted node-type color, stays sharp, subtle glow
+- Running: orange border, subtle pulse
+- Header icons use full-brightness node-type color
+- Settings icon is Tier 4 (low prominence until hover)
+- Selected nodes use muted color so selected images inside pop with full brightness
+
+**Images** (CRITICAL):
+
+- ALWAYS sharp corners (0px radius) - NEVER crop artwork
+- Selected: border color changes to FULL brightness node-type color (not muted)
+- Consistent 1px border width (NO layout shift)
+- Visual hierarchy: images brighter than node borders (content is the focus)
+
+**Buttons**:
+
+- Primary (Tier 2): white background, semibold
+- Secondary (Tier 3): bordered, transparent, normal weight
+- Ghost (Tier 4): transparent, no border, low opacity
+
+**Canvas**:
+
+- Pure black background
+- Subtle grey edges
+- Minimal grid/dots
+- Connection handles scale on hover
+
+**Panels**:
+
+- Receded backgrounds (Tier 5)
+- Content uses Tier 1 styling
+- Icons use node-type colors
+- Controls use Tier 4 styling
+
+### Z-Index Strategy
+
+Dropdown/popover components must stack above full-page overlays; lightbox modals on top of everything.
+
+### Design Principles (Do/Don't)
+
+**Do:**
+
+- Use CSS variables for all colors
+- Keep nodes and images sharp-cornered always
+- Keep border widths consistent (change color, not thickness)
+- Remove unnecessary transitions for instant feedback
+- Limit semibold to primary actions only
+- Use medium opacity (60%) for tertiary actions (discoverable but not distracting)
+- Use node-type colors ONLY for node identity
+- Use inline Popover for all confirmations
+- Avoid expensive effects (backdrop-blur, excessive animations)
+
+**Don't:**
+
+- Round image corners (show full artwork)
+- Use node-type colors outside node contexts
+- Use native browser dialogs (alert, confirm, prompt)
+- Change border thickness on state changes
+- Add decorative gradients or visual noise
+- Use color on non-essential elements
+
+**Accessibility**: Meet WCAG AA (4.5:1 text, 3:1 UI); focus indicators visible; hover states use multiple cues
 
 ## React & performance patterns
 
@@ -170,6 +298,8 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - If a pattern exists (e.g., workflow action popovers for create/rename/delete), **REUSE IT** with the same structure, props, and styling.
   - For workflow actions: use the inline Popover pattern (see `WorkflowCreatePopover`, `WorkflowRenamePopover`, `WorkflowDeletePopover`) for all dropdown-triggered actions. Do NOT introduce AlertDialog, Modal, or other patterns for the same use case.
   - For confirmation flows: follow the existing inline popover pattern with cancel/confirm buttons.
+  - For destructive actions: use inline Popover with red confirm button (see clear images, delete asset confirmations).
+  - **NEVER use `alert()` or `confirm()`** - always use Popover for confirmations.
   - Only introduce new UI patterns when the use case is fundamentally different, not just visually similar.
   - Document new patterns here when they become canonical.
 
@@ -258,6 +388,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Don't call Dexie/DB methods directly from components—always go through `workflowStore` (which uses `StorageManager`).
 - Don't implement cross-tab sync—app is single-tab focused to avoid race conditions.
 - **NEVER use `setTimeout` for timing hacks or event ordering** — these are band-aids that hide real problems. Use proper state management, `queueMicrotask`, or fix the root cause.
+- **NEVER use `alert()` or `confirm()`** — use inline Popover pattern for all confirmations and messages. Native dialogs are ugly, don't match the design system, and interrupt the UX flow.
 
 ## Quick glossary
 

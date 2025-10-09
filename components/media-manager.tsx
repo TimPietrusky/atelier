@@ -20,6 +20,8 @@ import {
   Trash2,
   Search,
   RotateCcw,
+  Maximize2,
+  Check,
 } from "lucide-react"
 import { listAllAssets, getAssetStats } from "@/lib/utils/list-all-assets"
 import { assetManager, type Asset } from "@/lib/store/asset-manager"
@@ -61,6 +63,8 @@ export function MediaManagerComponent({
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const workflows = useWorkflowStore((s) => s.workflows)
+  const [deletePopoverOpen, setDeletePopoverOpen] = useState(false)
+  const [assetToDelete, setAssetToDelete] = useState<{ id: string; usage?: any[] } | null>(null)
 
   // Load media settings from sessionStorage
   useEffect(() => {
@@ -151,28 +155,9 @@ export function MediaManagerComponent({
       const result = await assetManager.deleteAsset({ kind: "idb", assetId })
 
       if (!result.success && result.usage && result.usage.length > 0) {
-        // Asset is in use, ask user to confirm force deletion
-        const usageList = result.usage
-          .map((u: any) => `• ${u.workflowName} (${u.nodeTitle})`)
-          .join("\n")
-
-        const confirmed = confirm(
-          `This asset is used in ${result.usage.length} workflow(s):\n\n${usageList}\n\nForce delete? This will break those workflows.`
-        )
-
-        if (confirmed) {
-          const forceResult = await assetManager.deleteAsset(
-            { kind: "idb", assetId },
-            { force: true }
-          )
-          if (forceResult.success) {
-            // Reload assets
-            const allAssets = await listAllAssets()
-            setAssets(allAssets)
-            const assetStats = await getAssetStats()
-            setStats(assetStats)
-          }
-        }
+        // Asset is in use, show popover to confirm force deletion
+        setAssetToDelete({ id: assetId, usage: result.usage })
+        setDeletePopoverOpen(true)
       } else if (result.success) {
         // Successfully deleted
         const allAssets = await listAllAssets()
@@ -182,7 +167,28 @@ export function MediaManagerComponent({
       }
     } catch (err) {
       console.error("Failed to delete asset:", err)
-      alert("Failed to delete asset. See console for details.")
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!assetToDelete) return
+    try {
+      const forceResult = await assetManager.deleteAsset(
+        { kind: "idb", assetId: assetToDelete.id },
+        { force: true }
+      )
+      if (forceResult.success) {
+        // Reload assets
+        const allAssets = await listAllAssets()
+        setAssets(allAssets)
+        const assetStats = await getAssetStats()
+        setStats(assetStats)
+      }
+    } catch (err) {
+      console.error("Failed to force delete asset:", err)
+    } finally {
+      setDeletePopoverOpen(false)
+      setAssetToDelete(null)
     }
   }
 
@@ -203,7 +209,7 @@ export function MediaManagerComponent({
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-border/50 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ImageIcon className="w-6 h-6 text-accent" />
+          <ImageIcon className="w-6 h-6 text-[var(--text-secondary)]" />
           <div>
             <h1 className="text-2xl font-bold">
               {selectionMode ? "Select Image from Library" : "Media Library"}
@@ -226,7 +232,7 @@ export function MediaManagerComponent({
                     onUseAsset(selectedAssetId)
                   }
                 }}
-                className="h-11 px-6 text-base font-medium bg-accent text-accent-foreground hover:bg-accent/90"
+                className="h-11 px-8 text-base font-semibold bg-white text-black hover:bg-white/90 rounded"
               >
                 Use Selected
               </Button>
@@ -234,7 +240,7 @@ export function MediaManagerComponent({
                 variant="outline"
                 size="lg"
                 onClick={onClose}
-                className="h-11 px-6 text-base font-medium"
+                className="h-11 px-6 text-base font-normal bg-transparent border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] rounded"
               >
                 Cancel
               </Button>
@@ -245,7 +251,7 @@ export function MediaManagerComponent({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="h-9 px-3 hover:bg-accent/10"
+              className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
             >
               <X className="w-5 h-5 mr-2" />
               Back to Canvas
@@ -372,7 +378,7 @@ export function MediaManagerComponent({
                   <Button
                     size="sm"
                     onClick={handleResetSettings}
-                    className="h-8 text-sm bg-accent text-accent-foreground hover:bg-accent/90"
+                    className="h-8 text-sm bg-[var(--status-error)] text-white hover:bg-[var(--status-error)]/90"
                   >
                     Yes, Reset
                   </Button>
@@ -388,7 +394,7 @@ export function MediaManagerComponent({
         <div className="p-6 grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {isLoading ? (
             <div className="col-span-full text-center py-24">
-              <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-accent border-t-transparent animate-spin" />
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-[var(--border-strong)] border-t-transparent animate-spin" />
               <p className="text-lg text-muted-foreground font-medium">Loading assets...</p>
             </div>
           ) : filtered.length === 0 ? (
@@ -407,11 +413,12 @@ export function MediaManagerComponent({
             filtered.map((asset, index) => (
               <div
                 key={asset.id || `asset-${index}`}
-                className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02] ${
-                  selectedAssetId === asset.id
-                    ? "border-accent shadow-lg ring-4 ring-accent/30"
-                    : "border-border/50 hover:border-accent"
-                }`}
+                className="group relative aspect-square rounded-none overflow-hidden cursor-pointer border"
+                style={{
+                  borderColor: selectedAssetId === asset.id ? "var(--node-image)" : "var(--border)",
+                  boxShadow:
+                    selectedAssetId === asset.id ? "0 0 0 1px rgba(139, 92, 246, 0.2)" : "none",
+                }}
                 onClick={() => {
                   if (selectionMode) {
                     setSelectedAssetId(asset.id)
@@ -423,7 +430,7 @@ export function MediaManagerComponent({
                 <img
                   src={asset.data}
                   alt={asset.metadata?.prompt || "Asset"}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover rounded-none"
                   width={512}
                   height={512}
                   loading="lazy"
@@ -431,7 +438,31 @@ export function MediaManagerComponent({
 
                 {/* Overlay with actions */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-between p-3">
-                  <div className="flex items-center justify-end w-full gap-2">
+                  <div className="flex items-center justify-end w-full gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // Open lightbox for this asset
+                        const img = new Image()
+                        img.src = asset.data
+                        const lightbox = document.createElement("div")
+                        lightbox.className =
+                          "fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-8"
+                        lightbox.onclick = () => lightbox.remove()
+                        const imgEl = document.createElement("img")
+                        imgEl.src = asset.data
+                        imgEl.className = "max-w-full max-h-full object-contain rounded-none"
+                        imgEl.onclick = (e) => e.stopPropagation()
+                        lightbox.appendChild(imgEl)
+                        document.body.appendChild(lightbox)
+                      }}
+                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                      title="View fullscreen"
+                    >
+                      <Maximize2 className="w-3 h-3 text-white" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -439,9 +470,10 @@ export function MediaManagerComponent({
                         e.stopPropagation()
                         handleDownloadAsset(asset)
                       }}
-                      className="h-9 w-9 p-0 bg-white/20 hover:bg-white/30 backdrop-blur-sm"
+                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                      title="Download image"
                     >
-                      <Download className="w-4 h-4 text-white" />
+                      <Download className="w-3 h-3 text-white" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -450,9 +482,10 @@ export function MediaManagerComponent({
                         e.stopPropagation()
                         handleDeleteAsset(asset.id)
                       }}
-                      className="h-9 w-9 p-0 bg-white/20 hover:bg-white/30 backdrop-blur-sm"
+                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                      title="Delete image"
                     >
-                      <Trash2 className="w-4 h-4 text-white" />
+                      <Trash2 className="w-3 h-3 text-white" />
                     </Button>
                   </div>
 
@@ -487,6 +520,61 @@ export function MediaManagerComponent({
           </span>
         </div>
       </div>
+
+      {/* Delete Confirmation Popover */}
+      <Popover open={deletePopoverOpen} onOpenChange={setDeletePopoverOpen}>
+        <PopoverContent side="top" align="center" className="w-80 p-3 z-[10000]">
+          <div className="space-y-3">
+            <div className="text-sm">
+              <p className="font-medium mb-1">asset is in use</p>
+              {assetToDelete?.usage && assetToDelete.usage.length > 0 && (
+                <>
+                  <p className="text-muted-foreground text-xs mb-2">
+                    used in {assetToDelete.usage.length} workflow
+                    {assetToDelete.usage.length !== 1 ? "s" : ""}:
+                  </p>
+                  <ul className="text-xs text-muted-foreground space-y-1 mb-2">
+                    {assetToDelete.usage.slice(0, 3).map((u: any, i: number) => (
+                      <li key={i}>
+                        • {u.workflowName} ({u.nodeTitle})
+                      </li>
+                    ))}
+                    {assetToDelete.usage.length > 3 && (
+                      <li>• ...and {assetToDelete.usage.length - 3} more</li>
+                    )}
+                  </ul>
+                  <p className="text-xs text-red-500">
+                    force delete? this will break those workflows
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDeletePopoverOpen(false)
+                  setAssetToDelete(null)
+                }}
+                className="h-7 px-3"
+              >
+                <X className="w-4 h-4 mr-1" />
+                cancel
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleConfirmDelete}
+                className="h-7 px-3 text-red-500 hover:text-red-500 hover:bg-red-500/10"
+              >
+                <Check className="w-4 h-4 mr-1" />
+                delete
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

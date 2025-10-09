@@ -61,8 +61,10 @@ export function FlowCanvas({
       snapToGrid
       snapGrid={[8, 8]}
       connectionLineType={ConnectionLineType.Bezier}
-      connectionLineStyle={{ stroke: "#e5e7eb", strokeWidth: 2 }}
-      defaultEdgeOptions={{ type: "default", style: { stroke: "#e5e7eb", strokeWidth: 2 } } as any}
+      connectionLineStyle={{ stroke: "var(--border-strong)", strokeWidth: 1.5 }}
+      defaultEdgeOptions={
+        { type: "default", style: { stroke: "var(--border-strong)", strokeWidth: 1.5 } } as any
+      }
       proOptions={proOptions as any}
       colorMode="dark"
       defaultViewport={defaultViewport as any}
@@ -78,12 +80,7 @@ export function FlowCanvas({
       onError={() => {}}
     >
       {children}
-      <Background
-        variant={BackgroundVariant.Dots}
-        gap={30}
-        size={1}
-        color="rgba(255, 0, 128, 0.2)"
-      />
+      <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="var(--border)" />
     </ReactFlow>
   )
 }

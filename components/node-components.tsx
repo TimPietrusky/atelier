@@ -6,6 +6,7 @@ import { Settings2, ChevronDown } from "lucide-react"
 import { ReactNode, forwardRef } from "react"
 
 interface NodeContainerProps {
+  nodeType?: "prompt" | "image-gen"
   isRunning?: boolean
   isSelected?: boolean
   children: ReactNode
@@ -16,15 +17,29 @@ interface NodeContainerProps {
 }
 
 export const NodeContainer = forwardRef<HTMLDivElement, NodeContainerProps>(
-  ({ isRunning, isSelected, children, handles }, ref) => {
+  ({ nodeType, isRunning, isSelected, children, handles }, ref) => {
     return (
       <Card
         ref={ref}
-        className={`w-full h-full min-w-[16rem] p-3 border ${
-          isRunning
-            ? "border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.35)]"
-            : "border-border/50 hover:border-primary"
-        } bg-card/90 backdrop-blur-sm transition-all duration-300 relative flex flex-col`}
+        className={`w-full h-full min-w-[16rem] p-3 border rounded-none bg-[var(--surface)] relative flex flex-col ${
+          isRunning ? "" : isSelected ? "" : "hover:border-[var(--border-strong)]"
+        }`}
+        style={{
+          borderColor: isRunning
+            ? "var(--status-running)"
+            : isSelected
+            ? nodeType === "prompt"
+              ? "var(--node-prompt-muted)"
+              : "var(--node-image-muted)"
+            : "var(--border)",
+          boxShadow: isRunning
+            ? "0 0 8px color-mix(in srgb, var(--status-running) 15%, transparent)"
+            : isSelected
+            ? nodeType === "prompt"
+              ? "0 0 0 1px color-mix(in srgb, var(--node-prompt-muted) 20%, transparent)"
+              : "0 0 0 1px color-mix(in srgb, var(--node-image-muted) 20%, transparent)"
+            : "none",
+        }}
       >
         <NodeResizer
           minWidth={220}
@@ -76,18 +91,18 @@ export function NodeHeader({ icon, title, actions, onSettingsClick }: NodeHeader
   return (
     <div className="flex items-center gap-2">
       {icon}
-      <span className="text-xs font-medium text-card-foreground">{title}</span>
+      <span className="text-sm font-medium text-[var(--text-primary)]">{title}</span>
       <div className="flex items-center gap-1 ml-auto">
         {actions}
         {onSettingsClick && (
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0"
+            className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
             onClick={onSettingsClick}
             title="Settings"
           >
-            <Settings2 className="w-3 h-3" />
+            <Settings2 className="w-3 h-3 text-[var(--text-secondary)]" />
           </Button>
         )}
       </div>

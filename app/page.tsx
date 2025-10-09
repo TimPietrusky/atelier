@@ -322,7 +322,7 @@ export default function StudioDashboard() {
                   e.preventDefault()
                   handleRun()
                 }}
-                className="h-8 px-3 text-sm font-medium bg-white text-black hover:bg-gray-100 border-2 border-white hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+                className="h-8 px-4 text-sm font-semibold bg-white text-black hover:bg-white/90 rounded border-none"
               >
                 <Play className="w-4 h-4 mr-1.5" />
                 run
@@ -332,17 +332,10 @@ export default function StudioDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsExecutionQueueOpen(!isExecutionQueueOpen)}
-                className="h-8 gap-1.5 px-3 text-sm border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300"
+                className="h-8 gap-1.5 px-3 text-sm bg-transparent border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] font-normal rounded transition-all"
               >
                 <span>queue</span>
-                <Badge
-                  variant={queueCount > 0 ? "default" : "secondary"}
-                  className={`min-w-[18px] h-3.5 flex items-center justify-center px-1 font-mono text-[10px] ${
-                    queueCount > 0
-                      ? "bg-accent text-accent-foreground"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
+                <Badge className="min-w-[18px] h-3.5 flex items-center justify-center px-1 font-mono text-[10px] bg-[var(--surface-elevated)] text-white border-none">
                   {queueCount}
                 </Badge>
               </Button>
@@ -351,8 +344,10 @@ export default function StudioDashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(currentPage === "media" ? "canvas" : "media")}
-                className={`h-8 gap-1.5 px-3 text-sm border-accent/30 hover:border-accent hover:shadow-[0_0_10px_rgba(64,224,208,0.3)] transition-all duration-300 ${
-                  currentPage === "media" ? "bg-accent/10 border-accent" : ""
+                className={`h-8 gap-1.5 px-3 text-sm border font-normal rounded transition-all ${
+                  currentPage === "media"
+                    ? "bg-white text-black border-white font-semibold"
+                    : "bg-transparent border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 <span>media</span>
@@ -364,7 +359,7 @@ export default function StudioDashboard() {
             <CanvasControls />
             <MiniMap
               className="bg-card/90 backdrop-blur-sm rounded-md"
-              nodeColor="#ff0080"
+              nodeColor="var(--border-strong)"
               maskColor="rgba(0, 0, 0, 0.6)"
               style={{ position: "static", width: 75, height: 32, margin: 0 }}
             />

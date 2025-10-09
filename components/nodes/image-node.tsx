@@ -11,6 +11,8 @@ import {
   Maximize2,
   ChevronLeft,
   ChevronRight,
+  Trash2,
+  Check,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -49,6 +51,7 @@ export function ImageNode({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
+  const [clearPopoverOpen, setClearPopoverOpen] = useState(false)
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -239,25 +242,26 @@ export function ImageNode({
     <>
       <NodeContainer
         ref={containerRef}
+        nodeType="image-gen"
         isRunning={isRunning}
         isSelected={selected}
         handles={{
           target: {
             id: "image-input",
             className:
-              "w-4 h-4 bg-accent border-2 border-background hover:bg-accent/80 transition-colors !left-[-8px]",
-            style: { background: "#40e0d0" },
+              "w-4 h-4 border-2 border-background hover:scale-110 transition-all !left-[-8px]",
+            style: { background: "var(--node-image)" },
           },
           source: {
             id: "image-output",
             className:
-              "w-4 h-4 bg-primary border-2 border-background hover:bg-primary/80 transition-colors !right-[-8px]",
-            style: { background: "#ff0080" },
+              "w-4 h-4 border-2 border-background hover:scale-110 transition-all !right-[-8px]",
+            style: { background: "var(--node-image)" },
           },
         }}
       >
         <NodeHeader
-          icon={<ImageIcon className="w-3 h-3 text-purple-500" />}
+          icon={<ImageIcon className="w-3 h-3" style={{ color: "var(--node-image)" }} />}
           title="image"
           onSettingsClick={data?.onOpenInspector}
         />
@@ -307,19 +311,53 @@ export function ImageNode({
                     <span className="text-muted-foreground/50"> (+{pendingCount} pending)</span>
                   )}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                  onClick={() => {
-                    if (workflowId) {
-                      workflowStore.clearResultHistory(workflowId, id)
-                    }
-                  }}
-                  title="Clear all images"
-                >
-                  clear
-                </Button>
+                <Popover open={clearPopoverOpen} onOpenChange={setClearPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 opacity-40 hover:opacity-100 transition-opacity"
+                      title="Clear all images"
+                    >
+                      <Trash2 className="w-3 h-3 text-[var(--text-muted)]" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent side="bottom" align="end" className="w-64 p-3">
+                    <div className="space-y-3">
+                      <div className="text-sm">
+                        <p className="font-medium mb-1">
+                          clear all {imageHistory.filter((i) => !i.isPending).length} images?
+                        </p>
+                        <p className="text-muted-foreground text-xs">this cannot be undone</p>
+                      </div>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setClearPopoverOpen(false)}
+                          className="h-7 px-3"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          cancel
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (workflowId) {
+                              workflowStore.clearResultHistory(workflowId, id)
+                            }
+                            setClearPopoverOpen(false)
+                          }}
+                          className="h-7 px-3 text-red-500 hover:text-red-500 hover:bg-red-500/10"
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          clear
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
           </div>
@@ -334,14 +372,16 @@ export function ImageNode({
                 {imageHistory.map((item, idx) => (
                   <div
                     key={item.id || `${item.url}-${idx}`}
-                    className={`relative overflow-hidden rounded border group ${
+                    className={`relative overflow-hidden rounded-none border group ${
                       item.isPending ? "cursor-default" : "cursor-pointer"
-                    } ${
-                      selectedImageId === item.id || enlargedImage?.id === item.id
-                        ? "border-primary"
-                        : "border-border"
                     }`}
-                    style={{ aspectRatio: "1/1" }}
+                    style={{
+                      aspectRatio: "1/1",
+                      borderColor:
+                        selectedImageId === item.id || enlargedImage?.id === item.id
+                          ? "var(--node-image)"
+                          : "var(--border)",
+                    }}
                   >
                     {item.isPending ? (
                       <div className="w-full h-full flex items-center justify-center bg-muted/40 animate-pulse">
@@ -352,7 +392,7 @@ export function ImageNode({
                         <img
                           src={item.url || "/placeholder.svg"}
                           alt={`Generation ${imageHistory.length - idx}`}
-                          className="block w-full h-full object-cover cursor-pointer"
+                          className="block w-full h-full object-cover cursor-pointer rounded-none"
                           width={512}
                           height={512}
                           loading="lazy"
@@ -364,11 +404,14 @@ export function ImageNode({
                             }
                           }}
                         />
+                        {/* Gradient overlay - visual only, clicks pass through */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                        {/* Action buttons - positioned in top right */}
                         <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                            className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
                             onClick={(e) => {
                               e.stopPropagation()
                               setEnlargedImage({ url: item.url, id: item.id })
@@ -376,12 +419,12 @@ export function ImageNode({
                             }}
                             title="View fullscreen"
                           >
-                            <Maximize2 className="w-3 h-3" />
+                            <Maximize2 className="w-3 h-3 text-white" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                            className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
                             onClick={(e) => {
                               e.stopPropagation()
                               const link = document.createElement("a")
@@ -391,12 +434,12 @@ export function ImageNode({
                             }}
                             title="Download image"
                           >
-                            <Download className="w-3 h-3" />
+                            <Download className="w-3 h-3 text-white" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 bg-background/80 hover:bg-background"
+                            className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
                             onClick={(e) => {
                               e.stopPropagation()
                               if (workflowId && item.id) {
@@ -405,7 +448,7 @@ export function ImageNode({
                             }}
                             title="Remove this image"
                           >
-                            <X className="w-3 h-3 text-destructive" />
+                            <Trash2 className="w-3 h-3 text-white" />
                           </Button>
                         </div>
                       </>
@@ -421,11 +464,11 @@ export function ImageNode({
             </div>
           )}
           {imageHistory.length === 0 && localImage && (
-            <div className="relative overflow-hidden rounded border group">
+            <div className="relative overflow-hidden rounded-none border group">
               <img
                 src={localImage || "/placeholder.svg"}
                 alt="Local image"
-                className="block w-full h-auto max-h-[320px] object-contain"
+                className="block w-full h-auto max-h-[320px] object-contain rounded-none"
                 width={512}
                 height={512}
                 loading="lazy"
@@ -500,8 +543,11 @@ export function ImageNode({
                 }}
               />
               <div
-                className="h-32 border-2 border-dashed border-border/30 rounded flex items-center justify-center text-muted-foreground/50 cursor-pointer hover:border-primary/50 hover:bg-muted/20 transition-colors"
+                className="h-32 border-2 border-dashed border-border/30 rounded-none flex items-center justify-center text-muted-foreground/50 cursor-pointer hover:bg-muted/20 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
+                style={{
+                  borderColor: "var(--border)",
+                }}
               >
                 <div className="text-center">
                   <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -601,7 +647,7 @@ export function ImageNode({
             <img
               src={enlargedImage.url}
               alt="Enlarged view"
-              className="max-w-full max-h-full object-contain"
+              className="max-w-full max-h-full object-contain rounded-none"
               width={1024}
               height={1024}
               loading="lazy"

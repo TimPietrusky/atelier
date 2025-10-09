@@ -14,18 +14,14 @@ export function AddNodeMenuItems({
   onAdd,
   variant = "dropdown",
 }: AddNodeMenuItemsProps) {
-  const getIconColor = (id: string) => {
+  const getIconStyle = (id: string) => {
     switch (id) {
       case "prompt":
-        return "text-blue-500"
+        return { color: "var(--node-prompt)" }
       case "image-gen":
-        return "text-purple-500"
-      case "video-gen":
-        return "text-orange-500"
-      case "background-replace":
-        return "text-green-500"
+        return { color: "var(--node-image)" }
       default:
-        return "text-primary"
+        return { color: "var(--text-secondary)" }
     }
   }
 
@@ -38,9 +34,9 @@ export function AddNodeMenuItems({
           <div
             key={nt.id}
             onClick={() => onAdd(nt.id)}
-            className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-primary/10 rounded text-white hover:text-white transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-[var(--surface-elevated)] rounded text-white hover:text-white transition-colors"
           >
-            <Icon className={`w-4 h-4 ${getIconColor(nt.id)} flex-shrink-0`} />
+            <Icon className="w-4 h-4 flex-shrink-0" style={getIconStyle(nt.id)} />
             <div className="font-medium text-sm lowercase">{nt.title}</div>
           </div>
         )

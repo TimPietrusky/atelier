@@ -19,23 +19,25 @@ export function PromptNode({ data, id, selected }: { data: any; id: string; sele
 
   return (
     <NodeContainer
+      nodeType="prompt"
       isRunning={isRunning}
       isSelected={selected}
       handles={{
         target: {
           id: "prompt-input",
-          className: "w-3 h-3 bg-accent border-2 border-background",
+          className: "w-3 h-3 border-2 border-background",
+          style: { background: "var(--node-prompt)" },
         },
         source: {
           id: "prompt-output",
           className:
-            "w-4 h-4 bg-primary border-2 border-background hover:bg-primary/80 transition-colors !right-[-8px]",
-          style: { background: "#ff0080" },
+            "w-4 h-4 border-2 border-background hover:scale-110 transition-all !right-[-8px]",
+          style: { background: "var(--node-prompt)" },
         },
       }}
     >
       <NodeHeader
-        icon={<MessageSquare className="w-3 h-3 text-blue-500" />}
+        icon={<MessageSquare className="w-3 h-3" style={{ color: "var(--node-prompt)" }} />}
         title="prompt"
         onSettingsClick={data?.onOpenInspector}
       />
@@ -52,7 +54,7 @@ export function PromptNode({ data, id, selected }: { data: any; id: string; sele
               if (data?.onChange) data.onChange({ prompt: val })
             } catch {}
           }}
-          className="nodrag min-h[120px] min-h-[120px] text-sm bg-input border-border/50 p-2"
+          className="nodrag min-h-[120px] text-[13px] font-medium bg-[var(--surface-elevated)] border border-[var(--border)] focus:border-[var(--node-prompt)] rounded p-2"
         />
       </NodeContent>
     </NodeContainer>

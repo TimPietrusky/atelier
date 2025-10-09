@@ -333,7 +333,7 @@ export function NodeGraphCanvas({
           (wf.edges as any).map((e: any) => ({
             ...e,
             type: "default",
-            style: { stroke: "#e5e7eb", strokeWidth: 2 },
+            style: { stroke: "var(--border-strong)", strokeWidth: 1.5 },
             animated: false,
           }))
         )
@@ -352,7 +352,7 @@ export function NodeGraphCanvas({
           (wf0.edges as any).map((e: any) => ({
             ...e,
             type: "default",
-            style: { stroke: "#e5e7eb", strokeWidth: 2 },
+            style: { stroke: "var(--border-strong)", strokeWidth: 1.5 },
             animated: false,
           }))
         )

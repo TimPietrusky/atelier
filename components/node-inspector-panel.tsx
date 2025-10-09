@@ -75,10 +75,10 @@ export function NodeInspectorPanel({
   const getNodeIcon = () => {
     switch (selectedNode.type) {
       case "prompt":
-        return <MessageSquare className="w-4 h-4 text-blue-500" />
+        return <MessageSquare className="w-4 h-4" style={{ color: "var(--node-prompt)" }} />
       case "image-gen":
       case "image-edit":
-        return <ImageIcon className="w-4 h-4 text-purple-500" />
+        return <ImageIcon className="w-4 h-4" style={{ color: "var(--node-image)" }} />
       default:
         return null
     }
@@ -87,27 +87,32 @@ export function NodeInspectorPanel({
   return (
     <div
       ref={panelRef}
-      className="fixed top-[40px] left-0 h-[calc(100vh-40px)] bg-card/95 backdrop-blur-sm border-r border-border shadow-2xl z-50 flex transition-transform duration-200"
+      className="fixed top-[40px] left-0 h-[calc(100vh-40px)] bg-[var(--surface)] border-r border-[var(--border)] z-50 flex transition-transform duration-200"
       style={{ width: `${width}px` }}
     >
       {/* Panel Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
+        <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             {getNodeIcon()}
             <div className="flex flex-col gap-0.5 min-w-0">
-              <h2 className="text-sm font-semibold text-card-foreground truncate">
+              <h2 className="text-sm font-medium text-[var(--text-primary)] truncate">
                 {selectedNode.title.toLowerCase()}
               </h2>
-              <span className="text-[10px] text-muted-foreground/60 font-mono truncate">
+              <span className="text-[10px] text-[var(--text-muted)] font-mono truncate">
                 {selectedNode.id}
               </span>
             </div>
           </div>
 
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0" onClick={onClose}>
-            <X className="w-3.5 h-3.5" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 flex-shrink-0 opacity-40 hover:opacity-100 transition-opacity"
+            onClick={onClose}
+          >
+            <X className="w-3.5 h-3.5 text-[var(--text-muted)]" />
           </Button>
         </div>
 
@@ -119,11 +124,11 @@ export function NodeInspectorPanel({
 
       {/* Resize Handle */}
       <div
-        className="w-1 bg-border hover:bg-primary/50 cursor-ew-resize flex items-center justify-center group transition-colors"
+        className="w-1 bg-[var(--border)] hover:bg-[var(--border-strong)] cursor-ew-resize flex items-center justify-center group transition-colors"
         onMouseDown={handleResizeStart}
       >
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <GripVertical className="w-4 h-4 text-muted-foreground" />
+          <GripVertical className="w-4 h-4 text-[var(--text-muted)]" />
         </div>
       </div>
     </div>
