@@ -39,6 +39,8 @@ export const NodeContainer = forwardRef<HTMLDivElement, NodeContainerProps>(
               ? "0 0 0 1px color-mix(in srgb, var(--node-prompt-muted) 20%, transparent)"
               : "0 0 0 1px color-mix(in srgb, var(--node-image-muted) 20%, transparent)"
             : "none",
+          // Performance: GPU layer for smooth transforms (any containment clips handles)
+          willChange: "transform",
         }}
       >
         <NodeResizer

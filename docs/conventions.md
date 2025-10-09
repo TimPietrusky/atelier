@@ -293,6 +293,10 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
   - Defer persistence in canvas event handlers using `queueMicrotask`.
 - Radix `asChild` integration: UI primitives use `React.forwardRef`.
 - Component size: Split large components (>300 lines) into smaller, focused components. Extract reusable UI patterns (popovers, menus, forms) into separate files.
+- **Performance optimizations for nodes with heavy content**:
+  - `NodeContainer` uses `willChange: transform` for GPU layer promotion (ReactFlow uses CSS transforms). NOTE: Cannot use ANY `contain` property - it clips handles positioned outside node bounds.
+  - Image grid scrollable containers use `content-visibility: auto` to skip rendering off-screen content during drag/scroll.
+  - These optimizations prevent lag when dragging nodes with many images (50+) by reducing browser compositing work without breaking handles.
 - **Component reuse (CRITICAL)**:
   - **ALWAYS check existing components before creating new ones for the same use case**.
   - If a pattern exists (e.g., workflow action popovers for create/rename/delete), **REUSE IT** with the same structure, props, and styling.

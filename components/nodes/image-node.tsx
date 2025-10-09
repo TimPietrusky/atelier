@@ -52,6 +52,7 @@ export function ImageNode({
   const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [clearPopoverOpen, setClearPopoverOpen] = useState(false)
+  const imageHistoryRef = useRef<any[]>([])
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -126,7 +127,9 @@ export function ImageNode({
         url: "",
         isPending: true,
       }))
-      return [...placeholders, ...actual]
+      const result = [...placeholders, ...actual]
+      imageHistoryRef.current = result // Keep ref in sync
+      return result
     }, [assetsWithMetadata, pendingCount])
 
   const isRunning = data.status === "running"
@@ -155,22 +158,6 @@ export function ImageNode({
     }
   }
 
-  // Navigate through images in lightbox
-  const navigateImage = (direction: "prev" | "next") => {
-    if (!enlargedImage) return
-    const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
-    if (currentIndex === -1) return
-
-    const newIndex = direction === "prev" ? currentIndex - 1 : currentIndex + 1
-    if (newIndex >= 0 && newIndex < imageHistory.length) {
-      const newImage = imageHistory[newIndex]
-      if (!newImage.isPending) {
-        setEnlargedImage({ url: newImage.url, id: newImage.id })
-        setSelectedImageId(newImage.id)
-      }
-    }
-  }
-
   // Keyboard navigation in lightbox
   useEffect(() => {
     if (!enlargedImage) return
@@ -179,11 +166,28 @@ export function ImageNode({
       if (e.key === "ArrowLeft") {
         e.preventDefault()
         e.stopPropagation()
-        navigateImage("prev")
+        // Navigate using ref to avoid re-registering listener on every image generation
+        const history = imageHistoryRef.current
+        const currentIndex = history.findIndex((img) => img.id === enlargedImage.id)
+        if (currentIndex > 0) {
+          const newImage = history[currentIndex - 1]
+          if (!newImage.isPending) {
+            setEnlargedImage({ url: newImage.url, id: newImage.id })
+            setSelectedImageId(newImage.id)
+          }
+        }
       } else if (e.key === "ArrowRight") {
         e.preventDefault()
         e.stopPropagation()
-        navigateImage("next")
+        const history = imageHistoryRef.current
+        const currentIndex = history.findIndex((img) => img.id === enlargedImage.id)
+        if (currentIndex >= 0 && currentIndex < history.length - 1) {
+          const newImage = history[currentIndex + 1]
+          if (!newImage.isPending) {
+            setEnlargedImage({ url: newImage.url, id: newImage.id })
+            setSelectedImageId(newImage.id)
+          }
+        }
       } else if (e.key === "Escape") {
         e.preventDefault()
         e.stopPropagation()
@@ -194,7 +198,7 @@ export function ImageNode({
     // Use capture phase to intercept before ReactFlow gets the event
     window.addEventListener("keydown", handleKeyDown, true)
     return () => window.removeEventListener("keydown", handleKeyDown, true)
-  }, [enlargedImage, imageHistory])
+  }, [enlargedImage]) // Only re-register when lightbox opens/closes, not on every image generation
 
   const handleCopySettings = (metadata: any) => {
     if (!metadata?.inputsUsed || !workflowId) return
@@ -364,7 +368,12 @@ export function ImageNode({
 
           {/* Scrollable section: Image grid only */}
           {imageHistory.length > 0 && (
-            <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+            <div
+              className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+              style={{
+                contentVisibility: "auto",
+              }}
+            >
               <div
                 className={`grid gap-2`}
                 style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
@@ -606,7 +615,11 @@ export function ImageNode({
                   className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-background/10 hover:bg-background/20 text-white"
                   onClick={(e) => {
                     e.stopPropagation()
-                    navigateImage("prev")
+                    const newImage = imageHistory[currentIndex - 1]
+                    if (!newImage.isPending) {
+                      setEnlargedImage({ url: newImage.url, id: newImage.id })
+                      setSelectedImageId(newImage.id)
+                    }
                   }}
                   title="Previous (←)"
                 >
@@ -627,7 +640,11 @@ export function ImageNode({
                   className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-background/10 hover:bg-background/20 text-white"
                   onClick={(e) => {
                     e.stopPropagation()
-                    navigateImage("next")
+                    const newImage = imageHistory[currentIndex + 1]
+                    if (!newImage.isPending) {
+                      setEnlargedImage({ url: newImage.url, id: newImage.id })
+                      setSelectedImageId(newImage.id)
+                    }
                   }}
                   title="Next (→)"
                 >
