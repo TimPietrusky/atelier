@@ -49,10 +49,9 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Assets table schema: `{ id, kind, type, data (base64), mime, bytes, metadata, createdAt }`
   - Workflow JSON stays tiny (~1KB instead of 500KB+)
   - Enables efficient filtering/sorting via Dexie indexes (createdAt, etc.)
-  - **NO KV duplication**: Assets are ONLY in the `assets` table, NOT in KV store (migrated in DB v2)
   - **NO legacy support**: `data` field is ONLY for text results; images MUST use `assetRef`
   - **Usage detection**: Assets are "in use" ONLY if in `config.uploadedAssetRef`; NOT if in result/resultHistory (those are just outputs)
-  - **Asset deletion**: When an asset is deleted, ALL references are automatically removed from result histories across all workflows
+  - **Asset deletion**: When deleted, ALL references auto-removed from result histories across all workflows
 - **Result history management**:
   - Each result in `resultHistory` has a unique `id` (auto-generated as `${Date.now()}-${random}`).
   - Use `removeFromResultHistory(workflowId, nodeId, resultId)` to delete specific results by ID (race-condition safe).
@@ -134,8 +133,8 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Image node:
   - Model selector includes edit models.
   - **Image upload**: available via inspector panel "upload image" button OR "from library" button (opens full-screen media manager in selection mode) OR by clicking the empty image skeleton in the node.
-  - All uploads/selections stored via `AssetManager`; stores `uploadedAssetRef` in config (fallback: `localImage` data URL for legacy).
-  - **NO MORE `localImageRef`** - legacy `idb.ts` removed; all assets use unified `AssetManager`.
+  - All uploads/selections stored via `AssetManager`; stores `uploadedAssetRef` in config.
+  - All assets use unified `AssetManager` (legacy paths removed).
   - Model selector is hidden only in `mode: "uploaded"` (not just because a result image exists).
   - When an upstream image is connected and a non-edit model is selected, show a subtle hint to switch.
   - **Result history**:
@@ -265,7 +264,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - `workflowStore`: source of truth for workflows; persists via `StorageManager`.
 - `StorageManager`: central coordinator for all persistence; provides write serialization, debouncing, and backend abstraction.
 - `StorageBackend`: interface for pluggable storage (current: `IndexedDBBackend`; future: R2, UploadThing, LocalFile).
-- `AssetManager`: stores images in `assets` table; returns `AssetRef`; tracks usage; prevents deletion of in-use assets (force-delete option available).
+- `AssetManager`: stores images in `assets` table (single source of truth); returns `AssetRef`; tracks usage (only `uploadedAssetRef` counts); deletion auto-cleans all references from result histories.
 - `workflowEngine`: executes nodes, manages queue, saves to `AssetManager`; event listeners (`addExecutionChangeListener`) for UI updates (supports multiple listeners, no polling).
 - `AssetRef`: pointer to asset table (`{ kind: "idb", assetId }`); workflows never store full image data.
 - `resultHistory`: contains `AssetRef` + `metadata` (including `executionId` linking to queue snapshot).

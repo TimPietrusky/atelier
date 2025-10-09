@@ -76,7 +76,6 @@ class AtelierDB extends Dexie {
   constructor() {
     super("atelier")
 
-    // Version 1: Original schema
     this.version(1).stores({
       workflows: "id, updatedAt",
       nodes: "id, workflowId, updatedAt",
@@ -85,64 +84,6 @@ class AtelierDB extends Dexie {
       kv: "key",
       oplog: "id, createdAt",
     })
-
-    // Version 2: Migrate assets from KV to assets table (single source of truth)
-    this.version(2)
-      .stores({
-        workflows: "id, updatedAt",
-        nodes: "id, workflowId, updatedAt",
-        edges: "id, workflowId, updatedAt",
-        assets: "id, createdAt",
-        kv: "key",
-        oplog: "id, createdAt",
-      })
-      .upgrade(async (trans) => {
-        console.log("[DB Migration v2] Migrating assets from KV to assets table...")
-
-        // Get all KV entries that are assets (keys starting with "asset_data_")
-        const allKV = await trans.table("kv").toArray()
-        const assetKVEntries = allKV.filter((kv) => kv.key.startsWith("asset_data_"))
-
-        console.log(`[DB Migration v2] Found ${assetKVEntries.length} assets in KV store`)
-
-        let migrated = 0
-        let errors = 0
-
-        for (const kvEntry of assetKVEntries) {
-          try {
-            const asset = kvEntry.value as any
-            const assetId = kvEntry.key.replace("asset_data_", "")
-
-            // Check if already exists in assets table
-            const existing = await trans.table("assets").get(assetId)
-
-            if (!existing || !existing.data) {
-              // Migrate to assets table with full data
-              const assetRow: DBAssetRow = {
-                id: asset.id || assetId,
-                kind: "idb",
-                type: asset.type || "image",
-                data: asset.data || "",
-                mime: asset.mime,
-                bytes: asset.bytes,
-                metadata: asset.metadata,
-                createdAt: asset.createdAt || Date.now(),
-              }
-
-              await trans.table("assets").put(assetRow)
-              migrated++
-            }
-
-            // Delete from KV store
-            await trans.table("kv").delete(kvEntry.key)
-          } catch (err) {
-            console.error(`[DB Migration v2] Failed to migrate asset ${kvEntry.key}:`, err)
-            errors++
-          }
-        }
-
-        console.log(`[DB Migration v2] Migration complete: ${migrated} migrated, ${errors} errors`)
-      })
   }
 }
 
