@@ -19,7 +19,6 @@ import {
   Download,
   Trash2,
   Search,
-  SlidersHorizontal,
   RotateCcw,
 } from "lucide-react"
 import { listAllAssets, getAssetStats } from "@/lib/utils/list-all-assets"
@@ -183,6 +182,7 @@ export function MediaManagerComponent({
       }
     } catch (err) {
       console.error("Failed to delete asset:", err)
+      alert("Failed to delete asset. See console for details.")
     }
   }
 
@@ -387,12 +387,12 @@ export function MediaManagerComponent({
       <ScrollArea className="flex-1">
         <div className="p-6 grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
           {isLoading ? (
-            <div key="loading" className="col-span-full text-center py-24">
+            <div className="col-span-full text-center py-24">
               <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-accent border-t-transparent animate-spin" />
               <p className="text-lg text-muted-foreground font-medium">Loading assets...</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div key="empty" className="col-span-full text-center py-24">
+            <div className="col-span-full text-center py-24">
               <ImageIcon className="w-20 h-20 mx-auto text-muted-foreground/30 mb-4" />
               <p className="text-lg text-muted-foreground font-medium mb-2">
                 {assets.length === 0 ? "No media yet" : "No results found"}
@@ -404,9 +404,9 @@ export function MediaManagerComponent({
               </p>
             </div>
           ) : (
-            filtered.map((asset) => (
+            filtered.map((asset, index) => (
               <div
-                key={asset.id}
+                key={asset.id || `asset-${index}`}
                 className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02] ${
                   selectedAssetId === asset.id
                     ? "border-accent shadow-lg ring-4 ring-accent/30"

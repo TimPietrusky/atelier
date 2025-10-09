@@ -43,13 +43,16 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Zustand `set()` must return new object references (immutable updates) to trigger subscribers; avoid direct mutation.
 - Seed default workflows on the client only (avoid SSR hydration mismatch).
 - **Media assets (images/videos)**:
-  - All images/videos stored in the `assets` table (Dexie) with unique IDs
+  - All images/videos stored in the `assets` table (Dexie) with unique IDs as **single source of truth**
   - Workflows store only `AssetRef` (references by ID), never full image data
   - `AssetManager` (`lib/store/asset-manager.ts`) handles all asset operations
-  - Assets stored in KV store: `asset_data_{assetId}` → full asset data
+  - Assets table schema: `{ id, kind, type, data (base64), mime, bytes, metadata, createdAt }`
   - Workflow JSON stays tiny (~1KB instead of 500KB+)
-  - Enables asset browsing, deduplication, and orphan cleanup
+  - Enables efficient filtering/sorting via Dexie indexes (createdAt, etc.)
+  - **NO KV duplication**: Assets are ONLY in the `assets` table, NOT in KV store (migrated in DB v2)
   - **NO legacy support**: `data` field is ONLY for text results; images MUST use `assetRef`
+  - **Usage detection**: Assets are "in use" ONLY if in `config.uploadedAssetRef`; NOT if in result/resultHistory (those are just outputs)
+  - **Asset deletion**: When an asset is deleted, ALL references are automatically removed from result histories across all workflows
 - **Result history management**:
   - Each result in `resultHistory` has a unique `id` (auto-generated as `${Date.now()}-${random}`).
   - Use `removeFromResultHistory(workflowId, nodeId, resultId)` to delete specific results by ID (race-condition safe).
@@ -78,6 +81,9 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - **Execution snapshots**: Captured at queue time; retained after completion for settings view. Cleaned up when user clears queue.
 - **Queue updates**: Event-driven via `workflowEngine.addExecutionChangeListener()` (supports multiple listeners). NO polling (wasteful, removed).
 - **Media Manager**: Full-screen page (not panel); toggled via header button. Settings persist to sessionStorage.
+  - **Selection mode**: When opened from image node inspector "from library" button, shows large "Use Selected" and "Cancel" buttons; selected asset highlights with accent border and ring.
+  - **Lazy loading**: All images use native `loading="lazy"` with explicit `width`/`height` attributes to prevent layout shift.
+  - **Asset deletion**: Shows warning ONLY if asset is actively used in `config.uploadedAssetRef`; NOT for outputs/history.
 - **Image metadata persistence**: ALL generation settings (prompt, model, steps, guidance, seed, resolution) are stored in `result.metadata.inputsUsed` and persist forever with the image. Settings icon in image history loads from this persistent metadata, NOT from ephemeral queue snapshots.
 
 ### Node behaviors
@@ -127,8 +133,9 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Panel state managed via `panelContentId` and `panelContent` (type, nodeId, metadata) in page.tsx.
 - Image node:
   - Model selector includes edit models.
-  - Image upload: available via inspector panel "upload image" button OR by clicking the empty image skeleton in the node.
-  - "Load image" writes originals to IndexedDB; stores `localImageRef` in config (fallback: `localImage` data URL for legacy/non-IDB environments).
+  - **Image upload**: available via inspector panel "upload image" button OR "from library" button (opens full-screen media manager in selection mode) OR by clicking the empty image skeleton in the node.
+  - All uploads/selections stored via `AssetManager`; stores `uploadedAssetRef` in config (fallback: `localImage` data URL for legacy).
+  - **NO MORE `localImageRef`** - legacy `idb.ts` removed; all assets use unified `AssetManager`.
   - Model selector is hidden only in `mode: "uploaded"` (not just because a result image exists).
   - When an upstream image is connected and a non-edit model is selected, show a subtle hint to switch.
   - **Result history**:
@@ -235,7 +242,8 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Do use unique IDs for result history items; delete by ID, not by index.
 - Do use `providerOptions.runpod.images` for img2img; keep logs sanitized.
 - Do reset node statuses before runs and update status during execution.
-- Do store originals in OPFS or via FS Access and reference them with `AssetRef`.
+- Do store ALL images (generated AND uploaded) via `AssetManager`; reference with `AssetRef`.
+- Do use `uploadedAssetRef` for user-uploaded images (NOT `localImageRef` - that's deleted legacy).
 - Do control DropdownMenu state explicitly; close it before opening dialogs to avoid lingering `pointer-events: none` on body.
 - Do use `queueMicrotask` for deferred state updates when needed (never `setTimeout` for timing hacks).
 - Do preserve position/size during interactions but allow data (result, status) to flow through for real-time updates.

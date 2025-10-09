@@ -470,12 +470,9 @@ export class WorkflowEngine {
         const ref: AssetRef | undefined = latest?.result?.assetRef
         if (ref) {
           try {
-            const got = await AssetStorage.get(ref)
-            if (typeof got === "string") {
-              inputImageUrl = got
-            } else {
-              const dataUrl = await this.blobToDataUrl(got)
-              inputImageUrl = dataUrl
+            const asset = await assetManager.loadAsset(ref)
+            if (asset?.data) {
+              inputImageUrl = asset.data
             }
           } catch {}
         }
@@ -706,9 +703,10 @@ export class WorkflowEngine {
         const ref: AssetRef | undefined = latest?.result?.assetRef
         if (ref) {
           try {
-            const got = await AssetStorage.get(ref)
-            if (typeof got === "string") inputImageUrl = got
-            else inputImageUrl = await this.blobToDataUrl(got)
+            const asset = await assetManager.loadAsset(ref)
+            if (asset?.data) {
+              inputImageUrl = asset.data
+            }
           } catch {}
         }
         if (!inputImageUrl) inputImageUrl = latest?.result?.data
