@@ -300,7 +300,7 @@ export default function StudioDashboard() {
     <ReactFlowProvider>
       <div className="h-screen bg-background text-foreground flex flex-col">
         {/* Top Header */}
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-0 py-1 gap-4">
+        <header className="sticky top-0 z-[70] border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-0 py-1 gap-4">
           <div className="flex items-center gap-2">
             <AtelierLogo className="h-8 w-auto text-foreground" />
 
@@ -367,7 +367,7 @@ export default function StudioDashboard() {
         </header>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex">
+        <div className="flex-1 flex overflow-auto">
           {currentPage === "canvas" ? (
             <div className="flex-1 relative">
               {activeWorkflow && (
