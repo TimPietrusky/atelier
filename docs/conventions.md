@@ -83,7 +83,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - **Selection mode**: When opened from image node inspector "from library" button, shows large "Use Selected" and "Cancel" buttons; selected asset highlights with accent border and ring.
   - **Lazy loading**: All images use native `loading="lazy"` with explicit `width`/`height` attributes to prevent layout shift.
   - **Asset deletion**: Shows warning ONLY if asset is actively used in `config.uploadedAssetRef`; NOT for outputs/history.
-- **Image metadata persistence**: ALL generation settings (prompt, model, steps, guidance, seed, resolution) are stored in `result.metadata.inputsUsed` and persist forever with the image. Settings icon in image history loads from this persistent metadata, NOT from ephemeral queue snapshots.
+- **Image metadata persistence**: ALL generation settings (prompt, model, steps, guidance, seed, resolution) are stored in `result.metadata.inputsUsed` and persist forever with the image. `metadata.executionId` stores the workflow execution ID (for matching placeholders); `metadata.apiExecutionId` stores the provider's execution ID. Settings icon in image history loads from this persistent metadata, NOT from ephemeral queue snapshots.
 
 ### Node behaviors
 
@@ -91,7 +91,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Image node (unified):
   - Mode: `generate` (default) or `uploaded` (short-circuits API calls).
   - Result metadata includes all generation settings (prompt, model, steps, guidance, seed, resolution) stored in `metadata.inputsUsed`.
-  - **Queue placeholders**: Live skeletons for ALL pending jobs (queued + running) that will execute this node via `addExecutionChangeListener`; filters out executions that already have results; disabled in "uploaded" mode; ephemeral (gone on reload).
+  - **Queue placeholders**: Live skeletons for ALL pending jobs (queued + running) that will execute this node via `addExecutionChangeListener`; matched by execution ID to prevent layout shifts when results arrive (placeholder is replaced in-place, not appended); disabled in "uploaded" mode; ephemeral (gone on reload).
   - **Historical settings**: Settings icon opens left panel (`ExecutionInspector`) showing persistent metadata stored with the image result; "Copy to Node" applies settings. Does NOT rely on ephemeral queue snapshots.
   - **Image source**: "From library" (asset table) or "upload" (local file); hidden in view-only mode.
 

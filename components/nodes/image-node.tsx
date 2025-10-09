@@ -63,60 +63,62 @@ export function ImageNode({
     data.config?.mode ||
     (data.config?.uploadedAssetRef || data.config?.localImage ? "uploaded" : "generate")
 
-  // Get pending placeholders from queue (queued/running jobs for this node)
-  const [pendingCount, setPendingCount] = useState(0)
+  // Track queue changes to force re-render when executions update
+  const [queueVersion, setQueueVersion] = useState(0)
   useEffect(() => {
-    const updatePending = () => {
-      // Skip pending count for uploaded mode (it won't be executed during runs)
-      if (!data.workflowId || mode === "uploaded") {
-        setPendingCount(0)
-        return
-      }
-
-      // Get execution IDs that already have results in this node's history
-      const completedExecutionIds = new Set(
-        (data?.resultHistory || [])
-          .filter((r: any) => r.type === "image" && r.metadata?.executionId)
-          .map((r: any) => r.metadata.executionId)
-      )
-
-      // Get all executions for this workflow
-      const executions = workflowEngine.getAllExecutions()
-      const pending = executions.filter((e) => {
-        if (e.workflowId !== data.workflowId) return false
-        if (e.status !== "queued" && e.status !== "running") return false
-
-        // Skip if this execution already has a result for this node
-        if (completedExecutionIds.has(e.id)) return false
-
-        // Check if this node exists in the workflow snapshot
-        // This covers both queued jobs and running jobs that haven't reached this node yet
-        const snapshot = workflowEngine.getQueueSnapshot?.(e.id)
-        const hasThisNode = snapshot?.nodes?.some((n: any) => n.id === id)
-        return hasThisNode || false
-      })
-
-      setPendingCount(pending.length)
-    }
-
-    // Register listener for instant updates (supports multiple listeners per node)
-    const unsubscribe = workflowEngine.addExecutionChangeListener(updatePending)
-    updatePending() // Initial check
-
+    const unsubscribe = workflowEngine.addExecutionChangeListener(() => {
+      setQueueVersion((v) => v + 1)
+    })
     return unsubscribe
-  }, [data.workflowId, id, data?.resultHistory, mode])
+  }, [])
 
   // Map to include id for deletions, most recent first, plus pending placeholders
-  const imageHistory: Array<{ id: string; url: string; isPending?: boolean; metadata?: any }> =
-    useMemo(() => {
-      const actual = [...assetsWithMetadata].reverse()
-      const placeholders = Array.from({ length: pendingCount }, (_, i) => ({
-        id: `pending-${i}`,
-        url: "",
-        isPending: true,
-      }))
-      return [...placeholders, ...actual]
-    }, [assetsWithMetadata, pendingCount])
+  // Placeholders are matched by execution ID to prevent jumping when images arrive
+  // Calculate pending executions synchronously to avoid timing issues
+  const imageHistory: Array<{
+    id: string
+    url: string
+    isPending?: boolean
+    metadata?: any
+    executionId?: string
+  }> = useMemo(() => {
+    const actual = [...assetsWithMetadata].reverse()
+
+    // Skip pending placeholders for uploaded mode
+    if (!data.workflowId || mode === "uploaded") {
+      return actual
+    }
+
+    // Get execution IDs that already have results in this node's history
+    const completedExecutionIds = new Set(
+      actual.filter((item) => item.metadata?.executionId).map((item) => item.metadata.executionId)
+    )
+
+    // Get all pending executions for this workflow and node (calculate synchronously)
+    const executions = workflowEngine.getAllExecutions()
+    const pendingExecutions = executions.filter((e) => {
+      if (e.workflowId !== data.workflowId) return false
+      if (e.status !== "queued" && e.status !== "running") return false
+
+      // Skip if this execution already has a result for this node
+      if (completedExecutionIds.has(e.id)) return false
+
+      // Check if this node exists in the workflow snapshot
+      const snapshot = workflowEngine.getQueueSnapshot?.(e.id)
+      const hasThisNode = snapshot?.nodes?.some((n: any) => n.id === id)
+      return hasThisNode || false
+    })
+
+    // Create placeholders for pending executions
+    const placeholders = pendingExecutions.map((e) => ({
+      id: `pending-${e.id}`,
+      url: "",
+      isPending: true,
+      executionId: e.id,
+    }))
+
+    return [...placeholders, ...actual]
+  }, [assetsWithMetadata, data.workflowId, id, mode, queueVersion])
 
   const isRunning = data.status === "running"
 
@@ -255,8 +257,11 @@ export function ImageNode({
                 <span className="text-xs text-muted-foreground">
                   {imageHistory.filter((i) => !i.isPending).length} image
                   {imageHistory.filter((i) => !i.isPending).length !== 1 ? "s" : ""}
-                  {pendingCount > 0 && (
-                    <span className="text-muted-foreground/50"> (+{pendingCount} pending)</span>
+                  {imageHistory.filter((i) => i.isPending).length > 0 && (
+                    <span className="text-muted-foreground/50">
+                      {" "}
+                      (+{imageHistory.filter((i) => i.isPending).length} pending)
+                    </span>
                   )}
                 </span>
                 <Popover open={clearPopoverOpen} onOpenChange={setClearPopoverOpen}>
@@ -337,7 +342,7 @@ export function ImageNode({
                     }}
                   >
                     {item.isPending ? (
-                      <div className="w-full h-full flex items-center justify-center bg-muted/40 animate-pulse">
+                      <div className="w-full h-full flex items-center justify-center">
                         <Loader2 className="w-6 h-6 text-muted-foreground/50 animate-spin" />
                       </div>
                     ) : (

@@ -257,6 +257,7 @@ export class WorkflowEngine {
       execution.currentNodeId = node.id
       this.notifyChange() // Notify UI of progress
       ;(node as any).workflowId = execution.workflowId
+      ;(node as any).executionId = execution.id
 
       try {
         // mark active
@@ -523,7 +524,8 @@ export class WorkflowEngine {
       metadata: {
         workflowId: (node as any).workflowId,
         nodeId: node.id,
-        executionId: result.executionId,
+        executionId: (node as any).executionId, // Workflow execution ID
+        apiExecutionId: result.executionId, // API execution ID
         model: selectedModel,
         prompt: prompt || (hasImageInput ? "Edit this image" : "A beautiful image"),
         timestamp: new Date().toISOString(),
@@ -537,7 +539,8 @@ export class WorkflowEngine {
       type: "image" as const,
       assetRef, // Only store the reference, not the full data
       metadata: {
-        executionId: result.executionId,
+        executionId: (node as any).executionId, // Workflow execution ID for matching placeholders
+        apiExecutionId: result.executionId, // API execution ID for reference
         model: selectedModel,
         timestamp: new Date().toISOString(),
         inputsUsed: {
@@ -575,7 +578,7 @@ export class WorkflowEngine {
         height: node.config?.height,
         workflowId: "" + (node as any).workflowId,
         nodeId: node.id,
-        executionId: result.executionId,
+        executionId: (node as any).executionId, // Workflow execution ID
       })
     } catch (_) {
       // ignore store errors
@@ -746,7 +749,8 @@ export class WorkflowEngine {
       metadata: {
         workflowId: (node as any).workflowId,
         nodeId: node.id,
-        executionId: result.executionId,
+        executionId: (node as any).executionId, // Workflow execution ID
+        apiExecutionId: result.executionId, // API execution ID
         model: node.config?.model || "bytedance/seedream-4.0-edit",
         prompt: prompt || "Edit this image",
         timestamp: new Date().toISOString(),
@@ -760,7 +764,8 @@ export class WorkflowEngine {
       type: "image" as const,
       assetRef, // Only store the reference, not the full data
       metadata: {
-        executionId: result.executionId,
+        executionId: (node as any).executionId, // Workflow execution ID for matching placeholders
+        apiExecutionId: result.executionId, // API execution ID for reference
         model: node.config?.model || "bytedance/seedream-4.0-edit",
         inputImage: inputImageUrl,
         timestamp: new Date().toISOString(),
@@ -798,7 +803,7 @@ export class WorkflowEngine {
         height: node.config?.height,
         workflowId: "" + (node as any).workflowId,
         nodeId: node.id,
-        executionId: result.executionId,
+        executionId: (node as any).executionId, // Workflow execution ID
       })
     } catch (_) {
       // ignore store errors
