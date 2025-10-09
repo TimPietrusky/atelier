@@ -274,7 +274,7 @@ export function ImageNode({
           {/* Fixed section: Model selector and header - doesn't scroll */}
           <div className="space-y-2 flex-shrink-0">
             {mode !== "uploaded" && (
-              <div className="bg-muted/30 rounded-md px-2 border border-border/30">
+              <div className="bg-muted/30 rounded-md border border-border/30">
                 <Select
                   value={model}
                   onValueChange={(v) => {
@@ -282,7 +282,7 @@ export function ImageNode({
                     if (data?.onChange) data.onChange({ model: v })
                   }}
                 >
-                  <SelectTrigger className="w-full h-7 text-sm border-none bg-transparent p-0 hover:bg-muted/50 focus:ring-0 focus:ring-offset-0">
+                  <SelectTrigger className="w-full h-7 text-sm px-2">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
