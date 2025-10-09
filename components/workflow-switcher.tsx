@@ -15,16 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  WorkflowIcon,
-  MoreVertical,
-  Pencil,
-  Plus,
-  Download,
-  Upload,
-  Trash,
-  Copy,
-} from "lucide-react"
+import { MoreVertical, Pencil, Plus, Download, Upload, Trash, Copy } from "lucide-react"
 import { WorkflowCreatePopover } from "@/components/workflow-create-popover"
 import { WorkflowRenamePopover } from "@/components/workflow-rename-popover"
 import { WorkflowDeletePopover } from "@/components/workflow-delete-popover"
@@ -240,10 +231,7 @@ export function WorkflowSwitcher({ activeWorkflow, onWorkflowChange }: WorkflowS
         }}
       >
         <SelectTrigger className="w-44 h-full border-0 bg-transparent rounded-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 outline-none">
-          <div className="flex items-center gap-2">
-            <WorkflowIcon className="w-4 h-4 text-primary" />
-            <SelectValue />
-          </div>
+          <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {workflows.map((workflow) => (
