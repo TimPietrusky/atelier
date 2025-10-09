@@ -26,6 +26,7 @@ import {
 import { listAllAssets, getAssetStats } from "@/lib/utils/list-all-assets"
 import { assetManager, type Asset } from "@/lib/store/asset-manager"
 import { useWorkflowStore } from "@/lib/store/workflows-zustand"
+import { Lightbox } from "@/components/lightbox"
 
 interface MediaManagerProps {
   onClose: () => void
@@ -65,6 +66,7 @@ export function MediaManagerComponent({
   const workflows = useWorkflowStore((s) => s.workflows)
   const [deletePopoverOpen, setDeletePopoverOpen] = useState(false)
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; usage?: any[] } | null>(null)
+  const [lightboxAssetId, setLightboxAssetId] = useState<string | null>(null)
 
   // Load media settings from sessionStorage
   useEffect(() => {
@@ -415,13 +417,19 @@ export function MediaManagerComponent({
                 key={asset.id || `asset-${index}`}
                 className="group relative aspect-square rounded-none overflow-hidden cursor-pointer border"
                 style={{
-                  borderColor: selectedAssetId === asset.id ? "var(--node-image)" : "var(--border)",
+                  borderColor:
+                    selectedAssetId === asset.id || lightboxAssetId === asset.id
+                      ? "var(--node-image)"
+                      : "var(--border)",
                   boxShadow:
-                    selectedAssetId === asset.id ? "0 0 0 1px rgba(139, 92, 246, 0.2)" : "none",
+                    selectedAssetId === asset.id || lightboxAssetId === asset.id
+                      ? "0 0 0 1px rgba(139, 92, 246, 0.2)"
+                      : "none",
                 }}
                 onClick={() => {
+                  setSelectedAssetId(asset.id)
                   if (selectionMode) {
-                    setSelectedAssetId(asset.id)
+                    // Just select it
                   } else {
                     onSelectAsset?.(asset.id)
                   }
@@ -444,19 +452,8 @@ export function MediaManagerComponent({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation()
-                        // Open lightbox for this asset
-                        const img = new Image()
-                        img.src = asset.data
-                        const lightbox = document.createElement("div")
-                        lightbox.className =
-                          "fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-8"
-                        lightbox.onclick = () => lightbox.remove()
-                        const imgEl = document.createElement("img")
-                        imgEl.src = asset.data
-                        imgEl.className = "max-w-full max-h-full object-contain rounded-none"
-                        imgEl.onclick = (e) => e.stopPropagation()
-                        lightbox.appendChild(imgEl)
-                        document.body.appendChild(lightbox)
+                        setLightboxAssetId(asset.id)
+                        setSelectedAssetId(asset.id)
                       }}
                       className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
                       title="View fullscreen"
@@ -575,6 +572,27 @@ export function MediaManagerComponent({
           </div>
         </PopoverContent>
       </Popover>
+
+      {/* Image Lightbox */}
+      {lightboxAssetId && (
+        <Lightbox
+          images={filtered.map((asset) => ({
+            id: asset.id,
+            url: asset.data,
+          }))}
+          currentImageId={lightboxAssetId}
+          onClose={() => setLightboxAssetId(null)}
+          onNavigate={(assetId) => {
+            setLightboxAssetId(assetId)
+            setSelectedAssetId(assetId)
+          }}
+          downloadFilename={(image) => {
+            const asset = filtered.find((a) => a.id === image.id)
+            const model = asset?.metadata?.model || "unknown"
+            return `${model}-${image.id}.png`
+          }}
+        />
+      )}
     </div>
   )
 }

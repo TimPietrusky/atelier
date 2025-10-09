@@ -1,19 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useMemo } from "react"
-import { createPortal } from "react-dom"
-import {
-  ImageIcon,
-  X,
-  Download,
-  Loader2,
-  Copy,
-  Maximize2,
-  ChevronLeft,
-  ChevronRight,
-  Trash2,
-  Check,
-} from "lucide-react"
+import { ImageIcon, X, Download, Loader2, Copy, Maximize2, Trash2, Check } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -24,6 +12,7 @@ import {
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { NodeContainer, NodeHeader, NodeContent } from "@/components/node-components"
+import { Lightbox } from "@/components/lightbox"
 import { getImageModelMeta } from "@/lib/config"
 import { workflowStore } from "@/lib/store/workflows"
 import { useAssets } from "@/lib/hooks/use-asset"
@@ -47,12 +36,11 @@ export function ImageNode({
   const meta = getImageModelMeta(model)
   const nodeWidth = width || 256
   const containerRef = useRef<HTMLDivElement>(null)
-  const [enlargedImage, setEnlargedImage] = useState<{ url: string; id: string } | null>(null)
+  const [lightboxImageId, setLightboxImageId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [clearPopoverOpen, setClearPopoverOpen] = useState(false)
-  const imageHistoryRef = useRef<any[]>([])
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -127,9 +115,7 @@ export function ImageNode({
         url: "",
         isPending: true,
       }))
-      const result = [...placeholders, ...actual]
-      imageHistoryRef.current = result // Keep ref in sync
-      return result
+      return [...placeholders, ...actual]
     }, [assetsWithMetadata, pendingCount])
 
   const isRunning = data.status === "running"
@@ -157,48 +143,6 @@ export function ImageNode({
       data.onMetadataSelected(metadata, resultId)
     }
   }
-
-  // Keyboard navigation in lightbox
-  useEffect(() => {
-    if (!enlargedImage) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") {
-        e.preventDefault()
-        e.stopPropagation()
-        // Navigate using ref to avoid re-registering listener on every image generation
-        const history = imageHistoryRef.current
-        const currentIndex = history.findIndex((img) => img.id === enlargedImage.id)
-        if (currentIndex > 0) {
-          const newImage = history[currentIndex - 1]
-          if (!newImage.isPending) {
-            setEnlargedImage({ url: newImage.url, id: newImage.id })
-            setSelectedImageId(newImage.id)
-          }
-        }
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault()
-        e.stopPropagation()
-        const history = imageHistoryRef.current
-        const currentIndex = history.findIndex((img) => img.id === enlargedImage.id)
-        if (currentIndex >= 0 && currentIndex < history.length - 1) {
-          const newImage = history[currentIndex + 1]
-          if (!newImage.isPending) {
-            setEnlargedImage({ url: newImage.url, id: newImage.id })
-            setSelectedImageId(newImage.id)
-          }
-        }
-      } else if (e.key === "Escape") {
-        e.preventDefault()
-        e.stopPropagation()
-        setEnlargedImage(null)
-      }
-    }
-
-    // Use capture phase to intercept before ReactFlow gets the event
-    window.addEventListener("keydown", handleKeyDown, true)
-    return () => window.removeEventListener("keydown", handleKeyDown, true)
-  }, [enlargedImage]) // Only re-register when lightbox opens/closes, not on every image generation
 
   const handleCopySettings = (metadata: any) => {
     if (!metadata?.inputsUsed || !workflowId) return
@@ -387,7 +331,7 @@ export function ImageNode({
                     style={{
                       aspectRatio: "1/1",
                       borderColor:
-                        selectedImageId === item.id || enlargedImage?.id === item.id
+                        selectedImageId === item.id || lightboxImageId === item.id
                           ? "var(--node-image)"
                           : "var(--border)",
                     }}
@@ -423,8 +367,7 @@ export function ImageNode({
                             className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
                             onClick={(e) => {
                               e.stopPropagation()
-                              setEnlargedImage({ url: item.url, id: item.id })
-                              setSelectedImageId(item.id)
+                              setLightboxImageId(item.id)
                             }}
                             title="View fullscreen"
                           >
@@ -568,111 +511,19 @@ export function ImageNode({
         </NodeContent>
       </NodeContainer>
 
-      {/* Image Lightbox Modal - rendered via portal */}
-      {enlargedImage &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-8"
-            onClick={() => setEnlargedImage(null)}
-          >
-            {/* Top right controls */}
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 bg-background/10 hover:bg-background/20 text-white"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const link = document.createElement("a")
-                  link.href = enlargedImage.url
-                  link.download = `image-${enlargedImage.id}.png`
-                  link.click()
-                }}
-                title="Download image"
-              >
-                <Download className="w-6 h-6" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 bg-background/10 hover:bg-background/20 text-white"
-                onClick={() => setEnlargedImage(null)}
-                title="Close (Esc)"
-              >
-                <X className="w-6 h-6" />
-              </Button>
-            </div>
-
-            {/* Previous button */}
-            {(() => {
-              const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
-              const hasPrev = currentIndex > 0
-              return hasPrev ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-background/10 hover:bg-background/20 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const newImage = imageHistory[currentIndex - 1]
-                    if (!newImage.isPending) {
-                      setEnlargedImage({ url: newImage.url, id: newImage.id })
-                      setSelectedImageId(newImage.id)
-                    }
-                  }}
-                  title="Previous (←)"
-                >
-                  <ChevronLeft className="w-8 h-8" />
-                </Button>
-              ) : null
-            })()}
-
-            {/* Next button */}
-            {(() => {
-              const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
-              const hasNext =
-                currentIndex < imageHistory.length - 1 && !imageHistory[currentIndex + 1]?.isPending
-              return hasNext ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-background/10 hover:bg-background/20 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const newImage = imageHistory[currentIndex + 1]
-                    if (!newImage.isPending) {
-                      setEnlargedImage({ url: newImage.url, id: newImage.id })
-                      setSelectedImageId(newImage.id)
-                    }
-                  }}
-                  title="Next (→)"
-                >
-                  <ChevronRight className="w-8 h-8" />
-                </Button>
-              ) : null
-            })()}
-
-            {/* Image counter */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/10 text-white px-3 py-1.5 rounded text-sm">
-              {(() => {
-                const currentIndex = imageHistory.findIndex((img) => img.id === enlargedImage.id)
-                return `${currentIndex + 1} / ${imageHistory.length}`
-              })()}
-            </div>
-
-            <img
-              src={enlargedImage.url}
-              alt="Enlarged view"
-              className="max-w-full max-h-full object-contain rounded-none"
-              width={1024}
-              height={1024}
-              loading="lazy"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>,
-          document.body
-        )}
+      {/* Image Lightbox */}
+      {lightboxImageId && (
+        <Lightbox
+          images={imageHistory}
+          currentImageId={lightboxImageId}
+          onClose={() => setLightboxImageId(null)}
+          onNavigate={(imageId) => {
+            setLightboxImageId(imageId)
+            setSelectedImageId(imageId)
+          }}
+          downloadFilename={(image) => `image-${image.id}.png`}
+        />
+      )}
     </>
   )
 }

@@ -149,16 +149,18 @@ This doc orients anyone working in this codebase. It captures the architectural 
     - Selected image highlighted via node-type colored border
     - Hover overlay with actions: maximize (lightbox), download, delete - unified styling with media manager
     - Clean, responsive UX with no artificial delays
-  - **Lightbox modal**:
+  - **Lightbox modal** (`components/lightbox.tsx`):
+    - Unified reusable component for fullscreen image viewing with navigation
+    - Used in both image node and media manager for consistent UX
     - Full-screen overlay with navigation controls; rendered via portal to `document.body` for proper event handling
     - **Navigation**: Previous/Next buttons on left/right sides (only shown when available)
     - **Keyboard controls**: Arrow Left (←) for previous, Arrow Right (→) for next, Escape to close
     - **Image counter**: Shows current position (e.g., "3 / 10") at bottom center
     - **Actions**: Download and close buttons in top-right corner
-    - Navigating in lightbox updates the selected image border in the node
+    - `onNavigate` callback updates the selected image in parent component (e.g., border highlight)
 - Media Manager:
   - **Image grid hover**: Same overlay styling as image node for consistency
-  - **Lightbox**: Simple fullscreen view (click image or maximize button to open, click backdrop to close)
+  - **Lightbox**: Uses the same unified `Lightbox` component as image node with full navigation, keyboard controls, and image counter
   - **Actions**: maximize (lightbox), download, delete - identical button styling to image node
   - **Delete confirmation**: Uses inline Popover (NEVER alert/confirm) to show usage and request force-delete confirmation
 - Edges use bezier curves (type `default`) with a solid off-white stroke; the drag preview uses the same bezier curve for consistency. Gradient removed. Existing edges are normalized on load.
