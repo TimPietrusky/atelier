@@ -6,7 +6,6 @@ import {
   X,
   Download,
   Loader2,
-  Copy,
   Maximize2,
   Trash2,
   Check,
@@ -158,24 +157,6 @@ export function ImageNode({
     if (data.onMetadataSelected) {
       data.onMetadataSelected(metadata, resultId)
     }
-  }
-
-  const handleCopySettings = (metadata: any) => {
-    if (!metadata?.inputsUsed || !workflowId) return
-
-    const settings: Record<string, any> = {}
-
-    // Copy relevant settings from metadata
-    if (metadata.model) settings.model = metadata.model
-    if (metadata.inputsUsed.ratio) settings.ratio = metadata.inputsUsed.ratio
-    if (metadata.inputsUsed.width) settings.width = metadata.inputsUsed.width
-    if (metadata.inputsUsed.height) settings.height = metadata.inputsUsed.height
-    if (metadata.inputsUsed.steps) settings.steps = metadata.inputsUsed.steps
-    if (metadata.inputsUsed.guidance) settings.guidance = metadata.inputsUsed.guidance
-    if (metadata.inputsUsed.seed) settings.seed = metadata.inputsUsed.seed
-
-    // Apply to current node
-    workflowStore.updateNodeConfig(workflowId, id, settings)
   }
 
   useEffect(() => {

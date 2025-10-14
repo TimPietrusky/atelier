@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { MessageSquare } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { NodeContainer, NodeHeader, NodeContent } from "@/components/node-components"
 
 export function PromptNode({ data, id, selected }: { data: any; id: string; selected?: boolean }) {
   const [prompt, setPrompt] = useState(data.config?.prompt || "")
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Only sync from store if we're not currently editing (external change)
   useEffect(() => {
@@ -14,6 +15,15 @@ export function PromptNode({ data, id, selected }: { data: any; id: string; sele
     if (document.activeElement?.id === `prompt-textarea-${id}`) return
     setPrompt(data.config?.prompt || "")
   }, [data.config?.prompt, id])
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
 
   const isRunning = data.status === "running"
 
@@ -47,12 +57,30 @@ export function PromptNode({ data, id, selected }: { data: any; id: string; sele
           id={`prompt-textarea-${id}`}
           placeholder="enter your prompt..."
           value={prompt}
+          spellCheck={false}
+          onFocus={(e) => {
+            // Prevent text auto-selection on focus
+            const target = e.target
+            const len = target.value.length
+            // Move cursor to end instead of selecting all
+            queueMicrotask(() => {
+              target.setSelectionRange(len, len)
+            })
+          }}
           onChange={(e) => {
             const val = e.target.value
+            // Update local state immediately for instant feedback
             setPrompt(val)
-            try {
-              if (data?.onChange) data.onChange({ prompt: val })
-            } catch {}
+
+            // Debounce persistence to avoid lag during fast typing
+            if (debounceTimerRef.current) {
+              clearTimeout(debounceTimerRef.current)
+            }
+            debounceTimerRef.current = setTimeout(() => {
+              try {
+                if (data?.onChange) data.onChange({ prompt: val })
+              } catch {}
+            }, 300)
           }}
           className="nodrag min-h-[120px] text-[13px] font-medium bg-[var(--surface-elevated)] border border-[var(--border)] focus:border-[var(--node-prompt)] rounded p-2"
         />

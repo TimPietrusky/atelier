@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Library, Upload } from "lucide-react"
 import {
   Select,
@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { getImageModelMeta } from "@/lib/config"
+import { getImageModelMeta, type AspectRatio } from "@/lib/config"
 import { assetManager } from "@/lib/store/asset-manager"
 import type { WorkflowNode } from "@/lib/workflow-engine"
 
@@ -38,6 +38,66 @@ export function ImageInspector({
   useEffect(() => {
     setModel(node.config?.model || "black-forest-labs/flux-1-schnell")
   }, [node.id, node.config?.model])
+
+  // Generate resolution options dynamically based on model configuration
+  const resolutionOptions = useMemo(() => {
+    const options: Array<{ value: string; label: string }> = []
+
+    if (!meta) {
+      // Fallback to generic options if no metadata
+      return [
+        { value: "512x512", label: "512×512" },
+        { value: "768x768", label: "768×768" },
+        { value: "1024x1024", label: "1024×1024" },
+        { value: "1024x768", label: "1024×768" },
+        { value: "768x1024", label: "768×1024" },
+      ]
+    }
+
+    // If model has specific size constraints, use those
+    if (meta.sizesByRatio) {
+      for (const ratio of meta.supportedAspectRatios) {
+        const sizes = meta.sizesByRatio[ratio]
+        if (sizes && sizes.length > 0) {
+          for (const size of sizes) {
+            if (ratio === "1:1") {
+              options.push({ value: `${size}x${size}`, label: `${size}×${size}` })
+            } else if (ratio === "4:3") {
+              const height = Math.round((size * 3) / 4)
+              options.push({ value: `${size}x${height}`, label: `${size}×${height}` })
+            } else if (ratio === "3:4") {
+              const width = Math.round((size * 3) / 4)
+              options.push({ value: `${width}x${size}`, label: `${width}×${size}` })
+            }
+          }
+        }
+      }
+    } else {
+      // Generate generic options based on supported aspect ratios
+      const commonSizes = [512, 768, 1024]
+      for (const ratio of meta.supportedAspectRatios) {
+        for (const size of commonSizes) {
+          if (ratio === "1:1") {
+            options.push({ value: `${size}x${size}`, label: `${size}×${size}` })
+          } else if (ratio === "4:3") {
+            const height = Math.round((size * 3) / 4)
+            options.push({ value: `${size}x${height}`, label: `${size}×${height}` })
+          } else if (ratio === "3:4") {
+            const width = Math.round((size * 3) / 4)
+            options.push({ value: `${width}x${size}`, label: `${width}×${size}` })
+          }
+        }
+      }
+    }
+
+    return options
+  }, [meta])
+
+  // Get current resolution value, fallback to first available option if not valid
+  const currentResolution = `${node.config?.width || 1024}x${node.config?.height || 1024}`
+  const validResolution = resolutionOptions.some((opt) => opt.value === currentResolution)
+    ? currentResolution
+    : resolutionOptions[0]?.value || "1024x1024"
 
   const handleModelChange = (value: string) => {
     setModel(value)
@@ -174,7 +234,8 @@ export function ImageInspector({
       <div className="space-y-2">
         <Label className="text-sm text-muted-foreground">resolution</Label>
         <Select
-          defaultValue={`${node.config?.width || 1024}x${node.config?.height || 1024}`}
+          key={`${model}-${validResolution}`}
+          defaultValue={validResolution}
           onValueChange={(v) => {
             const [w, h] = v.split("x").map(Number)
             onChange({ width: w, height: h })
@@ -184,11 +245,11 @@ export function ImageInspector({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="512x512">512×512</SelectItem>
-            <SelectItem value="768x768">768×768</SelectItem>
-            <SelectItem value="1024x1024">1024×1024</SelectItem>
-            <SelectItem value="1024x768">1024×768</SelectItem>
-            <SelectItem value="768x1024">768×1024</SelectItem>
+            {resolutionOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

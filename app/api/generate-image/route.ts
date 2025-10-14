@@ -41,8 +41,11 @@ export async function POST(req: Request) {
     )
     if (inputs?.images && inputs.images.length) {
       console.log(
-        "Images:",
-        inputs.images.map((x: string) => `${String(x).slice(0, 50)}...`)
+        `Images: [Array(${inputs.images.length})]`,
+        inputs.images.map((x: string) => {
+          const str = String(x)
+          return `${str.slice(0, 50)}...${str.slice(-20)}`
+        })
       )
     }
     console.log("=====================================\n")
@@ -68,7 +71,18 @@ export async function POST(req: Request) {
       apiKey: process.env.RUNPOD_API_KEY,
     })
 
-    console.log("[api/generate-image] used", result.used)
+    console.log("[api/generate-image] used", {
+      ...result.used,
+      providerOptions: {
+        ...result.used.providerOptions,
+        runpod: {
+          ...result.used.providerOptions?.runpod,
+          images: result.used.providerOptions?.runpod?.images
+            ? `[Array(${result.used.providerOptions.runpod.images.length})]`
+            : undefined,
+        },
+      },
+    })
 
     return json({
       success: true,
