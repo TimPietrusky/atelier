@@ -11,6 +11,7 @@ import {
   Check,
   Library,
   Upload,
+  Share2,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -51,6 +52,8 @@ export function ImageNode({
   const [selectedMetadata, setSelectedMetadata] = useState<any | null>(null)
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [clearPopoverOpen, setClearPopoverOpen] = useState(false)
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -71,7 +74,11 @@ export function ImageNode({
   // Determine mode early (needed for pending count logic)
   const mode: string =
     data.config?.mode ||
-    (data.config?.uploadedAssetRef || data.config?.localImage ? "uploaded" : "generate")
+    (data.config?.uploadedAssetRefs?.length > 0 ||
+    data.config?.uploadedAssetRef ||
+    data.config?.localImage
+      ? "uploaded"
+      : "generate")
 
   // Track queue changes to force re-render when executions update
   const [queueVersion, setQueueVersion] = useState(0)
@@ -144,10 +151,10 @@ export function ImageNode({
   }
   const gridCols = getGridCols(nodeWidth)
 
-  const [localImage, setLocalImage] = useState<string | undefined>(undefined)
+  const [localImages, setLocalImages] = useState<string[]>([])
 
   // Show empty state (upload buttons) when there's no content to display
-  const showEmptyState = imageHistory.length === 0 && !localImage
+  const showEmptyState = imageHistory.length === 0 && localImages.length === 0
 
   const handleViewSettings = (metadata: any, resultId: string) => {
     setSelectedMetadata(metadata)
@@ -163,25 +170,32 @@ export function ImageNode({
     let cancelled = false
     ;(async () => {
       try {
-        // Load from AssetManager if we have an AssetRef
-        if (data.config?.uploadedAssetRef) {
+        const loadedImages: string[] = []
+
+        // Load from AssetManager if we have multiple AssetRefs
+        if (data.config?.uploadedAssetRefs && data.config.uploadedAssetRefs.length > 0) {
+          for (const ref of data.config.uploadedAssetRefs) {
+            const asset = await assetManager.loadAsset(ref)
+            if (asset) loadedImages.push(asset.data)
+          }
+        } else if (data.config?.uploadedAssetRef) {
+          // Legacy: single asset ref
           const asset = await assetManager.loadAsset(data.config.uploadedAssetRef)
-          if (!cancelled && asset) setLocalImage(asset.data)
+          if (asset) loadedImages.push(asset.data)
         } else if (data.config?.localImage) {
-          // Fallback: use localImage directly (legacy support)
-          if (!cancelled) setLocalImage(data.config.localImage)
-        } else {
-          // Clear if both are undefined
-          if (!cancelled) setLocalImage(undefined)
+          // Legacy: direct data URL
+          loadedImages.push(data.config.localImage)
         }
+
+        if (!cancelled) setLocalImages(loadedImages)
       } catch (err) {
-        console.error("[ImageNode] Failed to load uploaded image:", err)
+        console.error("[ImageNode] Failed to load uploaded images:", err)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [id, data.config?.uploadedAssetRef, data.config?.localImage])
+  }, [id, data.config?.uploadedAssetRefs, data.config?.uploadedAssetRef, data.config?.localImage])
 
   return (
     <>
@@ -250,62 +264,119 @@ export function ImageNode({
             {imageHistory.length > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {imageHistory.filter((i) => !i.isPending).length} image
-                  {imageHistory.filter((i) => !i.isPending).length !== 1 ? "s" : ""}
-                  {imageHistory.filter((i) => i.isPending).length > 0 && (
-                    <span className="text-muted-foreground/50">
-                      {" "}
-                      (+{imageHistory.filter((i) => i.isPending).length} pending)
-                    </span>
+                  {isSelectionMode && selectedImages.size > 0 ? (
+                    `${selectedImages.size} selected`
+                  ) : (
+                    <>
+                      {imageHistory.filter((i) => !i.isPending).length} image
+                      {imageHistory.filter((i) => !i.isPending).length !== 1 ? "s" : ""}
+                      {imageHistory.filter((i) => i.isPending).length > 0 && (
+                        <span className="text-muted-foreground/50">
+                          {" "}
+                          (+{imageHistory.filter((i) => i.isPending).length} pending)
+                        </span>
+                      )}
+                    </>
                   )}
                 </span>
-                <Popover open={clearPopoverOpen} onOpenChange={setClearPopoverOpen}>
-                  <PopoverTrigger asChild>
+                <div className="flex items-center gap-1">
+                  {isSelectionMode ? (
+                    <>
+                      {selectedImages.size > 0 && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
+                            title="Download selected"
+                            onClick={() => {
+                              selectedImages.forEach((imgId) => {
+                                const item = imageHistory.find((i) => i.id === imgId)
+                                if (item?.url) {
+                                  const link = document.createElement("a")
+                                  link.href = item.url
+                                  link.download = `image-${imgId}.png`
+                                  link.click()
+                                }
+                              })
+                            }}
+                          >
+                            <Download className="w-3 h-3 text-[var(--text-muted)]" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
+                            title="Share selected"
+                            onClick={async () => {
+                              if (navigator.share && selectedImages.size > 0) {
+                                try {
+                                  const files = await Promise.all(
+                                    Array.from(selectedImages).map(async (imgId) => {
+                                      const item = imageHistory.find((i) => i.id === imgId)
+                                      if (item?.url) {
+                                        const response = await fetch(item.url)
+                                        const blob = await response.blob()
+                                        return new File([blob], `image-${imgId}.png`, {
+                                          type: "image/png",
+                                        })
+                                      }
+                                      return null
+                                    })
+                                  )
+                                  const validFiles = files.filter((f) => f !== null) as File[]
+                                  if (validFiles.length > 0) {
+                                    await navigator.share({ files: validFiles })
+                                  }
+                                } catch (err) {
+                                  console.error("Share failed:", err)
+                                }
+                              }
+                            }}
+                          >
+                            <Share2 className="w-3 h-3 text-[var(--text-muted)]" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
+                            title="Delete selected"
+                            onClick={() => {
+                              if (workflowId) {
+                                selectedImages.forEach((imgId) => {
+                                  workflowStore.removeFromResultHistory(workflowId, id, imgId)
+                                })
+                              }
+                              setSelectedImages(new Set())
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3 text-[var(--text-muted)]" />
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+                        onClick={() => {
+                          setIsSelectionMode(false)
+                          setSelectedImages(new Set())
+                        }}
+                      >
+                        cancel
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 opacity-40 hover:opacity-100 transition-opacity"
-                      title="Clear all images"
+                      className="h-6 px-2 text-xs opacity-40 hover:opacity-100 transition-opacity"
+                      onClick={() => setIsSelectionMode(true)}
                     >
-                      <Trash2 className="w-3 h-3 text-[var(--text-muted)]" />
+                      select
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent side="bottom" align="end" className="w-64 p-3">
-                    <div className="space-y-3">
-                      <div className="text-sm">
-                        <p className="font-medium mb-1">
-                          clear all {imageHistory.filter((i) => !i.isPending).length} images?
-                        </p>
-                        <p className="text-muted-foreground text-xs">this cannot be undone</p>
-                      </div>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setClearPopoverOpen(false)}
-                          className="h-7 px-3"
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          cancel
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (workflowId) {
-                              workflowStore.clearResultHistory(workflowId, id)
-                            }
-                            setClearPopoverOpen(false)
-                          }}
-                          className="h-7 px-3 text-red-500 hover:text-red-500 hover:bg-red-500/10"
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          clear
-                        </Button>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                  )}
+                </div>
               </div>
             )}
 
@@ -315,14 +386,24 @@ export function ImageNode({
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    const reader = new FileReader()
-                    reader.onload = async () => {
-                      const url = String(reader.result)
+                  onChange={async (e) => {
+                    const files = e.target.files
+                    if (!files || files.length === 0) return
+
+                    const assetRefs = []
+                    const existingRefs = data.config?.uploadedAssetRefs || []
+
+                    for (let i = 0; i < files.length; i++) {
+                      const file = files[i]
                       try {
+                        const url = await new Promise<string>((resolve) => {
+                          const reader = new FileReader()
+                          reader.onload = () => resolve(String(reader.result))
+                          reader.readAsDataURL(file)
+                        })
+
                         // Save to AssetManager and get AssetRef
                         const assetRef = await assetManager.saveAsset({
                           kind: "idb",
@@ -335,17 +416,23 @@ export function ImageNode({
                             model: "user-upload",
                           },
                         })
-                        data?.onChange?.({
-                          uploadedAssetRef: assetRef,
-                          mode: "uploaded",
-                        })
+                        assetRefs.push(assetRef)
                       } catch (err) {
                         console.error("[ImageNode] Failed to save uploaded image:", err)
-                        // Fallback to direct data URL
-                        data?.onChange?.({ localImage: url, mode: "uploaded" })
                       }
                     }
-                    reader.readAsDataURL(file)
+
+                    if (assetRefs.length > 0) {
+                      data?.onChange?.({
+                        uploadedAssetRefs: [...existingRefs, ...assetRefs],
+                        mode: "uploaded",
+                      })
+                    }
+
+                    // Reset file input
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = ""
+                    }
                   }}
                 />
                 <div className="flex-1 flex gap-2 min-h-0">
@@ -376,7 +463,7 @@ export function ImageNode({
             )}
           </div>
 
-          {/* Scrollable section: Image grid only */}
+          {/* Scrollable section: Image grid */}
           {imageHistory.length > 0 && (
             <div
               className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
@@ -388,137 +475,288 @@ export function ImageNode({
                 className={`grid gap-2`}
                 style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
               >
-                {imageHistory.map((item, idx) => (
-                  <div
-                    key={item.id || `${item.url}-${idx}`}
-                    className={`relative overflow-hidden rounded-none border group ${
-                      item.isPending ? "cursor-default" : "cursor-pointer"
-                    }`}
-                    style={{
-                      aspectRatio: "1/1",
-                      borderColor:
-                        selectedImageId === item.id || lightboxImageId === item.id
-                          ? "var(--node-image)"
-                          : "var(--border)",
-                    }}
-                  >
-                    {item.isPending ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-muted-foreground/50 animate-spin" />
-                      </div>
-                    ) : (
-                      <>
-                        <img
-                          src={item.url || "/placeholder.svg"}
-                          alt={`Generation ${imageHistory.length - idx}`}
-                          className="block w-full h-full object-cover cursor-pointer rounded-none"
-                          width={512}
-                          height={512}
-                          loading="lazy"
-                          onClick={() => {
-                            if (item.metadata) {
-                              handleViewSettings(item.metadata, item.id)
-                            } else {
-                              setSelectedImageId(item.id)
-                            }
-                          }}
-                        />
-                        {/* Gradient overlay - visual only, clicks pass through */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                        {/* Action buttons - positioned in top right */}
-                        <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setLightboxImageId(item.id)
-                            }}
-                            title="View fullscreen"
-                          >
-                            <Maximize2 className="w-3 h-3 text-white" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const link = document.createElement("a")
-                              link.href = item.url
-                              link.download = `image-${item.id}.png`
-                              link.click()
-                            }}
-                            title="Download image"
-                          >
-                            <Download className="w-3 h-3 text-white" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (workflowId && item.id) {
-                                workflowStore.removeFromResultHistory(workflowId, id, item.id)
+                {imageHistory.map((item, idx) => {
+                  const isSelected = selectedImageId === item.id || lightboxImageId === item.id
+                  return (
+                    <div
+                      key={item.id || `${item.url}-${idx}`}
+                      className={`relative overflow-hidden rounded-none border group ${
+                        item.isPending ? "cursor-default" : "cursor-pointer"
+                      }`}
+                      style={{
+                        aspectRatio: "1/1",
+                        borderColor: isSelected ? "var(--node-image)" : "var(--border)",
+                        boxShadow: isSelected ? "rgba(255, 255, 255, 0.5) -2px 2px 0px" : "none",
+                      }}
+                    >
+                      {item.isPending ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 text-muted-foreground/50 animate-spin" />
+                        </div>
+                      ) : (
+                        <>
+                          <img
+                            src={item.url || "/placeholder.svg"}
+                            alt={`Generation ${imageHistory.length - idx}`}
+                            className="block w-full h-full object-cover cursor-pointer rounded-none"
+                            width={512}
+                            height={512}
+                            loading="lazy"
+                            onClick={() => {
+                              if (isSelectionMode) {
+                                setSelectedImages((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(item.id)) {
+                                    next.delete(item.id)
+                                  } else {
+                                    next.add(item.id)
+                                  }
+                                  return next
+                                })
+                              } else {
+                                if (item.metadata) {
+                                  handleViewSettings(item.metadata, item.id)
+                                } else {
+                                  setSelectedImageId(item.id)
+                                }
                               }
                             }}
-                            title="Remove this image"
-                          >
-                            <Trash2 className="w-3 h-3 text-white" />
-                          </Button>
+                          />
+                          {/* Selection indicator */}
+                          {isSelectionMode && selectedImages.has(item.id) && (
+                            <div className="absolute top-1 left-1 w-5 h-5 bg-[var(--node-image)] rounded-full flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
+                          )}
+                          {/* Gradient overlay - visual only, clicks pass through */}
+                          <div
+                            className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity pointer-events-none ${
+                              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                            }`}
+                          />
+                          {/* Action buttons - positioned in top right (hidden in selection mode) */}
+                          {!isSelectionMode && (
+                            <div
+                              className={`absolute top-1 right-1 flex items-center gap-1 transition-opacity ${
+                                isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                              }`}
+                            >
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setLightboxImageId(item.id)
+                                }}
+                                title="View fullscreen"
+                              >
+                                <Maximize2 className="w-3 h-3 text-white" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const link = document.createElement("a")
+                                  link.href = item.url
+                                  link.download = `image-${item.id}.png`
+                                  link.click()
+                                }}
+                                title="Download image"
+                              >
+                                <Download className="w-3 h-3 text-white" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (workflowId && item.id) {
+                                    workflowStore.removeFromResultHistory(workflowId, id, item.id)
+                                  }
+                                }}
+                                title="Remove this image"
+                              >
+                                <X className="w-3 h-3 text-white" />
+                              </Button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {!item.isPending && idx === 0 && (
+                        <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
+                          latest
                         </div>
-                      </>
-                    )}
-                    {!item.isPending && idx === 0 && (
-                      <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
-                        latest
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
-          {imageHistory.length === 0 && localImage && (
-            <div className="relative overflow-hidden rounded-none border group">
+          {imageHistory.length === 0 && localImages.length === 1 && (
+            <div
+              className="relative overflow-hidden rounded-none border group"
+              style={{ width: "100%" }}
+            >
               <img
-                src={localImage || "/placeholder.svg"}
-                alt="Local image"
-                className="block w-full h-auto max-h-[320px] object-contain rounded-none"
+                src={localImages[0] || "/placeholder.svg"}
+                alt="Uploaded image"
+                className="block w-full h-auto object-contain rounded-none"
+                style={{ maxHeight: "600px" }}
                 width={512}
                 height={512}
                 loading="lazy"
               />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2 h-6 w-6 p-0 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => {
-                  ;(async () => {
-                    try {
-                      // Delete from AssetManager if we have an AssetRef
-                      if (data.config?.uploadedAssetRef) {
-                        await assetManager.deleteAsset(data.config.uploadedAssetRef, {
-                          force: true,
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+              {/* Action buttons */}
+              <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLightboxImageId("uploaded-0")
+                  }}
+                  title="View fullscreen"
+                >
+                  <Maximize2 className="w-3 h-3 text-white" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const link = document.createElement("a")
+                    link.href = localImages[0]
+                    link.download = "uploaded-image.png"
+                    link.click()
+                  }}
+                  title="Download image"
+                >
+                  <Download className="w-3 h-3 text-white" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    ;(async () => {
+                      try {
+                        const refs = data.config?.uploadedAssetRefs || []
+                        if (refs[0]) {
+                          await assetManager.deleteAsset(refs[0], { force: true })
+                        }
+                        data?.onChange?.({
+                          uploadedAssetRefs: [],
+                          mode: "generate",
                         })
+                      } catch (err) {
+                        console.error("[ImageNode] Failed to delete uploaded image:", err)
                       }
-                    } catch (err) {
-                      console.error("[ImageNode] Failed to delete uploaded image:", err)
-                    }
-                    setLocalImage(undefined)
-                    data?.onChange?.({
-                      localImage: undefined,
-                      uploadedAssetRef: undefined,
-                      mode: "generate",
-                    })
-                  })()
-                }}
-                title="Remove image"
+                    })()
+                  }}
+                  title="Remove image"
+                >
+                  <X className="w-3 h-3 text-white" />
+                </Button>
+              </div>
+            </div>
+          )}
+          {imageHistory.length === 0 && localImages.length > 1 && (
+            <div
+              className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+              style={{ contentVisibility: "auto" }}
+            >
+              <div
+                className={`grid gap-2`}
+                style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
               >
-                <X className="w-3 h-3 text-destructive" />
-              </Button>
+                {localImages.map((img, idx) => (
+                  <div
+                    key={`uploaded-${idx}`}
+                    className="relative overflow-hidden rounded-none border group cursor-pointer"
+                    style={{ aspectRatio: "1/1" }}
+                  >
+                    <img
+                      src={img || "/placeholder.svg"}
+                      alt={`Uploaded image ${idx + 1}`}
+                      className="block w-full h-full object-cover rounded-none"
+                      width={512}
+                      height={512}
+                      loading="lazy"
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                    {/* Action buttons */}
+                    <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setLightboxImageId(`uploaded-${idx}`)
+                        }}
+                        title="View fullscreen"
+                      >
+                        <Maximize2 className="w-3 h-3 text-white" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const link = document.createElement("a")
+                          link.href = img
+                          link.download = `uploaded-image-${idx + 1}.png`
+                          link.click()
+                        }}
+                        title="Download image"
+                      >
+                        <Download className="w-3 h-3 text-white" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          ;(async () => {
+                            try {
+                              // Delete from AssetManager
+                              const refs = data.config?.uploadedAssetRefs || []
+                              if (refs[idx]) {
+                                await assetManager.deleteAsset(refs[idx], { force: true })
+                              }
+                              // Remove from array
+                              const newRefs = [...refs]
+                              newRefs.splice(idx, 1)
+                              data?.onChange?.({
+                                uploadedAssetRefs: newRefs,
+                                mode: newRefs.length > 0 ? "uploaded" : "generate",
+                              })
+                            } catch (err) {
+                              console.error("[ImageNode] Failed to delete uploaded image:", err)
+                            }
+                          })()
+                        }}
+                        title="Remove image"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </NodeContent>
@@ -527,7 +765,11 @@ export function ImageNode({
       {/* Image Lightbox */}
       {lightboxImageId && (
         <Lightbox
-          images={imageHistory}
+          images={
+            lightboxImageId.startsWith("uploaded-") && localImages.length > 0
+              ? localImages.map((img, idx) => ({ id: `uploaded-${idx}`, url: img }))
+              : imageHistory
+          }
           currentImageId={lightboxImageId}
           onClose={() => setLightboxImageId(null)}
           onNavigate={(imageId) => {

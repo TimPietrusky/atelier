@@ -33,7 +33,11 @@ export function ImageInspector({
   const meta = getImageModelMeta(model)
   const mode: string =
     node.config?.mode ||
-    (node.config?.uploadedAssetRef || node.config?.localImage ? "uploaded" : "generate")
+    (node.config?.uploadedAssetRefs?.length > 0 ||
+    node.config?.uploadedAssetRef ||
+    node.config?.localImage
+      ? "uploaded"
+      : "generate")
 
   useEffect(() => {
     setModel(node.config?.model || "black-forest-labs/flux-1-schnell")
@@ -104,13 +108,22 @@ export function ImageInspector({
     onChange({ model: value })
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const url = String(reader.result)
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const assetRefs = []
+    const existingRefs = node.config?.uploadedAssetRefs || []
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
       try {
+        const url = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.readAsDataURL(file)
+        })
+
         // Save to AssetManager and get AssetRef
         const assetRef = await assetManager.saveAsset({
           kind: "idb",
@@ -123,17 +136,21 @@ export function ImageInspector({
             model: "user-upload",
           },
         })
-        onChange({
-          uploadedAssetRef: assetRef,
-          mode: "uploaded",
-        })
+        assetRefs.push(assetRef)
       } catch (err) {
         console.error("Failed to save uploaded image:", err)
-        // Fallback to direct data URL
-        onChange({ localImage: url, mode: "uploaded" })
       }
     }
-    reader.readAsDataURL(file)
+
+    if (assetRefs.length > 0) {
+      onChange({
+        uploadedAssetRefs: [...existingRefs, ...assetRefs],
+        mode: "uploaded",
+      })
+    }
+
+    // Reset file input
+    e.target.value = ""
   }
 
   return (
@@ -182,6 +199,7 @@ export function ImageInspector({
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={handleImageUpload}
                 />

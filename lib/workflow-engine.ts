@@ -356,10 +356,38 @@ export class WorkflowEngine {
   }
 
   private async executeImageGenNode(node: WorkflowNode) {
-    // Short-circuit: if user uploaded an image on this node, don't generate.
-    // Check for uploadedAssetRef (new) or localImage (legacy fallback)
-    if (node.config?.uploadedAssetRef) {
-      // Load from AssetManager
+    // Short-circuit: if user uploaded images on this node, don't generate.
+    // Check for uploadedAssetRefs (array), uploadedAssetRef (single), or localImage (legacy)
+    if (node.config?.uploadedAssetRefs && node.config.uploadedAssetRefs.length > 0) {
+      // Load first uploaded image from AssetManager as the primary result
+      const asset = await assetManager.loadAsset(node.config.uploadedAssetRefs[0])
+      if (asset) {
+        node.result = {
+          type: "image",
+          data: asset.data,
+          assetRef: node.config.uploadedAssetRefs[0],
+          metadata: {
+            timestamp: new Date().toISOString(),
+            inputsUsed: {
+              mode: "uploaded",
+              source: "user",
+              count: node.config.uploadedAssetRefs.length,
+            },
+          },
+        }
+        // Notify workflow store so UI updates
+        try {
+          const wfId = (node as any).workflowId as string | undefined
+          if (wfId) {
+            const { updateNodeResult } = useWorkflowStore.getState()
+            // Uploaded images (not generated) - don't add to history
+            updateNodeResult(wfId, node.id, node.result, undefined)
+          }
+        } catch {}
+        return
+      }
+    } else if (node.config?.uploadedAssetRef) {
+      // Legacy: single asset ref
       const asset = await assetManager.loadAsset(node.config.uploadedAssetRef)
       if (asset) {
         node.result = {

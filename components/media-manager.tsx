@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Maximize2,
   Check,
+  Share2,
 } from "lucide-react"
 import { listAllAssets, getAssetStats } from "@/lib/utils/list-all-assets"
 import { assetManager, type Asset } from "@/lib/store/asset-manager"
@@ -67,6 +68,8 @@ export function MediaManagerComponent({
   const [deletePopoverOpen, setDeletePopoverOpen] = useState(false)
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; usage?: any[] } | null>(null)
   const [lightboxAssetId, setLightboxAssetId] = useState<string | null>(null)
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
 
   // Load media settings from sessionStorage
   useEffect(() => {
@@ -224,40 +227,130 @@ export function MediaManagerComponent({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {selectionMode && (
+          {isSelectionMode && selectedAssets.size > 0 && (
             <>
               <Button
-                size="lg"
-                disabled={!selectedAssetId}
+                variant="ghost"
+                size="sm"
+                className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
+                title="Download selected"
                 onClick={() => {
-                  if (selectedAssetId && onUseAsset) {
-                    onUseAsset(selectedAssetId)
-                  }
+                  selectedAssets.forEach((assetId) => {
+                    const asset = assets.find((a) => a.id === assetId)
+                    if (asset) handleDownloadAsset(asset)
+                  })
                 }}
-                className="h-11 px-8 text-base font-semibold bg-white text-black hover:bg-white/90 rounded"
               >
-                Use Selected
+                <Download className="w-5 h-5" />
               </Button>
               <Button
-                variant="outline"
-                size="lg"
-                onClick={onClose}
-                className="h-11 px-6 text-base font-normal bg-transparent border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] rounded"
+                variant="ghost"
+                size="sm"
+                className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
+                title="Share selected"
+                onClick={async () => {
+                  if (navigator.share && selectedAssets.size > 0) {
+                    try {
+                      const files = await Promise.all(
+                        Array.from(selectedAssets).map(async (assetId) => {
+                          const asset = assets.find((a) => a.id === assetId)
+                          if (asset?.data) {
+                            const response = await fetch(asset.data)
+                            const blob = await response.blob()
+                            return new File([blob], `${assetId}.png`, { type: "image/png" })
+                          }
+                          return null
+                        })
+                      )
+                      const validFiles = files.filter((f) => f !== null) as File[]
+                      if (validFiles.length > 0) {
+                        await navigator.share({ files: validFiles })
+                      }
+                    } catch (err) {
+                      console.error("Share failed:", err)
+                    }
+                  }
+                }}
               >
-                Cancel
+                <Share2 className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
+                title="Delete selected"
+                onClick={async () => {
+                  for (const assetId of selectedAssets) {
+                    await handleDeleteAsset(assetId)
+                  }
+                  setSelectedAssets(new Set())
+                }}
+              >
+                <Trash2 className="w-5 h-5" />
               </Button>
             </>
           )}
-          {!selectionMode && (
+          {isSelectionMode && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              onClick={onClose}
-              className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
+              onClick={() => {
+                setIsSelectionMode(false)
+                setSelectedAssets(new Set())
+              }}
+              className="h-9 px-4"
             >
-              <X className="w-5 h-5 mr-2" />
-              Back to Canvas
+              Cancel
             </Button>
+          )}
+          {!isSelectionMode && (
+            <>
+              {!selectionMode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSelectionMode(true)}
+                  className="h-9 px-4"
+                >
+                  Select
+                </Button>
+              )}
+              {selectionMode && (
+                <>
+                  <Button
+                    size="lg"
+                    disabled={!selectedAssetId}
+                    onClick={() => {
+                      if (selectedAssetId && onUseAsset) {
+                        onUseAsset(selectedAssetId)
+                      }
+                    }}
+                    className="h-11 px-8 text-base font-semibold bg-white text-black hover:bg-white/90 rounded"
+                  >
+                    Use Selected
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={onClose}
+                    className="h-11 px-6 text-base font-normal bg-transparent border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] rounded"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
+              {!selectionMode && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  Back to Canvas
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -423,15 +516,27 @@ export function MediaManagerComponent({
                       : "var(--border)",
                   boxShadow:
                     selectedAssetId === asset.id || lightboxAssetId === asset.id
-                      ? "0 0 0 1px rgba(139, 92, 246, 0.2)"
+                      ? "rgba(255, 255, 255, 0.5) -2px 2px 0px"
                       : "none",
                 }}
                 onClick={() => {
-                  setSelectedAssetId(asset.id)
-                  if (selectionMode) {
-                    // Just select it
+                  if (isSelectionMode) {
+                    setSelectedAssets((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(asset.id)) {
+                        next.delete(asset.id)
+                      } else {
+                        next.add(asset.id)
+                      }
+                      return next
+                    })
                   } else {
-                    onSelectAsset?.(asset.id)
+                    setSelectedAssetId(asset.id)
+                    if (selectionMode) {
+                      // Just select it
+                    } else {
+                      onSelectAsset?.(asset.id)
+                    }
                   }
                 }}
               >
@@ -444,62 +549,84 @@ export function MediaManagerComponent({
                   loading="lazy"
                 />
 
-                {/* Overlay with actions */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-between p-3">
-                  <div className="flex items-center justify-end w-full gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setLightboxAssetId(asset.id)
-                        setSelectedAssetId(asset.id)
-                      }}
-                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                      title="View fullscreen"
-                    >
-                      <Maximize2 className="w-3 h-3 text-white" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDownloadAsset(asset)
-                      }}
-                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                      title="Download image"
-                    >
-                      <Download className="w-3 h-3 text-white" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteAsset(asset.id)
-                      }}
-                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                      title="Delete image"
-                    >
-                      <Trash2 className="w-3 h-3 text-white" />
-                    </Button>
+                {/* Selection indicator */}
+                {isSelectionMode && selectedAssets.has(asset.id) && (
+                  <div className="absolute top-2 left-2 w-6 h-6 bg-[var(--node-image)] rounded-full flex items-center justify-center">
+                    <Check className="w-4 h-4 text-white" />
                   </div>
+                )}
 
-                  {/* Asset info */}
-                  <div className="w-full">
-                    <p className="text-sm text-white font-medium truncate mb-1">
-                      {asset.metadata?.prompt || "Untitled"}
-                    </p>
-                    <div className="flex items-center justify-between text-xs text-white/80">
-                      <span>{asset.metadata?.model?.split("/")[1] || "Unknown"}</span>
-                      <span>{((asset.bytes || 0) / 1024).toFixed(0)}KB</span>
+                {/* Overlay with actions (hidden in selection mode) */}
+                {!isSelectionMode && (
+                  <div
+                    className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity flex flex-col items-center justify-between p-3"
+                    style={{
+                      opacity: selectedAssetId === asset.id || lightboxAssetId === asset.id ? 1 : 0,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = "1"
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedAssetId !== asset.id && lightboxAssetId !== asset.id) {
+                        e.currentTarget.style.opacity = "0"
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-end w-full gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setLightboxAssetId(asset.id)
+                          setSelectedAssetId(asset.id)
+                        }}
+                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                        title="View fullscreen"
+                      >
+                        <Maximize2 className="w-3 h-3 text-white" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDownloadAsset(asset)
+                        }}
+                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                        title="Download image"
+                      >
+                        <Download className="w-3 h-3 text-white" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteAsset(asset.id)
+                        }}
+                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                        title="Delete image"
+                      >
+                        <Trash2 className="w-3 h-3 text-white" />
+                      </Button>
                     </div>
-                    <p className="text-xs text-white/60 mt-1">
-                      {new Date(asset.createdAt).toLocaleDateString()}
-                    </p>
+
+                    {/* Asset info */}
+                    <div className="w-full">
+                      <p className="text-sm text-white font-medium truncate mb-1">
+                        {asset.metadata?.prompt || "Untitled"}
+                      </p>
+                      <div className="flex items-center justify-between text-xs text-white/80">
+                        <span>{asset.metadata?.model?.split("/")[1] || "Unknown"}</span>
+                        <span>{((asset.bytes || 0) / 1024).toFixed(0)}KB</span>
+                      </div>
+                      <p className="text-xs text-white/60 mt-1">
+                        {new Date(asset.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ))
           )}
