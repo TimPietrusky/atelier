@@ -132,21 +132,17 @@ export async function generateImageWithRunpod(params: ImageGenParams) {
     prompt: params.prompt,
     seed: params.seed,
   }
-  // Prefer aspectRatio when suitable; otherwise use size
-  const useAspect = !meta.sizesByRatio && params.ratio
-  if (useAspect) {
-    requestPayload.aspectRatio = dims.ratio
-  } else {
-    requestPayload.size = `${dims.width}x${dims.height}`
-  }
+  // Send both size and aspectRatio - endpoints can choose which to use
+  requestPayload.size = `${dims.width}x${dims.height}`
+  requestPayload.aspectRatio = dims.ratio
 
   let image: any
   try {
     const result = await generateImage({
       model: rp.imageModel(meta.id as any),
       prompt: requestPayload.prompt,
-      ...(requestPayload.aspectRatio ? { aspectRatio: requestPayload.aspectRatio } : {}),
-      ...(requestPayload.size ? { size: requestPayload.size } : {}),
+      size: requestPayload.size,
+      aspectRatio: requestPayload.aspectRatio,
       ...(requestPayload.seed !== undefined ? { seed: requestPayload.seed } : {}),
       ...(providerOptions ? { providerOptions } : {}),
     } as any)
@@ -170,8 +166,8 @@ export async function generateImageWithRunpod(params: ImageGenParams) {
     console.log("[runpod] request payload", {
       model: meta.id,
       prompt: requestPayload.prompt,
-      ...(requestPayload.aspectRatio ? { aspectRatio: requestPayload.aspectRatio } : {}),
-      ...(requestPayload.size ? { size: requestPayload.size } : {}),
+      size: requestPayload.size,
+      aspectRatio: requestPayload.aspectRatio,
       ...(requestPayload.seed !== undefined ? { seed: requestPayload.seed } : {}),
       providerOptions: sanitizedProviderOptions,
     })
@@ -201,8 +197,8 @@ export async function generateImageWithRunpod(params: ImageGenParams) {
     used: {
       modelId: meta.id,
       prompt: params.prompt,
-      ...(requestPayload.aspectRatio ? { aspectRatio: requestPayload.aspectRatio } : {}),
-      ...(requestPayload.size ? { size: requestPayload.size } : {}),
+      size: requestPayload.size,
+      aspectRatio: requestPayload.aspectRatio,
       ...(params.seed !== undefined ? { seed: params.seed } : {}),
       providerOptions: sanitizedProviderOptions,
     },

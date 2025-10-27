@@ -101,9 +101,9 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - Providers are isolated to `lib/providers/*`. Add a new provider adapter file and route API calls through it.
 - For img2img: send the input image(s) via `providerOptions.runpod.images` (array). Read as data URLs at request time from the referenced `AssetRef`; do not persist base64 long-term. Do not rely on a singular `image` field.
 - Model capabilities drive request shape:
-  - Do not send `guidance` for Seedream models (they don’t support it).
+  - Do not send `guidance` for Seedream models (they don't support it).
   - Only send `seed` when defined.
-  - Use either `aspectRatio` or `size`, not both. `resolveModelDimensions` handles correctness.
+  - Send both `size` (e.g., `"1024x1024"`) and `aspectRatio` (e.g., `"1:1"`). Endpoints use whichever they prefer. `resolveModelDimensions` handles correctness.
 - Edit-capable models must be user-selectable:
   - Include e.g. `bytedance/seedream-4.0-edit`, `qwen/qwen-image-edit` in the UI.
   - If an input image is connected and a non-edit model is selected, show a hint to switch models (but do not auto-switch).
