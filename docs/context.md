@@ -89,11 +89,16 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 - Prompt node: pass-through of `config.prompt` to `result.data` (text).
 - Image node (unified):
-  - Mode: `generate` (default) or `uploaded` (short-circuits API calls).
+  - **Tab-based UI** (Model, Upload, Media): Each tab represents a distinct workflow intent
+    - **Model tab**: Active by default. Shows model selector + generated image history from runs.
+    - **Upload tab**: Shows "click to upload" button; once uploaded, displays grid of uploaded images with download/delete actions. "Add more" button to append images.
+    - **Media tab**: Shows "open media library" button; opens full-screen media manager in selection mode. Selected asset displays below the button.
+    - Tab underlines highlight with node color; reduces visual clutter vs. showing all controls at once.
+  - Mode: `generate` (default, runs API) or `uploaded` (skips API, uses input images for img2img).
   - Result metadata includes all generation settings (prompt, model, steps, guidance, seed, resolution) stored in `metadata.inputsUsed`.
   - **Queue placeholders**: Live skeletons for ALL pending jobs (queued + running) that will execute this node via `addExecutionChangeListener`; matched by execution ID to prevent layout shifts when results arrive (placeholder is replaced in-place, not appended); disabled in "uploaded" mode; ephemeral (gone on reload).
   - **Historical settings**: Settings icon opens left panel (`ExecutionInspector`) showing persistent metadata stored with the image result; "Copy to Node" applies settings. Does NOT rely on ephemeral queue snapshots.
-  - **Image source**: "From library" (asset table) or "upload" (local file); hidden in view-only mode.
+  - **Image source**: "From library" (asset table), "upload" (local file), or generated via model. Hidden in view-only mode.
 
 ## AI SDK integration (provider-agnostic)
 

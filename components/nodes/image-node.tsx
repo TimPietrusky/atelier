@@ -54,6 +54,7 @@ export function ImageNode({
   const [clearPopoverOpen, setClearPopoverOpen] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
+  const [activeTab, setActiveTab] = useState<"model" | "upload" | "media">("model")
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -225,538 +226,539 @@ export function ImageNode({
           onSettingsClick={data?.onOpenInspector}
         />
 
-        <NodeContent>
-          {/* Fixed section: Model selector and header - doesn't scroll */}
-          <div className={`flex flex-col gap-2 ${showEmptyState ? "flex-1" : "flex-shrink-0"}`}>
-            {mode !== "uploaded" && (
-              <div className="bg-muted/30 rounded-md">
-                <Select
-                  value={model}
-                  onValueChange={(v) => {
-                    setModel(v)
-                    if (data?.onChange) data.onChange({ model: v })
-                  }}
-                >
-                  <SelectTrigger className="w-full h-7 text-sm px-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="black-forest-labs/flux-1-schnell">FLUX 1 Schnell</SelectItem>
-                    <SelectItem value="black-forest-labs/flux-1-dev">FLUX 1 Dev</SelectItem>
-                    <SelectItem value="black-forest-labs/flux-1-kontext-dev">
-                      FLUX 1 Kontext Dev
-                    </SelectItem>
-                    <SelectItem value="bytedance/seedream-3.0">Seedream 3.0</SelectItem>
-                    <SelectItem value="bytedance/seedream-4.0">Seedream 4.0</SelectItem>
-                    <SelectItem value="bytedance/seedream-4.0-edit">Seedream 4.0 Edit</SelectItem>
-                    <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
-                    <SelectItem value="qwen/qwen-image-edit">Qwen Image Edit</SelectItem>
-                  </SelectContent>
-                </Select>
-                {data?.hasImageInput && meta && meta.kind !== "img2img" && (
-                  <div className="mt-1 text-[10px] text-muted-foreground">
-                    An input image is connected — consider selecting an edit model.
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Tab buttons */}
+        <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-border">
+          <button
+            onClick={() => setActiveTab("model")}
+            className={`px-2 py-1 text-xs font-medium transition-colors border-b-2 ${
+              activeTab === "model"
+                ? "border-[var(--node-image)] text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            model
+          </button>
+          <button
+            onClick={() => setActiveTab("upload")}
+            className={`px-2 py-1 text-xs font-medium transition-colors border-b-2 ${
+              activeTab === "upload"
+                ? "border-[var(--node-image)] text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            upload
+          </button>
+          <button
+            onClick={() => setActiveTab("media")}
+            className={`px-2 py-1 text-xs font-medium transition-colors border-b-2 ${
+              activeTab === "media"
+                ? "border-[var(--node-image)] text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            media
+          </button>
+        </div>
 
-            {imageHistory.length > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  {isSelectionMode && selectedImages.size > 0 ? (
-                    `${selectedImages.size} selected`
-                  ) : (
-                    <>
-                      {imageHistory.filter((i) => !i.isPending).length} image
-                      {imageHistory.filter((i) => !i.isPending).length !== 1 ? "s" : ""}
-                      {imageHistory.filter((i) => i.isPending).length > 0 && (
-                        <span className="text-muted-foreground/50">
-                          {" "}
-                          (+{imageHistory.filter((i) => i.isPending).length} pending)
-                        </span>
-                      )}
-                    </>
-                  )}
-                </span>
-                <div className="flex items-center gap-1">
-                  {isSelectionMode ? (
-                    <>
-                      {selectedImages.size > 0 && (
+        <NodeContent>
+          {/* Model Tab */}
+          {activeTab === "model" && (
+            <div className="flex flex-col gap-2">
+              <Select
+                value={model}
+                onValueChange={(v) => {
+                  setModel(v)
+                  if (data?.onChange) data.onChange({ model: v })
+                }}
+              >
+                <SelectTrigger className="w-full h-7 text-sm px-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="black-forest-labs/flux-1-schnell">FLUX 1 Schnell</SelectItem>
+                  <SelectItem value="black-forest-labs/flux-1-dev">FLUX 1 Dev</SelectItem>
+                  <SelectItem value="black-forest-labs/flux-1-kontext-dev">
+                    FLUX 1 Kontext Dev
+                  </SelectItem>
+                  <SelectItem value="bytedance/seedream-3.0">Seedream 3.0</SelectItem>
+                  <SelectItem value="bytedance/seedream-4.0">Seedream 4.0</SelectItem>
+                  <SelectItem value="bytedance/seedream-4.0-edit">Seedream 4.0 Edit</SelectItem>
+                  <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
+                  <SelectItem value="qwen/qwen-image-edit">Qwen Image Edit</SelectItem>
+                </SelectContent>
+              </Select>
+              {data?.hasImageInput && meta && meta.kind !== "img2img" && (
+                <div className="text-[10px] text-muted-foreground">
+                  An input image is connected — consider selecting an edit model.
+                </div>
+              )}
+
+              {/* Generated images history */}
+              {imageHistory.length > 0 && (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-muted-foreground">
+                      {isSelectionMode && selectedImages.size > 0 ? (
+                        `${selectedImages.size} selected`
+                      ) : (
                         <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
-                            title="Download selected"
-                            onClick={() => {
-                              selectedImages.forEach((imgId) => {
-                                const item = imageHistory.find((i) => i.id === imgId)
-                                if (item?.url) {
-                                  const link = document.createElement("a")
-                                  link.href = item.url
-                                  link.download = `image-${imgId}.png`
-                                  link.click()
-                                }
-                              })
-                            }}
-                          >
-                            <Download className="w-3 h-3 text-[var(--text-muted)]" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
-                            title="Share selected"
-                            onClick={async () => {
-                              if (navigator.share && selectedImages.size > 0) {
-                                try {
-                                  const files = await Promise.all(
-                                    Array.from(selectedImages).map(async (imgId) => {
-                                      const item = imageHistory.find((i) => i.id === imgId)
-                                      if (item?.url) {
-                                        const response = await fetch(item.url)
-                                        const blob = await response.blob()
-                                        return new File([blob], `image-${imgId}.png`, {
-                                          type: "image/png",
+                          {imageHistory.filter((i) => !i.isPending).length} image
+                          {imageHistory.filter((i) => !i.isPending).length !== 1 ? "s" : ""}
+                          {imageHistory.filter((i) => i.isPending).length > 0 && (
+                            <span className="text-muted-foreground/50">
+                              {" "}
+                              (+{imageHistory.filter((i) => i.isPending).length} pending)
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {isSelectionMode ? (
+                        <>
+                          {selectedImages.size > 0 && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
+                                title="Download selected"
+                                onClick={() => {
+                                  selectedImages.forEach((imgId) => {
+                                    const item = imageHistory.find((i) => i.id === imgId)
+                                    if (item?.url) {
+                                      const link = document.createElement("a")
+                                      link.href = item.url
+                                      link.download = `image-${imgId}.png`
+                                      link.click()
+                                    }
+                                  })
+                                }}
+                              >
+                                <Download className="w-3 h-3 text-[var(--text-muted)]" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
+                                title="Share selected"
+                                onClick={async () => {
+                                  if (navigator.share && selectedImages.size > 0) {
+                                    try {
+                                      const files = await Promise.all(
+                                        Array.from(selectedImages).map(async (imgId) => {
+                                          const item = imageHistory.find((i) => i.id === imgId)
+                                          if (item?.url) {
+                                            const response = await fetch(item.url)
+                                            const blob = await response.blob()
+                                            return new File([blob], `image-${imgId}.png`, {
+                                              type: "image/png",
+                                            })
+                                          }
+                                          return null
                                         })
+                                      )
+                                      const validFiles = files.filter((f) => f !== null) as File[]
+                                      if (validFiles.length > 0) {
+                                        await navigator.share({ files: validFiles })
                                       }
-                                      return null
-                                    })
-                                  )
-                                  const validFiles = files.filter((f) => f !== null) as File[]
-                                  if (validFiles.length > 0) {
-                                    await navigator.share({ files: validFiles })
+                                    } catch (err) {
+                                      console.error("Share failed:", err)
+                                    }
                                   }
-                                } catch (err) {
-                                  console.error("Share failed:", err)
-                                }
-                              }
-                            }}
-                          >
-                            <Share2 className="w-3 h-3 text-[var(--text-muted)]" />
-                          </Button>
+                                }}
+                              >
+                                <Share2 className="w-3 h-3 text-[var(--text-muted)]" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
+                                title="Delete selected"
+                                onClick={() => {
+                                  if (workflowId) {
+                                    selectedImages.forEach((imgId) => {
+                                      workflowStore.removeFromResultHistory(workflowId, id, imgId)
+                                    })
+                                  }
+                                  setSelectedImages(new Set())
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3 text-[var(--text-muted)]" />
+                              </Button>
+                            </>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
-                            title="Delete selected"
+                            className="h-6 px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
                             onClick={() => {
-                              if (workflowId) {
-                                selectedImages.forEach((imgId) => {
-                                  workflowStore.removeFromResultHistory(workflowId, id, imgId)
-                                })
-                              }
+                              setIsSelectionMode(false)
                               setSelectedImages(new Set())
                             }}
                           >
-                            <Trash2 className="w-3 h-3 text-[var(--text-muted)]" />
+                            cancel
                           </Button>
                         </>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs opacity-40 hover:opacity-100 transition-opacity"
+                          onClick={() => setIsSelectionMode(true)}
+                        >
+                          select
+                        </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
-                        onClick={() => {
-                          setIsSelectionMode(false)
-                          setSelectedImages(new Set())
-                        }}
-                      >
-                        cancel
-                      </Button>
-                    </>
-                  ) : (
+                    </div>
+                  </div>
+
+                  {/* Image grid */}
+                  <div
+                    className="flex-1 overflow-y-auto overflow-x-hidden"
+                    style={{
+                      contentVisibility: "auto",
+                      maxHeight: "300px",
+                    }}
+                  >
+                    <div
+                      className={`grid gap-2`}
+                      style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+                    >
+                      {imageHistory.map((item, idx) => {
+                        const isSelected =
+                          selectedImageId === item.id || lightboxImageId === item.id
+                        return (
+                          <div
+                            key={item.id || `${item.url}-${idx}`}
+                            className={`relative overflow-hidden rounded-none border group ${
+                              item.isPending ? "cursor-default" : "cursor-pointer"
+                            }`}
+                            style={{
+                              aspectRatio: "1/1",
+                              borderColor: isSelected ? "var(--node-image)" : "var(--border)",
+                              boxShadow: isSelected
+                                ? "rgba(255, 255, 255, 0.5) -2px 2px 0px"
+                                : "none",
+                            }}
+                          >
+                            {item.isPending ? (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Loader2 className="w-6 h-6 text-muted-foreground/50 animate-spin" />
+                              </div>
+                            ) : (
+                              <>
+                                <img
+                                  src={item.url || "/placeholder.svg"}
+                                  alt={`Generation ${imageHistory.length - idx}`}
+                                  className="block w-full h-full object-cover cursor-pointer rounded-none"
+                                  width={512}
+                                  height={512}
+                                  loading="lazy"
+                                  onClick={() => {
+                                    if (isSelectionMode) {
+                                      setSelectedImages((prev) => {
+                                        const next = new Set(prev)
+                                        if (next.has(item.id)) {
+                                          next.delete(item.id)
+                                        } else {
+                                          next.add(item.id)
+                                        }
+                                        return next
+                                      })
+                                    } else {
+                                      if (item.metadata) {
+                                        handleViewSettings(item.metadata, item.id)
+                                      } else {
+                                        setSelectedImageId(item.id)
+                                      }
+                                    }
+                                  }}
+                                />
+                                {/* Selection indicator */}
+                                {isSelectionMode && selectedImages.has(item.id) && (
+                                  <div className="absolute top-1 left-1 w-5 h-5 bg-[var(--node-image)] rounded-full flex items-center justify-center">
+                                    <Check className="w-3 h-3 text-white" />
+                                  </div>
+                                )}
+                                {/* Gradient overlay - visual only, clicks pass through */}
+                                <div
+                                  className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity pointer-events-none ${
+                                    isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                  }`}
+                                />
+                                {/* Action buttons - positioned in top right (hidden in selection mode) */}
+                                {!isSelectionMode && (
+                                  <div
+                                    className={`absolute top-1 right-1 flex items-center gap-1 transition-opacity ${
+                                      isSelected
+                                        ? "opacity-100"
+                                        : "opacity-0 group-hover:opacity-100"
+                                    }`}
+                                  >
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setLightboxImageId(item.id)
+                                      }}
+                                      title="View fullscreen"
+                                    >
+                                      <Maximize2 className="w-3 h-3 text-white" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const link = document.createElement("a")
+                                        link.href = item.url
+                                        link.download = `image-${item.id}.png`
+                                        link.click()
+                                      }}
+                                      title="Download image"
+                                    >
+                                      <Download className="w-3 h-3 text-white" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (workflowId && item.id) {
+                                          workflowStore.removeFromResultHistory(
+                                            workflowId,
+                                            id,
+                                            item.id
+                                          )
+                                        }
+                                      }}
+                                      title="Remove this image"
+                                    >
+                                      <X className="w-3 h-3 text-white" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            {!item.isPending && idx === 0 && (
+                              <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
+                                latest
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Upload Tab */}
+          {activeTab === "upload" && (
+            <div className="flex flex-col gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = e.target.files
+                  if (!files || files.length === 0) return
+
+                  const assetRefs = []
+                  const existingRefs = data.config?.uploadedAssetRefs || []
+
+                  for (let i = 0; i < files.length; i++) {
+                    const file = files[i]
+                    try {
+                      const url = await new Promise<string>((resolve) => {
+                        const reader = new FileReader()
+                        reader.onload = () => resolve(String(reader.result))
+                        reader.readAsDataURL(file)
+                      })
+
+                      // Save to AssetManager and get AssetRef
+                      const assetRef = await assetManager.saveAsset({
+                        kind: "idb",
+                        type: "image",
+                        data: url,
+                        mime: file.type || "image/png",
+                        bytes: file.size,
+                        metadata: {
+                          prompt: "User uploaded image",
+                          model: "user-upload",
+                        },
+                      })
+                      assetRefs.push(assetRef)
+                    } catch (err) {
+                      console.error("[ImageNode] Failed to save uploaded image:", err)
+                    }
+                  }
+
+                  if (assetRefs.length > 0) {
+                    data?.onChange?.({
+                      uploadedAssetRefs: [...existingRefs, ...assetRefs],
+                      mode: "uploaded",
+                    })
+                  }
+
+                  // Reset file input
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = ""
+                  }
+                }}
+              />
+
+              {localImages.length === 0 ? (
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  style={{ borderColor: "var(--border-strong)" }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="w-8 h-8" />
+                  <span className="text-xs">click to upload</span>
+                </Button>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-muted-foreground">
+                      {localImages.length} image{localImages.length !== 1 ? "s" : ""}
+                    </span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs opacity-40 hover:opacity-100 transition-opacity"
-                      onClick={() => setIsSelectionMode(true)}
+                      className="h-6 px-2 text-xs opacity-60 hover:opacity-100"
+                      onClick={() => fileInputRef.current?.click()}
                     >
-                      select
+                      add more
                     </Button>
-                  )}
-                </div>
-              </div>
-            )}
+                  </div>
 
-            {showEmptyState && (
-              <>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={async (e) => {
-                    const files = e.target.files
-                    if (!files || files.length === 0) return
-
-                    const assetRefs = []
-                    const existingRefs = data.config?.uploadedAssetRefs || []
-
-                    for (let i = 0; i < files.length; i++) {
-                      const file = files[i]
-                      try {
-                        const url = await new Promise<string>((resolve) => {
-                          const reader = new FileReader()
-                          reader.onload = () => resolve(String(reader.result))
-                          reader.readAsDataURL(file)
-                        })
-
-                        // Save to AssetManager and get AssetRef
-                        const assetRef = await assetManager.saveAsset({
-                          kind: "idb",
-                          type: "image",
-                          data: url,
-                          mime: file.type || "image/png",
-                          bytes: file.size,
-                          metadata: {
-                            prompt: "User uploaded image",
-                            model: "user-upload",
-                          },
-                        })
-                        assetRefs.push(assetRef)
-                      } catch (err) {
-                        console.error("[ImageNode] Failed to save uploaded image:", err)
-                      }
-                    }
-
-                    if (assetRefs.length > 0) {
-                      data?.onChange?.({
-                        uploadedAssetRefs: [...existingRefs, ...assetRefs],
-                        mode: "uploaded",
-                      })
-                    }
-
-                    // Reset file input
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = ""
-                    }
-                  }}
-                />
-                <div className="flex-1 flex gap-2 min-h-0">
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-full min-h-[120px] flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                    style={{ borderColor: "var(--border-strong)" }}
-                    onClick={() => {
-                      if (data?.onRequestLibrarySelection) {
-                        data.onRequestLibrarySelection()
-                      }
+                  {/* Uploaded images grid */}
+                  <div
+                    className="overflow-y-auto overflow-x-hidden"
+                    style={{
+                      contentVisibility: "auto",
+                      maxHeight: "300px",
                     }}
                   >
-                    <Library className="w-8 h-8" />
-                    <span className="text-xs">media</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-full min-h-[120px] flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                    style={{ borderColor: "var(--border-strong)" }}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="w-8 h-8" />
-                    <span className="text-xs">upload</span>
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Scrollable section: Image grid */}
-          {imageHistory.length > 0 && (
-            <div
-              className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
-              style={{
-                contentVisibility: "auto",
-              }}
-            >
-              <div
-                className={`grid gap-2`}
-                style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
-              >
-                {imageHistory.map((item, idx) => {
-                  const isSelected = selectedImageId === item.id || lightboxImageId === item.id
-                  return (
                     <div
-                      key={item.id || `${item.url}-${idx}`}
-                      className={`relative overflow-hidden rounded-none border group ${
-                        item.isPending ? "cursor-default" : "cursor-pointer"
-                      }`}
-                      style={{
-                        aspectRatio: "1/1",
-                        borderColor: isSelected ? "var(--node-image)" : "var(--border)",
-                        boxShadow: isSelected ? "rgba(255, 255, 255, 0.5) -2px 2px 0px" : "none",
-                      }}
+                      className={`grid gap-2`}
+                      style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
                     >
-                      {item.isPending ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Loader2 className="w-6 h-6 text-muted-foreground/50 animate-spin" />
-                        </div>
-                      ) : (
-                        <>
+                      {localImages.map((img, idx) => (
+                        <div
+                          key={`uploaded-${idx}`}
+                          className="relative overflow-hidden rounded-none border group cursor-pointer"
+                          style={{ aspectRatio: "1/1" }}
+                        >
                           <img
-                            src={item.url || "/placeholder.svg"}
-                            alt={`Generation ${imageHistory.length - idx}`}
-                            className="block w-full h-full object-cover cursor-pointer rounded-none"
+                            src={img || "/placeholder.svg"}
+                            alt={`Uploaded image ${idx + 1}`}
+                            className="block w-full h-full object-cover rounded-none"
                             width={512}
                             height={512}
                             loading="lazy"
-                            onClick={() => {
-                              if (isSelectionMode) {
-                                setSelectedImages((prev) => {
-                                  const next = new Set(prev)
-                                  if (next.has(item.id)) {
-                                    next.delete(item.id)
-                                  } else {
-                                    next.add(item.id)
-                                  }
-                                  return next
-                                })
-                              } else {
-                                if (item.metadata) {
-                                  handleViewSettings(item.metadata, item.id)
-                                } else {
-                                  setSelectedImageId(item.id)
-                                }
-                              }
-                            }}
+                            onClick={() => setLightboxImageId(`uploaded-${idx}`)}
                           />
-                          {/* Selection indicator */}
-                          {isSelectionMode && selectedImages.has(item.id) && (
-                            <div className="absolute top-1 left-1 w-5 h-5 bg-[var(--node-image)] rounded-full flex items-center justify-center">
-                              <Check className="w-3 h-3 text-white" />
-                            </div>
-                          )}
-                          {/* Gradient overlay - visual only, clicks pass through */}
-                          <div
-                            className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity pointer-events-none ${
-                              isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                            }`}
-                          />
-                          {/* Action buttons - positioned in top right (hidden in selection mode) */}
-                          {!isSelectionMode && (
-                            <div
-                              className={`absolute top-1 right-1 flex items-center gap-1 transition-opacity ${
-                                isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                              }`}
+                          {/* Gradient overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                          {/* Action buttons */}
+                          <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setLightboxImageId(`uploaded-${idx}`)
+                              }}
+                              title="View fullscreen"
                             >
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setLightboxImageId(item.id)
-                                }}
-                                title="View fullscreen"
-                              >
-                                <Maximize2 className="w-3 h-3 text-white" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  const link = document.createElement("a")
-                                  link.href = item.url
-                                  link.download = `image-${item.id}.png`
-                                  link.click()
-                                }}
-                                title="Download image"
-                              >
-                                <Download className="w-3 h-3 text-white" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  if (workflowId && item.id) {
-                                    workflowStore.removeFromResultHistory(workflowId, id, item.id)
+                              <Maximize2 className="w-3 h-3 text-white" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const link = document.createElement("a")
+                                link.href = img
+                                link.download = `uploaded-image-${idx + 1}.png`
+                                link.click()
+                              }}
+                              title="Download image"
+                            >
+                              <Download className="w-3 h-3 text-white" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                ;(async () => {
+                                  try {
+                                    // Delete from AssetManager
+                                    const refs = data.config?.uploadedAssetRefs || []
+                                    if (refs[idx]) {
+                                      await assetManager.deleteAsset(refs[idx], { force: true })
+                                    }
+                                    // Remove from array
+                                    const newRefs = [...refs]
+                                    newRefs.splice(idx, 1)
+                                    data?.onChange?.({
+                                      uploadedAssetRefs: newRefs,
+                                      mode: newRefs.length > 0 ? "uploaded" : "generate",
+                                    })
+                                  } catch (err) {
+                                    console.error(
+                                      "[ImageNode] Failed to delete uploaded image:",
+                                      err
+                                    )
                                   }
-                                }}
-                                title="Remove this image"
-                              >
-                                <X className="w-3 h-3 text-white" />
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {!item.isPending && idx === 0 && (
-                        <div className="absolute bottom-1 left-1 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded">
-                          latest
+                                })()
+                              }}
+                              title="Remove image"
+                            >
+                              <X className="w-3 h-3 text-white" />
+                            </Button>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-          {imageHistory.length === 0 && localImages.length === 1 && (
-            <div
-              className="relative overflow-hidden rounded-none border group"
-              style={{ width: "100%" }}
-            >
-              <img
-                src={localImages[0] || "/placeholder.svg"}
-                alt="Uploaded image"
-                className="block w-full h-auto object-contain rounded-none"
-                style={{ maxHeight: "600px" }}
-                width={512}
-                height={512}
-                loading="lazy"
-              />
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-              {/* Action buttons */}
-              <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setLightboxImageId("uploaded-0")
-                  }}
-                  title="View fullscreen"
-                >
-                  <Maximize2 className="w-3 h-3 text-white" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    const link = document.createElement("a")
-                    link.href = localImages[0]
-                    link.download = "uploaded-image.png"
-                    link.click()
-                  }}
-                  title="Download image"
-                >
-                  <Download className="w-3 h-3 text-white" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    ;(async () => {
-                      try {
-                        const refs = data.config?.uploadedAssetRefs || []
-                        if (refs[0]) {
-                          await assetManager.deleteAsset(refs[0], { force: true })
-                        }
-                        data?.onChange?.({
-                          uploadedAssetRefs: [],
-                          mode: "generate",
-                        })
-                      } catch (err) {
-                        console.error("[ImageNode] Failed to delete uploaded image:", err)
-                      }
-                    })()
-                  }}
-                  title="Remove image"
-                >
-                  <X className="w-3 h-3 text-white" />
-                </Button>
-              </div>
-            </div>
-          )}
-          {imageHistory.length === 0 && localImages.length > 1 && (
-            <div
-              className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
-              style={{ contentVisibility: "auto" }}
-            >
-              <div
-                className={`grid gap-2`}
-                style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
-              >
-                {localImages.map((img, idx) => (
-                  <div
-                    key={`uploaded-${idx}`}
-                    className="relative overflow-hidden rounded-none border group cursor-pointer"
-                    style={{ aspectRatio: "1/1" }}
-                  >
-                    <img
-                      src={img || "/placeholder.svg"}
-                      alt={`Uploaded image ${idx + 1}`}
-                      className="block w-full h-full object-cover rounded-none"
-                      width={512}
-                      height={512}
-                      loading="lazy"
-                    />
-                    {/* Gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                    {/* Action buttons */}
-                    <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setLightboxImageId(`uploaded-${idx}`)
-                        }}
-                        title="View fullscreen"
-                      >
-                        <Maximize2 className="w-3 h-3 text-white" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const link = document.createElement("a")
-                          link.href = img
-                          link.download = `uploaded-image-${idx + 1}.png`
-                          link.click()
-                        }}
-                        title="Download image"
-                      >
-                        <Download className="w-3 h-3 text-white" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          ;(async () => {
-                            try {
-                              // Delete from AssetManager
-                              const refs = data.config?.uploadedAssetRefs || []
-                              if (refs[idx]) {
-                                await assetManager.deleteAsset(refs[idx], { force: true })
-                              }
-                              // Remove from array
-                              const newRefs = [...refs]
-                              newRefs.splice(idx, 1)
-                              data?.onChange?.({
-                                uploadedAssetRefs: newRefs,
-                                mode: newRefs.length > 0 ? "uploaded" : "generate",
-                              })
-                            } catch (err) {
-                              console.error("[ImageNode] Failed to delete uploaded image:", err)
-                            }
-                          })()
-                        }}
-                        title="Remove image"
-                      >
-                        <X className="w-3 h-3 text-white" />
-                      </Button>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Media Tab */}
+          {activeTab === "media" && (
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                className="h-20 flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                style={{ borderColor: "var(--border-strong)" }}
+                onClick={() => {
+                  if (data?.onRequestLibrarySelection) {
+                    data.onRequestLibrarySelection()
+                  }
+                }}
+              >
+                <Library className="w-8 h-8" />
+                <span className="text-xs">open media library</span>
+              </Button>
             </div>
           )}
         </NodeContent>
