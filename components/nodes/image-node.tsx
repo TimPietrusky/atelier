@@ -54,6 +54,9 @@ export function ImageNode({
   const [clearPopoverOpen, setClearPopoverOpen] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
+  const [deletePopoverOpen, setDeletePopoverOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteMode, setDeleteMode] = useState<"single" | "multiple">("single")
 
   // Determine mode early (needed for pending count logic and smart tab selection)
   const mode: string =
@@ -92,6 +95,7 @@ export function ImageNode({
     return resolvedAssets.map((asset, idx) => ({
       ...asset,
       metadata: resultHistory[idx]?.metadata,
+      assetRef: resultHistory[idx]?.assetRef,
     }))
   }, [resolvedAssets, resultHistory])
 
@@ -113,6 +117,7 @@ export function ImageNode({
     isPending?: boolean
     metadata?: any
     executionId?: string
+    assetRef?: string
   }> = useMemo(() => {
     const actual = [...assetsWithMetadata].reverse()
 
@@ -378,7 +383,7 @@ export function ImageNode({
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
-                                title="Delete selected"
+                                title="Remove selected from history"
                                 onClick={() => {
                                   if (workflowId) {
                                     selectedImages.forEach((imgId) => {
@@ -386,6 +391,18 @@ export function ImageNode({
                                     })
                                   }
                                   setSelectedImages(new Set())
+                                }}
+                              >
+                                <X className="w-3 h-3 text-[var(--text-muted)]" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-60 hover:opacity-100 transition-opacity"
+                                title="Delete selected from library"
+                                onClick={() => {
+                                  setDeleteMode("multiple")
+                                  setDeletePopoverOpen(true)
                                 }}
                               >
                                 <Trash2 className="w-3 h-3 text-[var(--text-muted)]" />
@@ -545,13 +562,9 @@ export function ImageNode({
                                       className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        if (workflowId && item.id) {
-                                          workflowStore.removeFromResultHistory(
-                                            workflowId,
-                                            id,
-                                            item.id
-                                          )
-                                        }
+                                        setDeleteTarget(item.id)
+                                        setDeleteMode("single")
+                                        setDeletePopoverOpen(true)
                                       }}
                                       title="Remove this image"
                                     >
@@ -765,6 +778,81 @@ export function ImageNode({
           )}
         </NodeContent>
       </NodeContainer>
+
+      {/* Delete confirmation popover */}
+      {deletePopoverOpen && (
+        <div
+          className="fixed inset-0 z-50"
+          onClick={() => setDeletePopoverOpen(false)}
+          style={{ backgroundColor: "transparent" }}
+        >
+          <div
+            className="absolute w-72 p-3 border border-border rounded-md bg-background shadow-lg"
+            style={{
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-3">
+              <div className="text-sm">
+                <p className="font-medium mb-1">
+                  delete{" "}
+                  {deleteMode === "multiple"
+                    ? `${selectedImages.size} image${selectedImages.size !== 1 ? "s" : ""}`
+                    : "image"}{" "}
+                  from library?
+                </p>
+                <p className="text-muted-foreground text-xs mb-2">this cannot be undone</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 justify-start text-xs text-red-500 hover:text-red-500 hover:bg-red-500/10 border-red-500/20"
+                  onClick={async () => {
+                    if (workflowId) {
+                      if (deleteMode === "single" && deleteTarget) {
+                        const item = imageHistory.find((i) => i.id === deleteTarget)
+                        if (item?.assetRef) {
+                          await assetManager.deleteAsset(item.assetRef, { force: true })
+                        }
+                        workflowStore.removeFromResultHistory(workflowId, id, deleteTarget)
+                      } else if (deleteMode === "multiple") {
+                        for (const imgId of selectedImages) {
+                          const item = imageHistory.find((i) => i.id === imgId)
+                          if (item?.assetRef) {
+                            await assetManager.deleteAsset(item.assetRef, { force: true })
+                          }
+                          workflowStore.removeFromResultHistory(workflowId, id, imgId)
+                        }
+                      }
+                    }
+                    setSelectedImages(new Set())
+                    setDeletePopoverOpen(false)
+                  }}
+                >
+                  delete permanently
+                </Button>
+              </div>
+              <div className="flex items-center justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDeletePopoverOpen(false)
+                  }}
+                  className="h-7 px-3"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image Lightbox */}
       {lightboxImageId && (
