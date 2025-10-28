@@ -39,6 +39,26 @@ export interface Asset {
   createdAt: number
 }
 
+// Lightweight version for media manager listing (excludes base64 data)
+export interface AssetMetadata {
+  id: string
+  kind: "idb"
+  type: "image" | "video"
+  mime?: string
+  bytes?: number
+  metadata?: {
+    workflowId?: string
+    nodeId?: string
+    executionId?: string
+    model?: string
+    prompt?: string
+    timestamp?: string
+    width?: number
+    height?: number
+  }
+  createdAt: number
+}
+
 export class AssetManager {
   /**
    * Save an asset (image/video) to the assets table.
@@ -271,12 +291,27 @@ export class AssetManager {
   /**
    * List all assets in the database.
    * Useful for asset browser/manager UI.
+   * @param excludeData - If true, returns only metadata (no base64 data field). Default: false
    */
-  async listAllAssets(): Promise<Asset[]> {
+  async listAllAssets(excludeData: boolean = false): Promise<Asset[] | AssetMetadata[]> {
     try {
       const rows = await db.assets.toArray()
 
-      // Convert DBAssetRow to Asset
+      if (excludeData) {
+        // Return metadata-only for lightweight listing
+        const assets: AssetMetadata[] = rows.map((row) => ({
+          id: row.id,
+          kind: row.kind,
+          type: row.type,
+          mime: row.mime,
+          bytes: row.bytes,
+          metadata: row.metadata,
+          createdAt: row.createdAt,
+        }))
+        return assets
+      }
+
+      // Convert DBAssetRow to Asset (includes full data)
       const assets: Asset[] = rows.map((row) => ({
         id: row.id,
         kind: row.kind,
@@ -297,9 +332,13 @@ export class AssetManager {
 
   /**
    * Find assets by workflow ID.
+   * @param excludeData - If true, returns only metadata (no base64 data field). Default: false
    */
-  async getAssetsByWorkflow(workflowId: string): Promise<Asset[]> {
-    const allAssets = await this.listAllAssets()
+  async getAssetsByWorkflow(
+    workflowId: string,
+    excludeData: boolean = false
+  ): Promise<Asset[] | AssetMetadata[]> {
+    const allAssets = await this.listAllAssets(excludeData)
     return allAssets.filter((a) => a.metadata?.workflowId === workflowId)
   }
 
@@ -333,6 +372,23 @@ export class AssetManager {
     if (ref.kind !== "idb") return false
     const asset = await db.assets.get(ref.assetId)
     return !!asset
+  }
+
+  /**
+   * Fetch asset data on-demand.
+   * Used for lazy-loading in media manager grid.
+   */
+  async getAssetData(assetId: string): Promise<string | null> {
+    try {
+      const row = await db.assets.get(assetId)
+      if (!row) {
+        return null
+      }
+      return row.data
+    } catch (err) {
+      console.error(`[AssetManager] Failed to fetch asset data ${assetId}:`, err)
+      return null
+    }
   }
 }
 

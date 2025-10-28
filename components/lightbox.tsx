@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { X, Download, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { assetManager } from "@/lib/store/asset-manager"
 
 export interface LightboxImage {
   id: string
@@ -32,6 +33,7 @@ export interface LightboxProps {
  * - Keyboard controls: Arrow Left (←) for previous, Arrow Right (→) for next, Escape to close
  * - Image counter showing current position
  * - Download and close buttons
+ * - On-demand image data fetching for memory efficiency
  * - Navigating updates the selected image in parent via onNavigate callback
  * - Rendered via portal to document.body for proper event handling
  */
@@ -43,11 +45,37 @@ export function Lightbox({
   downloadFilename,
 }: LightboxProps) {
   const imagesRef = useRef(images)
+  const [imageDataCache, setImageDataCache] = useState<Map<string, string>>(new Map())
+  const [isLoadingImage, setIsLoadingImage] = useState(false)
 
   // Keep images ref in sync (for keyboard handler stability)
   useEffect(() => {
     imagesRef.current = images
   }, [images])
+
+  // Fetch image data on-demand when current image changes
+  useEffect(() => {
+    async function fetchCurrentImage() {
+      if (!currentImage?.url || currentImage.url.startsWith("data:")) {
+        // URL already loaded or is a data URL
+        return
+      }
+
+      if (imageDataCache.has(currentImage.id)) {
+        // Already cached
+        return
+      }
+
+      setIsLoadingImage(true)
+      const data = await assetManager.getAssetData(currentImage.id)
+      if (data) {
+        setImageDataCache((prev) => new Map(prev).set(currentImage.id, data))
+      }
+      setIsLoadingImage(false)
+    }
+
+    fetchCurrentImage()
+  }, [currentImageId, imageDataCache])
 
   // Keyboard controls
   useEffect(() => {
@@ -95,9 +123,22 @@ export function Lightbox({
     return null
   }
 
-  const handleDownload = () => {
+  // Use cached data if available, otherwise fall back to url or show loading
+  const displayUrl = imageDataCache.get(currentImage.id) || currentImage.url
+
+  const handleDownload = async () => {
     const link = document.createElement("a")
-    link.href = currentImage.url
+    let downloadUrl = displayUrl
+
+    // If we don't have cached data, fetch it
+    if (!imageDataCache.has(currentImage.id) && !currentImage.url.startsWith("data:")) {
+      const data = await assetManager.getAssetData(currentImage.id)
+      if (data) {
+        downloadUrl = data
+      }
+    }
+
+    link.href = downloadUrl
     link.download = downloadFilename?.(currentImage, currentIndex) || `image-${currentImage.id}.png`
     link.click()
   }
@@ -187,16 +228,23 @@ export function Lightbox({
         {currentIndex + 1} / {images.length}
       </div>
 
-      {/* Main image */}
-      <img
-        src={currentImage.url}
-        alt="Enlarged view"
-        className="max-w-full max-h-full object-contain rounded-none"
-        width={1024}
-        height={1024}
-        loading="lazy"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {/* Main image or loading state */}
+      {isLoadingImage && !displayUrl.startsWith("data:") ? (
+        <div className="flex flex-col items-center justify-center gap-4">
+          <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          <p className="text-white text-sm">Loading image...</p>
+        </div>
+      ) : (
+        <img
+          src={displayUrl}
+          alt="Enlarged view"
+          className="max-w-full max-h-full object-contain rounded-none"
+          width={1024}
+          height={1024}
+          loading="lazy"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
     </div>,
     document.body
   )

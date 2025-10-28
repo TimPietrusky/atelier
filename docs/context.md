@@ -81,7 +81,13 @@ This doc orients anyone working in this codebase. It captures the architectural 
 - **Queue updates**: Event-driven via `workflowEngine.addExecutionChangeListener()` (supports multiple listeners). NO polling (wasteful, removed).
 - **Media Manager**: Full-screen page (not panel); toggled via header button. Settings persist to sessionStorage.
   - **Selection mode**: When opened from image node inspector "from library" button, shows large "Use Selected" and "Cancel" buttons; selected asset highlights with accent border and ring.
-  - **Lazy loading**: All images use native `loading="lazy"` with explicit `width`/`height` attributes to prevent layout shift.
+  - **Lazy loading (virtual scrolling)**:
+    - **Metadata-only initial load**: On mount, fetch only asset metadata (1-2KB per image) via `listAllAssets(true)`, NOT full base64 data (10-15MB per 4K image)
+    - **Virtual grid**: Uses `react-window` `FixedSizeGrid` to render only visible ~50 items in DOM, not all 500+
+    - **On-demand image data**: As grid cells become visible, fetch base64 data asynchronously via `assetManager.getAssetData(assetId)` and cache locally
+    - **Memory bounded**: Only ~20-50 images' base64 data in memory at once (instead of 5GB+ for all 500)
+    - **Filters work on metadata**: Search/filter/sort work instantly on loaded metadata; no need to fetch data for filtering
+  - **Lightbox on-demand fetching**: When lightbox opens or navigates, fetches image data async; caches during session to avoid refetch
   - **Asset deletion**: Shows warning ONLY if asset is actively used in `config.uploadedAssetRef`; NOT for outputs/history.
 - **Image metadata persistence**: ALL generation settings (prompt, model, steps, guidance, seed, resolution) are stored in `result.metadata.inputsUsed` and persist forever with the image. `metadata.executionId` stores the workflow execution ID (for matching placeholders); `metadata.apiExecutionId` stores the provider's execution ID. Settings icon in image history loads from this persistent metadata, NOT from ephemeral queue snapshots.
 

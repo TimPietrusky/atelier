@@ -17,16 +17,20 @@ export interface AssetWithContext extends Asset {
 
 /**
  * List all assets in the database.
+ * @param excludeData - If true, returns only metadata without base64 data. Default: true for memory efficiency.
  */
-export async function listAllAssets(): Promise<Asset[]> {
-  return assetManager.listAllAssets()
+export async function listAllAssets(excludeData: boolean = true): Promise<Asset[]> {
+  return assetManager.listAllAssets(excludeData) as Promise<Asset[]>
 }
 
 /**
  * List assets grouped by workflow.
+ * @param excludeData - If true, returns only metadata without base64 data. Default: true.
  */
-export async function listAssetsByWorkflow(): Promise<Record<string, Asset[]>> {
-  const allAssets = await assetManager.listAllAssets()
+export async function listAssetsByWorkflow(
+  excludeData: boolean = true
+): Promise<Record<string, Asset[]>> {
+  const allAssets = await assetManager.listAllAssets(excludeData)
   const grouped: Record<string, Asset[]> = {}
 
   for (const asset of allAssets) {
@@ -34,7 +38,7 @@ export async function listAssetsByWorkflow(): Promise<Record<string, Asset[]>> {
     if (!grouped[workflowId]) {
       grouped[workflowId] = []
     }
-    grouped[workflowId].push(asset)
+    grouped[workflowId].push(asset as Asset)
   }
 
   return grouped
@@ -42,9 +46,10 @@ export async function listAssetsByWorkflow(): Promise<Record<string, Asset[]>> {
 
 /**
  * Get asset statistics.
+ * Uses metadata-only queries for speed.
  */
 export async function getAssetStats() {
-  const allAssets = await assetManager.listAllAssets()
+  const allAssets = await assetManager.listAllAssets(true) // excludeData: true
 
   const totalAssets = allAssets.length
   const totalBytes = allAssets.reduce((sum, a) => sum + (a.bytes || 0), 0)

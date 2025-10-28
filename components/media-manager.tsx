@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -12,28 +11,18 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  X,
-  GripVertical,
-  Image as ImageIcon,
-  Download,
-  Trash2,
-  Search,
-  RotateCcw,
-  Maximize2,
-  Check,
-  Share2,
-} from "lucide-react"
+import { X, Image as ImageIcon, Download, Trash2, Search, RotateCcw } from "lucide-react"
 import { listAllAssets, getAssetStats } from "@/lib/utils/list-all-assets"
-import { assetManager, type Asset } from "@/lib/store/asset-manager"
+import { assetManager, type Asset, type AssetMetadata } from "@/lib/store/asset-manager"
 import { useWorkflowStore } from "@/lib/store/workflows-zustand"
 import { Lightbox } from "@/components/lightbox"
+import { VirtualizedAssetGrid } from "@/components/virtualized-asset-grid"
 
 interface MediaManagerProps {
   onClose: () => void
   onSelectAsset?: (assetId: string) => void
-  selectionMode?: boolean // If true, show "Use" and "Cancel" buttons
-  onUseAsset?: (assetId: string) => void // Called when "Use" is clicked in selection mode
+  selectionMode?: boolean
+  onUseAsset?: (assetId: string) => void
 }
 
 interface MediaSettings {
@@ -60,7 +49,7 @@ export function MediaManagerComponent({
   selectionMode = false,
   onUseAsset,
 }: MediaManagerProps) {
-  const [assets, setAssets] = useState<Asset[]>([])
+  const [assets, setAssets] = useState<AssetMetadata[]>([])
   const [settings, setSettings] = useState<MediaSettings>(defaultSettings)
   const [stats, setStats] = useState<any>(null)
   const [resetPopoverOpen, setResetPopoverOpen] = useState(false)
@@ -72,6 +61,8 @@ export function MediaManagerComponent({
   const [lightboxAssetId, setLightboxAssetId] = useState<string | null>(null)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set())
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
 
   // Load media settings from sessionStorage
   useEffect(() => {
@@ -90,13 +81,13 @@ export function MediaManagerComponent({
     } catch {}
   }, [settings])
 
-  // Load assets on mount
+  // Load assets on mount (metadata only)
   useEffect(() => {
     async function load() {
       setIsLoading(true)
-      const allAssets = await listAllAssets()
+      const allAssets = await listAllAssets(true) // excludeData: true
       const assetStats = await getAssetStats()
-      setAssets(allAssets)
+      setAssets(allAssets as AssetMetadata[])
       setStats(assetStats)
       setIsLoading(false)
     }
@@ -104,10 +95,25 @@ export function MediaManagerComponent({
     load()
   }, [])
 
+  // Track container dimensions for virtual grid
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current) {
+        setContainerDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        })
+      }
+    }
+
+    handleResize()
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
+
   // Filter and sort assets
   let filtered = [...assets]
 
-  // Filter by search query
   if (settings.searchQuery) {
     const query = settings.searchQuery.toLowerCase()
     filtered = filtered.filter(
@@ -118,22 +124,18 @@ export function MediaManagerComponent({
     )
   }
 
-  // Filter by workflow
   if (settings.filterWorkflow !== "all") {
     filtered = filtered.filter((a) => a.metadata?.workflowId === settings.filterWorkflow)
   }
 
-  // Filter by model
   if (settings.filterModel !== "all") {
     filtered = filtered.filter((a) => a.metadata?.model === settings.filterModel)
   }
 
-  // Filter by source
   if (settings.filterSource !== "all") {
     filtered = filtered.filter((a) => a.metadata?.source === settings.filterSource)
   }
 
-  // Sort
   filtered.sort((a, b) => {
     let comparison = 0
 
@@ -155,7 +157,6 @@ export function MediaManagerComponent({
     return settings.sortOrder === "asc" ? comparison : -comparison
   })
 
-  // Get unique workflows and models for filters
   const uniqueWorkflows = Array.from(
     new Set(assets.map((a) => a.metadata?.workflowId).filter(Boolean))
   )
@@ -164,19 +165,11 @@ export function MediaManagerComponent({
 
   const handleDeleteAsset = async (assetId: string) => {
     try {
-      // Check if asset is in use
       const result = await assetManager.deleteAsset({ kind: "idb", assetId })
 
       if (!result.success && result.usage && result.usage.length > 0) {
-        // Asset is in use, show popover to confirm force deletion
         setAssetToDelete({ id: assetId, usage: result.usage })
         setDeletePopoverOpen(true)
-      } else if (result.success) {
-        // Successfully deleted
-        const allAssets = await listAllAssets()
-        setAssets(allAssets)
-        const assetStats = await getAssetStats()
-        setStats(assetStats)
       }
     } catch (err) {
       console.error("Failed to delete asset:", err)
@@ -186,22 +179,49 @@ export function MediaManagerComponent({
   const handleConfirmDelete = async () => {
     if (!assetToDelete) return
     try {
-      const forceResult = await assetManager.deleteAsset(
-        { kind: "idb", assetId: assetToDelete.id },
-        { force: true }
-      )
-      if (forceResult.success) {
-        // Reload assets
-        const allAssets = await listAllAssets()
-        setAssets(allAssets)
-        const assetStats = await getAssetStats()
-        setStats(assetStats)
-      }
+      await assetManager.deleteAsset({ kind: "idb", assetId: assetToDelete.id }, { force: true })
+      // Reload after single deletion
+      const allAssets = await listAllAssets(true)
+      setAssets(allAssets as AssetMetadata[])
+      const assetStats = await getAssetStats()
+      setStats(assetStats)
     } catch (err) {
       console.error("Failed to force delete asset:", err)
     } finally {
       setDeletePopoverOpen(false)
       setAssetToDelete(null)
+    }
+  }
+
+  const handleDeleteSelectedAssets = async () => {
+    try {
+      // Delete all in parallel
+      await Promise.all(
+        Array.from(selectedAssets).map((assetId) =>
+          assetManager.deleteAsset({ kind: "idb", assetId })
+        )
+      )
+
+      // Remove from state (no reload needed)
+      setAssets((prev) => prev.filter((a) => !selectedAssets.has(a.id)))
+
+      // Recalculate stats from remaining assets
+      setStats((prev) => {
+        const deletedBytes = Array.from(selectedAssets).reduce((sum, id) => {
+          const deleted = assets.find((a) => a.id === id)
+          return sum + (deleted?.bytes || 0)
+        }, 0)
+        return {
+          ...prev,
+          totalAssets: prev.totalAssets - selectedAssets.size,
+          totalBytes: Math.max(0, prev.totalBytes - deletedBytes),
+          totalMB: (Math.max(0, prev.totalBytes - deletedBytes) / 1024 / 1024).toFixed(2),
+        }
+      })
+
+      setSelectedAssets(new Set())
+    } catch (err) {
+      console.error("Failed to delete assets:", err)
     }
   }
 
@@ -216,6 +236,9 @@ export function MediaManagerComponent({
     setSettings(defaultSettings)
     setResetPopoverOpen(false)
   }
+
+  const columnCount = Math.max(3, Math.floor(containerDimensions.width / 220))
+  const rowHeight = 220
 
   return (
     <div className="h-full w-full bg-background flex flex-col relative z-[60]">
@@ -242,11 +265,19 @@ export function MediaManagerComponent({
                 size="sm"
                 className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
                 title="Download selected"
-                onClick={() => {
-                  selectedAssets.forEach((assetId) => {
-                    const asset = assets.find((a) => a.id === assetId)
-                    if (asset) handleDownloadAsset(asset)
-                  })
+                onClick={async () => {
+                  for (const assetId of selectedAssets) {
+                    const data = await assetManager.getAssetData(assetId)
+                    if (data) {
+                      const asset: Asset = {
+                        id: assetId,
+                        kind: "idb",
+                        type: "image",
+                        data,
+                      }
+                      handleDownloadAsset(asset)
+                    }
+                  }
                 }}
               >
                 <Download className="w-5 h-5" />
@@ -255,44 +286,8 @@ export function MediaManagerComponent({
                 variant="ghost"
                 size="sm"
                 className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
-                title="Share selected"
-                onClick={async () => {
-                  if (navigator.share && selectedAssets.size > 0) {
-                    try {
-                      const files = await Promise.all(
-                        Array.from(selectedAssets).map(async (assetId) => {
-                          const asset = assets.find((a) => a.id === assetId)
-                          if (asset?.data) {
-                            const response = await fetch(asset.data)
-                            const blob = await response.blob()
-                            return new File([blob], `${assetId}.png`, { type: "image/png" })
-                          }
-                          return null
-                        })
-                      )
-                      const validFiles = files.filter((f) => f !== null) as File[]
-                      if (validFiles.length > 0) {
-                        await navigator.share({ files: validFiles })
-                      }
-                    } catch (err) {
-                      console.error("Share failed:", err)
-                    }
-                  }
-                }}
-              >
-                <Share2 className="w-5 h-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 px-3 hover:bg-[var(--surface-elevated)]"
                 title="Delete selected"
-                onClick={async () => {
-                  for (const assetId of selectedAssets) {
-                    await handleDeleteAsset(assetId)
-                  }
-                  setSelectedAssets(new Set())
-                }}
+                onClick={handleDeleteSelectedAssets}
               >
                 <Trash2 className="w-5 h-5" />
               </Button>
@@ -493,7 +488,7 @@ export function MediaManagerComponent({
             </SelectContent>
           </Select>
 
-          {/* Reset Button with Popover Confirmation */}
+          {/* Reset Button */}
           <Popover open={resetPopoverOpen} onOpenChange={setResetPopoverOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-9 gap-2">
@@ -527,16 +522,18 @@ export function MediaManagerComponent({
         </div>
       </div>
 
-      {/* Assets Grid */}
-      <ScrollArea className="flex-1">
-        <div className="p-6 grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-          {isLoading ? (
-            <div className="col-span-full text-center py-24">
+      {/* Assets Grid - Virtual Scrolling */}
+      <div ref={containerRef} className="flex-1 relative">
+        {isLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
               <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-[var(--border-strong)] border-t-transparent animate-spin" />
               <p className="text-lg text-muted-foreground font-medium">Loading assets...</p>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="col-span-full text-center py-24">
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
               <ImageIcon className="w-20 h-20 mx-auto text-muted-foreground/30 mb-4" />
               <p className="text-lg text-muted-foreground font-medium mb-2">
                 {assets.length === 0 ? "No media yet" : "No results found"}
@@ -547,134 +544,38 @@ export function MediaManagerComponent({
                   : "Try adjusting your filters"}
               </p>
             </div>
-          ) : (
-            filtered.map((asset, index) => (
-              <div
-                key={asset.id || `asset-${index}`}
-                className="group relative aspect-square rounded-none overflow-hidden cursor-pointer border"
-                style={{
-                  borderColor:
-                    selectedAssetId === asset.id || lightboxAssetId === asset.id
-                      ? "var(--node-image)"
-                      : "var(--border)",
-                  boxShadow:
-                    selectedAssetId === asset.id || lightboxAssetId === asset.id
-                      ? "rgba(255, 255, 255, 0.5) -2px 2px 0px"
-                      : "none",
-                }}
-                onClick={() => {
-                  if (isSelectionMode) {
-                    setSelectedAssets((prev) => {
-                      const next = new Set(prev)
-                      if (next.has(asset.id)) {
-                        next.delete(asset.id)
-                      } else {
-                        next.add(asset.id)
-                      }
-                      return next
-                    })
+          </div>
+        ) : (
+          containerDimensions.width > 0 && (
+            <VirtualizedAssetGrid
+              assets={filtered}
+              columnCount={columnCount}
+              rowHeight={rowHeight}
+              onSelectAsset={setSelectedAssetId}
+              onDeleteAsset={handleDeleteAsset}
+              onDownloadAsset={handleDownloadAsset}
+              onMaximize={setLightboxAssetId}
+              selectedAssetId={selectedAssetId}
+              lightboxAssetId={lightboxAssetId}
+              isSelectionMode={isSelectionMode}
+              selectedAssets={selectedAssets}
+              onToggleSelection={(assetId) => {
+                setSelectedAssets((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(assetId)) {
+                    next.delete(assetId)
                   } else {
-                    setSelectedAssetId(asset.id)
-                    if (selectionMode) {
-                      // Just select it
-                    } else {
-                      onSelectAsset?.(asset.id)
-                    }
+                    next.add(assetId)
                   }
-                }}
-              >
-                <img
-                  src={asset.data}
-                  alt={asset.metadata?.prompt || "Asset"}
-                  className="w-full h-full object-cover rounded-none"
-                  width={512}
-                  height={512}
-                  loading="lazy"
-                />
-
-                {/* Selection indicator */}
-                {isSelectionMode && selectedAssets.has(asset.id) && (
-                  <div className="absolute top-2 left-2 w-6 h-6 bg-[var(--node-image)] rounded-full flex items-center justify-center">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
-
-                {/* Overlay with actions (hidden in selection mode) */}
-                {!isSelectionMode && (
-                  <div
-                    className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity flex flex-col items-center justify-between p-3"
-                    style={{
-                      opacity: selectedAssetId === asset.id || lightboxAssetId === asset.id ? 1 : 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "1"
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedAssetId !== asset.id && lightboxAssetId !== asset.id) {
-                        e.currentTarget.style.opacity = "0"
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-end w-full gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setLightboxAssetId(asset.id)
-                          setSelectedAssetId(asset.id)
-                        }}
-                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                        title="View fullscreen"
-                      >
-                        <Maximize2 className="w-3 h-3 text-white" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDownloadAsset(asset)
-                        }}
-                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                        title="Download image"
-                      >
-                        <Download className="w-3 h-3 text-white" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteAsset(asset.id)
-                        }}
-                        className="h-6 w-6 p-0 bg-black/70 hover:bg-black/90"
-                        title="Delete image"
-                      >
-                        <Trash2 className="w-3 h-3 text-white" />
-                      </Button>
-                    </div>
-
-                    {/* Asset info */}
-                    <div className="w-full">
-                      <p className="text-sm text-white font-medium truncate mb-1">
-                        {asset.metadata?.prompt || "Untitled"}
-                      </p>
-                      <div className="flex items-center justify-between text-xs text-white/80">
-                        <span>{asset.metadata?.model?.split("/")[1] || "Unknown"}</span>
-                        <span>{((asset.bytes || 0) / 1024).toFixed(0)}KB</span>
-                      </div>
-                      <p className="text-xs text-white/60 mt-1">
-                        {new Date(asset.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+                  return next
+                })
+              }}
+              containerHeight={containerDimensions.height}
+              containerWidth={containerDimensions.width}
+            />
+          )
+        )}
+      </div>
 
       {/* Footer Stats */}
       <div className="flex-shrink-0 px-6 py-4 border-t border-border/50 bg-card/30">
@@ -735,7 +636,6 @@ export function MediaManagerComponent({
                 onClick={handleConfirmDelete}
                 className="h-7 px-3 text-red-500 hover:text-red-500 hover:bg-red-500/10"
               >
-                <Check className="w-4 h-4 mr-1" />
                 delete
               </Button>
             </div>
@@ -748,7 +648,7 @@ export function MediaManagerComponent({
         <Lightbox
           images={filtered.map((asset) => ({
             id: asset.id,
-            url: asset.data,
+            url: "", // Will be loaded on-demand when lightbox opens
           }))}
           currentImageId={lightboxAssetId}
           onClose={() => setLightboxAssetId(null)}
