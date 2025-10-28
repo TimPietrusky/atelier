@@ -13,6 +13,7 @@ import { MediaManager } from "@/components/media-manager"
 import { NodeInspectorPanel } from "@/components/node-inspector-panel"
 import { PromptInspector } from "@/components/node-inspector-sections/prompt-inspector"
 import { ImageInspector } from "@/components/node-inspector-sections/image-inspector"
+import { TextInspector } from "@/components/node-inspector-sections/text-inspector"
 import { ExecutionInspector } from "@/components/node-inspector-sections/execution-inspector"
 import { ConnectProvider } from "@/components/connect-provider"
 import { CanvasControls } from "@/components/canvas-controls"
@@ -453,6 +454,15 @@ export default function StudioDashboard() {
                 }
               }}
               onRequestLibrarySelection={handleRequestLibrarySelection}
+            />
+          ) : selectedNode?.type === "text" ? (
+            <TextInspector
+              node={selectedNode}
+              onChange={(cfg) => {
+                if (activeWorkflow) {
+                  workflowStore.updateNodeConfig(activeWorkflow, selectedNode.id, cfg)
+                }
+              }}
             />
           ) : null}
         </NodeInspectorPanel>

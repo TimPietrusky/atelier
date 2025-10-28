@@ -100,9 +100,14 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - **Historical settings**: Settings icon opens left panel (`ExecutionInspector`) showing persistent metadata stored with the image result; "Copy to Node" applies settings. Does NOT rely on ephemeral queue snapshots.
   - **Image source**: "From library" (asset table), "upload" (local file), or generated via model. Hidden in view-only mode.
 - Text node (render typography to image):
-  - **Full typography controls**: Font family (system fonts like Geist Mono), size, weight, color, background color, alignment (left/center/right), letter-spacing, line-height.
-  - **Aspect ratios**: 1:1, 16:9, 9:16, 2:3, 3:2; adjustable max dimension (512-4096px).
-  - **SVG preview**: Live canvas preview of text rendering before export.
+  - **Canvas UI**: Simple text input field + live SVG preview (minimal, uncluttered).
+  - **Inspector panel** (left): All typography controls organized into sections:
+    - **Text area**: Multi-line text input (syncs with canvas input).
+    - **Aspect ratios**: 1:1, 16:9, 9:16, 2:3, 3:2; adjustable max dimension (512-4096px).
+    - **Typography**: Font family (Geist Mono, Arial, Times, Courier, Georgia), size (12-1000px), style toggles (bold, italic, strikethrough, underline), alignment (left/center/right), letter-spacing, line-height.
+    - **Colors**: Text and background color pickers with hex value display.
+    - **Download button**: Rasterizes current SVG preview to PNG and downloads (useful for debugging/previewing).
+  - **SVG rendering**: Live canvas preview in both node and hidden SVG in inspector for download.
   - **Render-to-image**: Canvas-based rasterization to PNG; saves as asset via AssetManager with `metadata.source: "text"`.
   - **Asset upsert pattern**: Text node stores `textAssetRef` in config; on re-render, updates the same asset (preserving ID), not creating new versions. Single source of truth per node.
   - **Result history**: Only stores most recent text render (singleton pattern); earlier renders overwrite in place.
