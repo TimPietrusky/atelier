@@ -89,16 +89,16 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 - Prompt node: pass-through of `config.prompt` to `result.data` (text).
 - Image node (unified):
-  - **Tab-based UI** (Model, Upload, Media): Each tab represents a distinct workflow intent
-    - **Model tab**: Active by default. Shows model selector + generated image history from runs.
-    - **Upload tab**: Shows "click to upload" button; once uploaded, displays grid of uploaded images with download/delete actions. "Add more" button to append images.
-    - **Media tab**: Shows "open media library" button; opens full-screen media manager in selection mode. Selected asset displays below the button.
+  - **Tab-based UI** (Model, Source): Each tab represents a distinct workflow intent
+    - **Model tab**: Active by default when no input image. Shows model selector + generated image history from runs.
+    - **Source tab**: Shows "Upload" and "Library" buttons side-by-side; once images are selected (via upload or library), displays grid of source images with download/delete actions. Defaults to "Source" tab if `mode: "uploaded"` (node has input images).
     - Tab underlines highlight with node color; reduces visual clutter vs. showing all controls at once.
-  - Mode: `generate` (default, runs API) or `uploaded` (skips API, uses input images for img2img).
+    - **Smart tab selection**: If no input images exist (`mode: "generate"`), default to Model tab. If input images exist (`mode: "uploaded"`), default to Source tab. User's manual tab choice persists in sessionStorage within a session.
+  - Mode: `generate` (default, runs API from scratch) or `uploaded` (skips API, uses input images for img2img).
   - Result metadata includes all generation settings (prompt, model, steps, guidance, seed, resolution) stored in `metadata.inputsUsed`.
   - **Queue placeholders**: Live skeletons for ALL pending jobs (queued + running) that will execute this node via `addExecutionChangeListener`; matched by execution ID to prevent layout shifts when results arrive (placeholder is replaced in-place, not appended); disabled in "uploaded" mode; ephemeral (gone on reload).
   - **Historical settings**: Settings icon opens left panel (`ExecutionInspector`) showing persistent metadata stored with the image result; "Copy to Node" applies settings. Does NOT rely on ephemeral queue snapshots.
-  - **Image source**: "From library" (asset table), "upload" (local file), or generated via model. Hidden in view-only mode.
+  - **Image source**: "Upload" (local file), "Library" (asset table), or generated via model. Hidden in view-only mode.
 - Text node (render typography to image):
   - **Canvas UI**: Simple text input field + live SVG preview (minimal, uncluttered).
   - **Inspector panel** (left): All typography controls organized into sections:
@@ -157,7 +157,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Performance: avoid expensive filters like backdrop-blur
 - Image node:
   - Model selector includes edit models.
-  - **Image upload**: available via inspector panel "upload image" button OR "from library" button (opens full-screen media manager in selection mode) OR by clicking the empty image skeleton in the node.
+  - **Image upload**: available via "Source" tab's "Upload" button OR "Library" button (opens full-screen media manager in selection mode) OR by clicking the empty image skeleton in the node.
   - All uploads/selections stored via `AssetManager`; stores `uploadedAssetRef` in config.
   - All assets use unified `AssetManager` (legacy paths removed).
   - Model selector is hidden only in `mode: "uploaded"` (not just because a result image exists).

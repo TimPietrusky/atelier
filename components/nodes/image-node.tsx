@@ -55,17 +55,23 @@ export function ImageNode({
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
 
+  // Determine mode early (needed for pending count logic and smart tab selection)
+  const mode: string =
+    data.config?.mode ||
+    (data.config?.uploadedAssetRefs?.length > 0 ||
+    data.config?.uploadedAssetRef ||
+    data.config?.localImage
+      ? "uploaded"
+      : "generate")
+
   // Initialize activeTab from sessionStorage
-  const [activeTab, setActiveTab] = useState<"model" | "upload" | "media">(() => {
+  const [activeTab, setActiveTab] = useState<"model" | "source">(() => {
     if (typeof window !== "undefined") {
-      const savedTab = sessionStorage.getItem(`image-node-tab-${id}`) as
-        | "model"
-        | "upload"
-        | "media"
-        | null
+      const savedTab = sessionStorage.getItem(`image-node-tab-${id}`) as "model" | "source" | null
       if (savedTab) return savedTab
     }
-    return "model"
+    // Smart default: if we have input images, show source tab
+    return mode === "uploaded" ? "source" : "model"
   })
 
   // Save activeTab to sessionStorage when it changes
@@ -88,15 +94,6 @@ export function ImageNode({
       metadata: resultHistory[idx]?.metadata,
     }))
   }, [resolvedAssets, resultHistory])
-
-  // Determine mode early (needed for pending count logic)
-  const mode: string =
-    data.config?.mode ||
-    (data.config?.uploadedAssetRefs?.length > 0 ||
-    data.config?.uploadedAssetRef ||
-    data.config?.localImage
-      ? "uploaded"
-      : "generate")
 
   // Track queue changes to force re-render when executions update
   const [queueVersion, setQueueVersion] = useState(0)
@@ -256,24 +253,14 @@ export function ImageNode({
             model
           </button>
           <button
-            onClick={() => setActiveTab("upload")}
+            onClick={() => setActiveTab("source")}
             className={`px-2 py-1 text-xs font-medium transition-colors border-b-2 ${
-              activeTab === "upload"
+              activeTab === "source"
                 ? "border-[var(--node-image)] text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            upload
-          </button>
-          <button
-            onClick={() => setActiveTab("media")}
-            className={`px-2 py-1 text-xs font-medium transition-colors border-b-2 ${
-              activeTab === "media"
-                ? "border-[var(--node-image)] text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            media
+            source
           </button>
         </div>
 
@@ -576,8 +563,8 @@ export function ImageNode({
             </div>
           )}
 
-          {/* Upload Tab */}
-          {activeTab === "upload" && (
+          {/* Source Tab */}
+          {activeTab === "source" && (
             <div className="flex flex-col gap-2 flex-1 min-h-0">
               <input
                 ref={fileInputRef}
@@ -633,30 +620,39 @@ export function ImageNode({
                 }}
               />
 
-              {localImages.length === 0 ? (
+              {/* Action buttons: Upload or Open Library */}
+              <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  className="h-20 flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  className="flex-1 h-10 flex items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
                   style={{ borderColor: "var(--border-strong)" }}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="w-8 h-8" />
-                  <span className="text-xs">click to upload</span>
+                  <Upload className="w-4 h-4" />
+                  <span className="text-xs">upload</span>
                 </Button>
-              ) : (
+                <Button
+                  variant="outline"
+                  className="flex-1 h-10 flex items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+                  style={{ borderColor: "var(--border-strong)" }}
+                  onClick={() => {
+                    if (data?.onRequestLibrarySelection) {
+                      data.onRequestLibrarySelection()
+                    }
+                  }}
+                >
+                  <Library className="w-4 h-4" />
+                  <span className="text-xs">library</span>
+                </Button>
+              </div>
+
+              {/* Display selected images */}
+              {localImages.length > 0 && (
                 <div className="flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground">
                       {localImages.length} image{localImages.length !== 1 ? "s" : ""}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs opacity-60 hover:opacity-100"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      add more
-                    </Button>
                   </div>
 
                   {/* Uploaded images grid */}
@@ -678,7 +674,7 @@ export function ImageNode({
                         >
                           <img
                             src={img || "/placeholder.svg"}
-                            alt={`Uploaded image ${idx + 1}`}
+                            alt={`Source image ${idx + 1}`}
                             className="block w-full h-full object-cover rounded-none"
                             width={512}
                             height={512}
@@ -709,7 +705,7 @@ export function ImageNode({
                                 e.stopPropagation()
                                 const link = document.createElement("a")
                                 link.href = img
-                                link.download = `uploaded-image-${idx + 1}.png`
+                                link.download = `source-image-${idx + 1}.png`
                                 link.click()
                               }}
                               title="Download image"
@@ -737,10 +733,7 @@ export function ImageNode({
                                       mode: newRefs.length > 0 ? "uploaded" : "generate",
                                     })
                                   } catch (err) {
-                                    console.error(
-                                      "[ImageNode] Failed to delete uploaded image:",
-                                      err
-                                    )
+                                    console.error("[ImageNode] Failed to delete source image:", err)
                                   }
                                 })()
                               }}
@@ -755,25 +748,6 @@ export function ImageNode({
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Media Tab */}
-          {activeTab === "media" && (
-            <div className="flex flex-col gap-2 flex-1 min-h-0">
-              <Button
-                variant="outline"
-                className="h-20 flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-                style={{ borderColor: "var(--border-strong)" }}
-                onClick={() => {
-                  if (data?.onRequestLibrarySelection) {
-                    data.onRequestLibrarySelection()
-                  }
-                }}
-              >
-                <Library className="w-8 h-8" />
-                <span className="text-xs">open media library</span>
-              </Button>
             </div>
           )}
         </NodeContent>
