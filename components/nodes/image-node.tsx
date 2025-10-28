@@ -454,9 +454,7 @@ export function ImageNode({
                       contentVisibility: "auto",
                     }}
                     onWheelCapture={(e) => {
-                      e.preventDefault()
                       e.stopPropagation()
-                      e.currentTarget.scrollTop += e.deltaY
                     }}
                   >
                     <div
