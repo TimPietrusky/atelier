@@ -4,7 +4,7 @@ import { assetManager, type AssetRef } from "@/lib/store/asset-manager"
 
 export interface WorkflowNode {
   id: string
-  type: "prompt" | "image-gen" | "image-edit" | "video-gen" | "background-replace"
+  type: "prompt" | "image-gen" | "image-edit" | "text" | "video-gen" | "background-replace"
   title: string
   status: "idle" | "running" | "complete" | "error"
   position: { x: number; y: number }
@@ -322,6 +322,9 @@ export class WorkflowEngine {
       case "image-edit":
         await this.executeImageEditNode(node)
         break
+      case "text":
+        await this.executeTextNode(node)
+        break
       case "video-gen":
         await this.executeVideoGenNode(node)
         break
@@ -476,12 +479,15 @@ export class WorkflowEngine {
         .map((e) => (liveNodes || []).find((n: any) => n.id === e.source))
         .filter(
           (n: any) =>
-            n && (n.type === "image-gen" || n.type === "image-edit") && n.result?.type === "image"
+            n &&
+            (n.type === "image-gen" || n.type === "image-edit" || n.type === "text") &&
+            n.result?.type === "image"
         ) as any[]
       if (imageCandidates.length === 0) {
         imageCandidates = sourceNodes.filter(
           (n: any) =>
-            (n.type === "image-gen" || n.type === "image-edit") && n.result?.type === "image"
+            (n.type === "image-gen" || n.type === "image-edit" || n.type === "text") &&
+            n.result?.type === "image"
         ) as any[]
       }
 
@@ -909,6 +915,208 @@ export class WorkflowEngine {
     }
   }
 
+  private async executeTextNode(node: WorkflowNode) {
+    // For text nodes, we render the SVG text to a PNG canvas during workflow execution.
+    // The PNG is saved to AssetManager and becomes available as output.
+    const config = node.config || {}
+
+    console.log(`[WorkflowEngine] Executing text node ${node.id}`, config)
+
+    // Parse config
+    const text = config.text || "Hello, world"
+    const aspectRatio = config.aspectRatio || "16:9"
+    const maxDimension = config.maxDimension || 2048
+    const fontFamily = config.fontFamily || '"Geist Mono", monospace'
+    const fontSize = config.fontSize || 96
+    const isBold = config.isBold ?? false
+    const isItalic = config.isItalic ?? false
+    const isStrikethrough = config.isStrikethrough ?? false
+    const isUnderline = config.isUnderline ?? false
+    const color = config.color || "#ffffff"
+    const bgColor = config.bgColor || "#000000"
+    const alignment = config.alignment || "center"
+    const letterSpacing = config.letterSpacing || "0"
+    const lineHeight = config.lineHeight || "1.2"
+
+    console.log(
+      `[WorkflowEngine] Text node config: text="${text}", size=${fontSize}, bold=${isBold}`
+    )
+
+    // Build font properties
+    const fontWeight = isBold ? "700" : "400"
+    const fontStyle = isItalic ? "italic" : "normal"
+    const textDecoration = [isUnderline ? "underline" : "", isStrikethrough ? "line-through" : ""]
+      .filter(Boolean)
+      .join(" ")
+
+    // Calculate dimensions from aspect ratio
+    const dimensions = this.calculateTextDimensions(aspectRatio, maxDimension)
+    console.log(`[WorkflowEngine] Text node dimensions: ${dimensions.width}x${dimensions.height}`)
+
+    try {
+      // Create canvas
+      const canvas = typeof document !== "undefined" ? document.createElement("canvas") : null
+      if (!canvas) throw new Error("Canvas not available in current environment")
+
+      canvas.width = dimensions.width
+      canvas.height = dimensions.height
+      console.log(`[WorkflowEngine] Canvas created: ${canvas.width}x${canvas.height}`)
+
+      const ctx = canvas.getContext("2d")
+      if (!ctx) throw new Error("Failed to get canvas context")
+
+      // Draw background
+      ctx.fillStyle = bgColor
+      ctx.fillRect(0, 0, dimensions.width, dimensions.height)
+
+      // Draw text
+      ctx.fillStyle = color
+      ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`
+      ctx.textAlign = (alignment as CanvasTextAlign) || "center"
+      ctx.textBaseline = "middle"
+
+      const lines = text.split("\n")
+      const lineHeightPx = fontSize * parseFloat(lineHeight)
+      const totalHeight = lineHeightPx * lines.length
+      const startY = dimensions.height / 2 - totalHeight / 2 + fontSize / 2
+
+      lines.forEach((line, i) => {
+        const x =
+          alignment === "left"
+            ? dimensions.width * 0.05
+            : alignment === "right"
+            ? dimensions.width * 0.95
+            : dimensions.width / 2
+        const y = startY + i * lineHeightPx
+        ctx.fillText(line, x, y)
+
+        // Draw underline and strikethrough
+        if (isUnderline) {
+          ctx.strokeStyle = color
+          ctx.lineWidth = Math.max(1, fontSize / 20)
+          ctx.beginPath()
+          ctx.moveTo(x - ctx.measureText(line).width / 2, y + fontSize / 4)
+          ctx.lineTo(x + ctx.measureText(line).width / 2, y + fontSize / 4)
+          ctx.stroke()
+        }
+
+        if (isStrikethrough) {
+          ctx.strokeStyle = color
+          ctx.lineWidth = Math.max(1, fontSize / 20)
+          ctx.beginPath()
+          ctx.moveTo(x - ctx.measureText(line).width / 2, y - fontSize / 6)
+          ctx.lineTo(x + ctx.measureText(line).width / 2, y - fontSize / 6)
+          ctx.stroke()
+        }
+      })
+
+      console.log(`[WorkflowEngine] Text rendered to canvas`)
+
+      // Convert canvas to blob and data URL
+      const imageData = await new Promise<string>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            console.error(`[WorkflowEngine] Canvas toBlob returned null`)
+            reject(new Error("Failed to create image blob"))
+            return
+          }
+          console.log(`[WorkflowEngine] Canvas converted to blob, size: ${blob.size} bytes`)
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.onerror = () => reject(new Error("Failed to read blob"))
+          reader.readAsDataURL(blob)
+        }, "image/png")
+      })
+
+      console.log(`[WorkflowEngine] Image data URL created`)
+
+      // Save to AssetManager (upsert if already exists)
+      const assetRef = config.textAssetRef
+        ? await assetManager.updateAsset(config.textAssetRef, {
+            data: imageData,
+            metadata: {
+              source: "text",
+              nodeId: node.id,
+              text,
+              fontSize,
+              fontFamily,
+              isBold,
+              isItalic,
+              isStrikethrough,
+              isUnderline,
+              color,
+              bgColor,
+              aspectRatio,
+              dimensions,
+            },
+          })
+        : await assetManager.saveAsset({
+            kind: "idb",
+            type: "image",
+            data: imageData,
+            mime: "image/png",
+            metadata: {
+              source: "text",
+              nodeId: node.id,
+              text,
+              fontSize,
+              fontFamily,
+              isBold,
+              isItalic,
+              isStrikethrough,
+              isUnderline,
+              color,
+              bgColor,
+              aspectRatio,
+              dimensions,
+            },
+          })
+
+      console.log(`[WorkflowEngine] Asset saved/updated: ${assetRef.assetId}`)
+
+      // Set node result
+      node.result = {
+        type: "image",
+        assetRef,
+        metadata: {
+          source: "text",
+          timestamp: new Date().toISOString(),
+          inputsUsed: {
+            text,
+            fontSize,
+            fontFamily,
+            isBold,
+            isItalic,
+            isStrikethrough,
+            isUnderline,
+            color,
+            bgColor,
+            aspectRatio,
+            alignment,
+          },
+        },
+      }
+
+      console.log(`[WorkflowEngine] Text node ${node.id} completed successfully`)
+
+      // Update workflow store
+      try {
+        const wfId = (node as any).workflowId as string | undefined
+        if (wfId) {
+          const { updateNodeResult } = useWorkflowStore.getState()
+          updateNodeResult(wfId, node.id, node.result, [node.result])
+        }
+      } catch {}
+    } catch (err) {
+      console.error(`[WorkflowEngine] Text node ${node.id} render failed:`, err)
+      node.status = "error"
+      node.result = {
+        type: "text",
+        data: `Text render failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      }
+    }
+  }
+
   private async executeVideoGenNode(node: WorkflowNode) {
     await new Promise((resolve) => setTimeout(resolve, 3000)) // Simulate processing time
 
@@ -1125,6 +1333,23 @@ export class WorkflowEngine {
     })
 
     return duration
+  }
+
+  private calculateTextDimensions(aspectRatio: string, maxDimension: number) {
+    switch (aspectRatio) {
+      case "1:1":
+        return { width: maxDimension, height: maxDimension }
+      case "16:9":
+        return { width: maxDimension, height: Math.round((maxDimension * 9) / 16) }
+      case "9:16":
+        return { width: Math.round((maxDimension * 9) / 16), height: maxDimension }
+      case "2:3":
+        return { width: Math.round((maxDimension * 2) / 3), height: maxDimension }
+      case "3:2":
+        return { width: maxDimension, height: Math.round((maxDimension * 2) / 3) }
+      default:
+        return { width: maxDimension, height: maxDimension }
+    }
   }
 }
 

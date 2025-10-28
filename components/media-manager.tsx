@@ -42,6 +42,7 @@ interface MediaSettings {
   filterWorkflow: string | "all"
   filterModel: string | "all"
   searchQuery: string
+  filterSource: string | "all"
 }
 
 const defaultSettings: MediaSettings = {
@@ -50,6 +51,7 @@ const defaultSettings: MediaSettings = {
   filterWorkflow: "all",
   filterModel: "all",
   searchQuery: "",
+  filterSource: "all",
 }
 
 export function MediaManagerComponent({
@@ -126,6 +128,11 @@ export function MediaManagerComponent({
     filtered = filtered.filter((a) => a.metadata?.model === settings.filterModel)
   }
 
+  // Filter by source
+  if (settings.filterSource !== "all") {
+    filtered = filtered.filter((a) => a.metadata?.source === settings.filterSource)
+  }
+
   // Sort
   filtered.sort((a, b) => {
     let comparison = 0
@@ -153,6 +160,7 @@ export function MediaManagerComponent({
     new Set(assets.map((a) => a.metadata?.workflowId).filter(Boolean))
   )
   const uniqueModels = Array.from(new Set(assets.map((a) => a.metadata?.model).filter(Boolean)))
+  const uniqueSources = Array.from(new Set(assets.map((a) => a.metadata?.source).filter(Boolean)))
 
   const handleDeleteAsset = async (assetId: string) => {
     try {
@@ -411,6 +419,30 @@ export function MediaManagerComponent({
                   return (
                     <SelectItem key={modelStr} value={modelStr}>
                       {modelStr.split("/")[1] || modelStr}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Source Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Source:</span>
+            <Select
+              value={settings.filterSource}
+              onValueChange={(value) => setSettings({ ...settings, filterSource: value })}
+            >
+              <SelectTrigger className="h-9 text-sm min-w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                {uniqueSources.map((source) => {
+                  const sourceStr = String(source)
+                  return (
+                    <SelectItem key={sourceStr} value={sourceStr}>
+                      {sourceStr.charAt(0).toUpperCase() + sourceStr.slice(1)}
                     </SelectItem>
                   )
                 })}

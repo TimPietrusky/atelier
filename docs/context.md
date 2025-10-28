@@ -99,6 +99,14 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - **Queue placeholders**: Live skeletons for ALL pending jobs (queued + running) that will execute this node via `addExecutionChangeListener`; matched by execution ID to prevent layout shifts when results arrive (placeholder is replaced in-place, not appended); disabled in "uploaded" mode; ephemeral (gone on reload).
   - **Historical settings**: Settings icon opens left panel (`ExecutionInspector`) showing persistent metadata stored with the image result; "Copy to Node" applies settings. Does NOT rely on ephemeral queue snapshots.
   - **Image source**: "From library" (asset table), "upload" (local file), or generated via model. Hidden in view-only mode.
+- Text node (render typography to image):
+  - **Full typography controls**: Font family (system fonts like Geist Mono), size, weight, color, background color, alignment (left/center/right), letter-spacing, line-height.
+  - **Aspect ratios**: 1:1, 16:9, 9:16, 2:3, 3:2; adjustable max dimension (512-4096px).
+  - **SVG preview**: Live canvas preview of text rendering before export.
+  - **Render-to-image**: Canvas-based rasterization to PNG; saves as asset via AssetManager with `metadata.source: "text"`.
+  - **Asset upsert pattern**: Text node stores `textAssetRef` in config; on re-render, updates the same asset (preserving ID), not creating new versions. Single source of truth per node.
+  - **Result history**: Only stores most recent text render (singleton pattern); earlier renders overwrite in place.
+  - **Output**: Rendered image can pipe to downstream image nodes for img2img workflows.
 
 ## AI SDK integration (provider-agnostic)
 
@@ -168,6 +176,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - **Lightbox**: Uses the same unified `Lightbox` component as image node with full navigation, keyboard controls, and image counter
   - **Actions**: maximize (lightbox), download, delete - identical button styling to image node
   - **Delete confirmation**: Uses inline Popover (NEVER alert/confirm) to show usage and request force-delete confirmation
+  - **Asset source filtering**: Filters by `metadata.source` (text, image, user-uploaded, etc.). Sources are extracted dynamically from assets; filter dropdown shows only sources present in library.
 - Edges use bezier curves (type `default`) with a solid off-white stroke; the drag preview uses the same bezier curve for consistency. Gradient removed. Existing edges are normalized on load.
   - Canvas connection settings: `ConnectionMode.Loose`, `connectionRadius = 30`, `connectOnClick` enabled.
   - Canvas snapping: `snapToGrid` with `snapGrid = [8, 8]` for stable placement and connecting.

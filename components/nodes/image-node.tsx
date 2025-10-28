@@ -54,7 +54,24 @@ export function ImageNode({
   const [clearPopoverOpen, setClearPopoverOpen] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
-  const [activeTab, setActiveTab] = useState<"model" | "upload" | "media">("model")
+
+  // Initialize activeTab from sessionStorage
+  const [activeTab, setActiveTab] = useState<"model" | "upload" | "media">(() => {
+    if (typeof window !== "undefined") {
+      const savedTab = sessionStorage.getItem(`image-node-tab-${id}`) as
+        | "model"
+        | "upload"
+        | "media"
+        | null
+      if (savedTab) return savedTab
+    }
+    return "model"
+  })
+
+  // Save activeTab to sessionStorage when it changes
+  useEffect(() => {
+    sessionStorage.setItem(`image-node-tab-${id}`, activeTab)
+  }, [activeTab, id])
 
   // Resolve asset references from resultHistory
   // useMemo to prevent recreating the array on every render (which would cause infinite loop)
@@ -263,7 +280,7 @@ export function ImageNode({
         <NodeContent>
           {/* Model Tab */}
           {activeTab === "model" && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 flex-1 min-h-0">
               <Select
                 value={model}
                 onValueChange={(v) => {
@@ -295,7 +312,7 @@ export function ImageNode({
 
               {/* Generated images history */}
               {imageHistory.length > 0 && (
-                <div className="mt-2">
+                <div className="mt-2 flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground">
                       {isSelectionMode && selectedImages.size > 0 ? (
@@ -418,7 +435,6 @@ export function ImageNode({
                     className="flex-1 overflow-y-auto overflow-x-hidden"
                     style={{
                       contentVisibility: "auto",
-                      maxHeight: "300px",
                     }}
                   >
                     <div
@@ -562,7 +578,7 @@ export function ImageNode({
 
           {/* Upload Tab */}
           {activeTab === "upload" && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 flex-1 min-h-0">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -628,7 +644,7 @@ export function ImageNode({
                   <span className="text-xs">click to upload</span>
                 </Button>
               ) : (
-                <div>
+                <div className="flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground">
                       {localImages.length} image{localImages.length !== 1 ? "s" : ""}
@@ -645,10 +661,9 @@ export function ImageNode({
 
                   {/* Uploaded images grid */}
                   <div
-                    className="overflow-y-auto overflow-x-hidden"
+                    className="flex-1 overflow-y-auto overflow-x-hidden"
                     style={{
                       contentVisibility: "auto",
-                      maxHeight: "300px",
                     }}
                   >
                     <div
@@ -745,7 +760,7 @@ export function ImageNode({
 
           {/* Media Tab */}
           {activeTab === "media" && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 flex-1 min-h-0">
               <Button
                 variant="outline"
                 className="h-20 flex flex-col items-center justify-center gap-2 bg-muted/30 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"

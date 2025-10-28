@@ -17,6 +17,30 @@ export const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY || ""
 // Default LLM model (as provided by the user)
 export const RUNPOD_LLM_MODEL_ID = "qwen/qwen3-32b-awq"
 
+// Text rendering aspect ratios
+export type TextAspectRatio = "1:1" | "16:9" | "9:16" | "2:3" | "3:2"
+
+export function textRatioToDimensions(
+  ratio: TextAspectRatio,
+  maxDimension: number = 2048
+): {
+  width: number
+  height: number
+} {
+  switch (ratio) {
+    case "1:1":
+      return { width: maxDimension, height: maxDimension }
+    case "16:9":
+      return { width: maxDimension, height: Math.round((maxDimension * 9) / 16) }
+    case "9:16":
+      return { width: Math.round((maxDimension * 9) / 16), height: maxDimension }
+    case "2:3":
+      return { width: Math.round((maxDimension * 2) / 3), height: maxDimension }
+    case "3:2":
+      return { width: maxDimension, height: Math.round((maxDimension * 2) / 3) }
+  }
+}
+
 // Registry of supported image models (as provided by the user)
 export const IMAGE_MODELS: ImageModelMeta[] = [
   {

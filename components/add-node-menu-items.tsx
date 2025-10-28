@@ -20,6 +20,8 @@ export function AddNodeMenuItems({
         return { color: "var(--node-prompt)" }
       case "image-gen":
         return { color: "var(--node-image)" }
+      case "text":
+        return { color: "var(--node-prompt)" }
       default:
         return { color: "var(--text-secondary)" }
     }

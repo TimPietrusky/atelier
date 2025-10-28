@@ -69,6 +69,50 @@ export class AssetManager {
   }
 
   /**
+   * Update an existing asset's data and/or metadata (upsert for text nodes).
+   * Preserves the original createdAt timestamp.
+   * Returns the same AssetRef.
+   */
+  async updateAsset(
+    ref: AssetRef,
+    updates: Partial<Omit<Asset, "id" | "createdAt">>
+  ): Promise<AssetRef> {
+    if (ref.kind !== "idb") {
+      throw new Error(`[AssetManager] Unsupported asset kind: ${ref.kind}`)
+    }
+
+    try {
+      // Load existing asset to preserve createdAt
+      const existing = await db.assets.get(ref.assetId)
+      if (!existing) {
+        throw new Error(`[AssetManager] Asset not found: ${ref.assetId}`)
+      }
+
+      // Merge updates with existing data
+      const updated: DBAssetRow = {
+        id: existing.id,
+        kind: existing.kind,
+        type: updates.type ?? existing.type,
+        data: updates.data ?? existing.data,
+        mime: updates.mime ?? existing.mime,
+        bytes: updates.bytes ?? existing.bytes ?? this.estimateBytes(updates.data || existing.data),
+        metadata: updates.metadata
+          ? { ...existing.metadata, ...updates.metadata }
+          : existing.metadata,
+        createdAt: existing.createdAt, // Preserve original timestamp
+      }
+
+      // Update in place
+      await db.assets.put(updated)
+
+      return ref
+    } catch (err) {
+      console.error(`[AssetManager] Failed to update asset ${ref.assetId}:`, err)
+      throw err
+    }
+  }
+
+  /**
    * Load an asset by its reference.
    * Returns the full asset data.
    */

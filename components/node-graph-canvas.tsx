@@ -19,6 +19,7 @@ import { PromptNode as PromptNodeExt } from "@/components/nodes/prompt-node"
 import { ImageNode as ImageNodeExt } from "@/components/nodes/image-node"
 import { CustomNode as CustomNodeExt } from "@/components/nodes/custom-node"
 import { TestNode as TestNodeExt } from "@/components/nodes/test-node"
+import { TextNode as TextNodeExt } from "@/components/nodes/text-node"
 
 interface NodeGraphCanvasProps {
   activeWorkflow: string
@@ -114,6 +115,24 @@ export function NodeGraphCanvas({
           title: "Image",
           config: { model: "black-forest-labs/flux-1-schnell", steps: 30 },
         },
+        text: {
+          type: "textNode",
+          title: "Text",
+          config: {
+            text: "Hello, world",
+            aspectRatio: "16:9",
+            maxDimension: 2048,
+            fontFamily: '"Geist Mono", monospace',
+            fontSize: 96,
+            fontWeight: "700",
+            color: "#ffffff",
+            bgColor: "#000000",
+            alignment: "center",
+            letterSpacing: "0",
+            lineHeight: "1.2",
+            textAssetRef: null,
+          },
+        },
         "video-gen": {
           type: "customNode",
           title: "Video Gen",
@@ -180,6 +199,7 @@ export function NodeGraphCanvas({
     imageGenNode: ImageNodeExt,
     customNode: CustomNodeExt,
     testNode: TestNodeExt,
+    textNode: TextNodeExt,
   }
 
   const proOptions = { hideAttribution: true }
@@ -194,6 +214,8 @@ export function NodeGraphCanvas({
           ? "imageGenNode"
           : n.type === "test"
           ? "testNode"
+          : n.type === "text"
+          ? "textNode"
           : "customNode",
       position: n.position,
       width: (n as any).size?.width ?? undefined,

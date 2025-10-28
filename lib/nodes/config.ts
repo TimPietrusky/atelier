@@ -1,4 +1,4 @@
-import { MessageSquare, ImageIcon, Video, Wand2, TestTube } from "lucide-react"
+import { MessageSquare, ImageIcon, Video, Wand2, TestTube, Type } from "lucide-react"
 
 export const NODE_TYPES = [
   {
@@ -12,6 +12,12 @@ export const NODE_TYPES = [
     title: "Image",
     icon: ImageIcon,
     description: "Generate images from text prompts",
+  },
+  {
+    id: "text",
+    title: "Text",
+    icon: Type,
+    description: "Render typography to image",
   },
   // Hidden: Image Edit – Image node covers both txt2img and img2img
   // Hidden: Video Gen – not implemented yet
