@@ -453,6 +453,11 @@ export function ImageNode({
                     style={{
                       contentVisibility: "auto",
                     }}
+                    onWheelCapture={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      e.currentTarget.scrollTop += e.deltaY
+                    }}
                   >
                     <div
                       className={`grid gap-2`}
@@ -686,6 +691,11 @@ export function ImageNode({
                     className="flex-1 overflow-y-auto overflow-x-hidden"
                     style={{
                       contentVisibility: "auto",
+                    }}
+                    onWheel={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      e.currentTarget.scrollTop += e.deltaY
                     }}
                   >
                     <div
