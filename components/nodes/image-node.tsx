@@ -397,6 +397,19 @@ export function ImageNode({
                             size="sm"
                             className="h-6 px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
                             onClick={() => {
+                              const allIds = new Set(
+                                imageHistory.filter((i) => !i.isPending).map((i) => i.id)
+                              )
+                              setSelectedImages(allIds)
+                            }}
+                          >
+                            all
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs opacity-60 hover:opacity-100 transition-opacity"
+                            onClick={() => {
                               setIsSelectionMode(false)
                               setSelectedImages(new Set())
                             }}

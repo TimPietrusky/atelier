@@ -326,6 +326,17 @@ export function MediaManagerComponent({
               {selectionMode && (
                 <>
                   <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => {
+                      const allIds = new Set(filtered.map((a) => a.id))
+                      setSelectedAssets(allIds)
+                    }}
+                    className="h-11 px-6 text-base font-normal bg-transparent border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] rounded"
+                  >
+                    All
+                  </Button>
+                  <Button
                     size="lg"
                     disabled={!selectedAssetId}
                     onClick={() => {
