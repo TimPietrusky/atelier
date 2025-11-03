@@ -324,6 +324,12 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
   - `NodeContainer` uses `willChange: transform` for GPU layer promotion (ReactFlow uses CSS transforms). NOTE: Cannot use ANY `contain` property - it clips handles positioned outside node bounds.
   - Image grid scrollable containers use `content-visibility: auto` to skip rendering off-screen content during drag/scroll.
   - These optimizations prevent lag when dragging nodes with many images (50+) by reducing browser compositing work without breaking handles.
+- **Scrollable containers in ReactFlow nodes (CRITICAL)**:
+  - **ALWAYS** use capture phase event listeners for wheel events in scrollable containers inside ReactFlow nodes to prevent canvas zoom.
+  - Pattern: Use `useEffect` with `addEventListener("wheel", handler, { capture: true, passive: false })` on the scrollable container ref.
+  - Always call `e.stopPropagation()` to prevent ReactFlow zoom, then `e.preventDefault()` and manual scroll if container can scroll.
+  - Example: See `ImageHistoryGrid` and `SourceTab` components for the canonical pattern.
+  - Regular `onWheel` handlers with `stopPropagation()` are NOT sufficient - ReactFlow captures events earlier, so capture phase is required.
 - **Component reuse (CRITICAL)**:
   - **ALWAYS check existing components before creating new ones for the same use case**.
   - If a pattern exists (e.g., workflow action popovers for create/rename/delete), **REUSE IT** with the same structure, props, and styling.
