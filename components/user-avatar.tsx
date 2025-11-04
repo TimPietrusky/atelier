@@ -41,15 +41,10 @@ export function UserAvatar() {
     fetchUser()
   }, [])
 
-  const handleSignOut = async () => {
-    try {
-      const res = await fetch("/api/auth/sign-out", { method: "POST" })
-      if (res.ok) {
-        window.location.href = "/"
-      }
-    } catch (error) {
-      console.error("Failed to sign out:", error)
-    }
+  const handleSignOut = () => {
+    // Redirect directly to sign-out endpoint
+    // WorkOS signOut will handle the logout and redirect back
+    window.location.href = "/api/auth/sign-out"
   }
 
   if (loading) {

@@ -53,12 +53,12 @@ export default function LandingPage() {
           <p className="text-lg text-muted-foreground">gen media editor</p>
         </div>
 
-        <div className="pt-8">
+        <div>
           <Button
             onClick={handleLogin}
             className="h-12 px-8 text-base font-semibold bg-white text-black hover:bg-white/90"
           >
-            Sign In
+            start
           </Button>
         </div>
       </div>

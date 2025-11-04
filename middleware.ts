@@ -7,6 +7,7 @@ export default authkitMiddleware({
       "/",
       "/api/health",
       "/api/auth/sign-in",
+      "/api/auth/sign-out",
       "/api/auth/me",
       "/api/debug-env",
     ],
