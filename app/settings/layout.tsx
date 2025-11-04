@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { AtelierLogo } from "@/components/atelier-logo"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, LogOut } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -74,9 +74,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
-                className="h-8 gap-1.5 px-3 text-sm border font-normal rounded transition-all bg-transparent border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)]"
+                className="h-8 px-3 text-sm border font-normal rounded transition-all bg-transparent border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)]"
               >
-                <LogOut className="w-4 h-4" />
                 <span>sign out</span>
               </Button>
             </div>
