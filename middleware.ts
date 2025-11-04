@@ -5,9 +5,12 @@ export default authkitMiddleware({
     enabled: true,
     unauthenticatedPaths: [
       "/",
+      "/sign-in",
+      "/sign-out",
       "/api/health",
       "/api/auth/sign-in",
       "/api/auth/sign-out",
+      "/api/auth/google",
       "/api/auth/me",
       "/api/debug-env",
     ],
@@ -16,7 +19,5 @@ export default authkitMiddleware({
 })
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 }

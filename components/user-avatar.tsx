@@ -43,24 +43,22 @@ export function UserAvatar() {
   }, [])
 
   const handleSignOut = () => {
-    // Redirect directly to sign-out endpoint
-    // WorkOS signOut will handle the logout and redirect back
-    window.location.href = "/api/auth/sign-out"
+    // Redirect to custom sign-out page
+    window.location.href = "/sign-out"
   }
 
   if (loading) {
-    return (
-      <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
-    )
+    return <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
   }
 
   if (!user) {
     return null
   }
 
-  const initials = user.firstName && user.lastName
-    ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
-    : user.email[0].toUpperCase()
+  const initials =
+    user.firstName && user.lastName
+      ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+      : user.email[0].toUpperCase()
 
   return (
     <DropdownMenu>
@@ -73,7 +71,9 @@ export function UserAvatar() {
           {user.profilePictureUrl ? (
             <img
               src={user.profilePictureUrl}
-              alt={user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email}
+              alt={
+                user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email
+              }
               className="w-full h-full object-cover"
             />
           ) : (
@@ -85,21 +85,14 @@ export function UserAvatar() {
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {user.firstName && user.lastName
-                ? `${user.firstName} ${user.lastName}`
-                : user.email}
+              {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email}
             </p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
-            </p>
+            <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut}>
-          Sign out
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleSignOut}>Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
-

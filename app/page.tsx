@@ -53,8 +53,8 @@ export default function LandingPage() {
     // Get return path from query params or default to /workflow
     const params = new URLSearchParams(window.location.search)
     const returnPath = params.get("redirect") || "/workflow"
-    // Redirect to WorkOS login
-    window.location.href = `/api/auth/sign-in?return_pathname=${encodeURIComponent(returnPath)}`
+    // Redirect to custom sign-in page
+    window.location.href = `/sign-in?return_pathname=${encodeURIComponent(returnPath)}`
   }
 
   if (checking) {
