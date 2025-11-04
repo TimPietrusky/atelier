@@ -187,7 +187,7 @@ export default function StudioDashboard() {
     const hasImageNodes = wf?.nodes.some((n) => n.type === "image-gen" || n.type === "image-edit")
 
     if (hasImageNodes && !hasProvider) {
-      router.push("/settings")
+      router.push("/settings/providers")
       return
     }
 
@@ -333,7 +333,7 @@ export default function StudioDashboard() {
 
   useEffect(() => {
     const handleOpenProviderSettings = () => {
-      router.push("/settings")
+      router.push("/settings/providers")
     }
     window.addEventListener("open-provider-settings", handleOpenProviderSettings)
     return () => {
@@ -445,7 +445,7 @@ export default function StudioDashboard() {
                           onClick={(e) => {
                             e.stopPropagation()
                             e.preventDefault()
-                            router.push("/settings")
+                            router.push("/settings/providers")
                           }}
                           className="h-8 px-4 text-sm font-semibold bg-orange-500/10 border border-orange-500/50 text-orange-500 hover:bg-orange-500/20 hover:border-orange-500 rounded"
                         >
@@ -466,7 +466,7 @@ export default function StudioDashboard() {
                             </div>
                           </div>
                           <Button
-                            onClick={() => router.push("/settings")}
+                            onClick={() => router.push("/settings/providers")}
                             className="w-full h-7 px-3 text-xs font-semibold bg-white text-black hover:bg-white/90"
                           >
                             <Key className="w-3 h-3 mr-1.5" />

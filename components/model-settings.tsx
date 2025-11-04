@@ -13,11 +13,7 @@ import { Search, Sparkles } from "lucide-react"
 const FAVORITE_MODELS_KEY = "favoriteModels"
 
 // Recommended models for new users
-const RECOMMENDED_MODELS = [
-  "black-forest-labs/flux-1-schnell",
-  "bytedance/seedream-4.0",
-  "qwen/qwen-image",
-]
+const RECOMMENDED_MODELS = ["bytedance/seedream-4.0", "bytedance/seedream-4.0-edit"]
 
 interface ModelCardProps {
   model: ImageModelMeta
@@ -60,44 +56,20 @@ function ModelCard({ model, isFavorite, onToggle, searchQuery }: ModelCardProps)
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium">{highlightMatch(displayName, searchQuery)}</h3>
             {isRecommended && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded border border-purple-500/30 flex items-center gap-1">
+              <span className="text-[10px] p-1 bg-purple-500/20 text-purple-400 rounded border border-purple-500/30 flex items-center">
                 <Sparkles className="w-3 h-3" />
-                Recommended
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mb-2">
-            {highlightMatch(provider, searchQuery)} • {model.kind === "txt2img" ? "Text to Image" : "Image to Image"}
+          <p className="text-xs text-muted-foreground mt-1">
+            {highlightMatch(provider, searchQuery)}
           </p>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {model.supportsGuidance && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-muted rounded border border-border">
-                Guidance
-              </span>
-            )}
-            {model.supportedAspectRatios.map((ratio) => (
-              <span
-                key={ratio}
-                className="text-[10px] px-1.5 py-0.5 bg-muted rounded border border-border"
-              >
-                {ratio}
-              </span>
-            ))}
-            {model.sizesByRatio && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-muted rounded border border-border">
-                Custom Sizes
-              </span>
-            )}
-          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Switch
-            checked={isFavorite}
-            onCheckedChange={() => onToggle(model.id)}
-          />
+          <Switch checked={isFavorite} onCheckedChange={() => onToggle(model.id)} />
         </div>
       </div>
     </Card>
@@ -209,7 +181,8 @@ export function ModelSettings() {
     <div>
       <div className="mb-4">
         <p className="text-sm text-muted-foreground mb-4">
-          Choose which models appear in your model selector. This won't affect existing conversations.
+          Choose which models appear in your model selector. This won't affect existing
+          conversations.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-2 mb-4">
@@ -217,28 +190,18 @@ export function ModelSettings() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search models, providers, features..."
+              placeholder="search models, providers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9"
             />
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={selectRecommended}
-              className="h-9 text-xs"
-            >
-              Select Recommended
+            <Button variant="outline" size="sm" onClick={selectRecommended} className="h-9 text-xs">
+              select recommended
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={unselectAll}
-              className="h-9 text-xs"
-            >
-              Unselect All
+            <Button variant="outline" size="sm" onClick={unselectAll} className="h-9 text-xs">
+              unselect all
             </Button>
           </div>
         </div>
@@ -250,7 +213,7 @@ export function ModelSettings() {
             onClick={() => setFilterKind("all")}
             className="h-8 text-xs"
           >
-            All ({IMAGE_MODELS.length})
+            all ({IMAGE_MODELS.length})
           </Button>
           <Button
             variant={filterKind === "txt2img" ? "default" : "outline"}
@@ -258,7 +221,7 @@ export function ModelSettings() {
             onClick={() => setFilterKind("txt2img")}
             className="h-8 text-xs"
           >
-            Text to Image ({txt2imgCount})
+            text to image ({txt2imgCount})
           </Button>
           <Button
             variant={filterKind === "img2img" ? "default" : "outline"}
@@ -266,16 +229,14 @@ export function ModelSettings() {
             onClick={() => setFilterKind("img2img")}
             className="h-8 text-xs"
           >
-            Image to Image ({img2imgCount})
+            image to image ({img2imgCount})
           </Button>
         </div>
       </div>
 
       {filteredModels.length === 0 ? (
         <Card className="p-8 border border-border text-center">
-          <p className="text-sm text-muted-foreground">
-            No models found matching "{searchQuery}"
-          </p>
+          <p className="text-sm text-muted-foreground">No models found matching "{searchQuery}"</p>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
