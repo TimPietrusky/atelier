@@ -518,13 +518,13 @@ export default function StudioDashboard() {
                 <span>media</span>
               </Button>
 
-              <CanvasControls />
               <MiniMap
                 className="bg-card/90 backdrop-blur-sm rounded-md"
                 nodeColor="var(--border-strong)"
                 maskColor="rgba(0, 0, 0, 0.6)"
                 style={{ position: "static", width: 75, height: 32, margin: 0 }}
               />
+              <CanvasControls />
             </div>
           </div>
 
