@@ -2,7 +2,6 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { getSession } from "@workos-inc/authkit-nextjs"
 import { AtelierLogo } from "@/components/atelier-logo"
 import { Button } from "@/components/ui/button"
 
@@ -10,11 +9,12 @@ export default function LandingPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Check if user is already logged in
+    // Check if user is already logged in via API
     const checkAuth = async () => {
       try {
-        const session = await getSession()
-        if (session?.user) {
+        const res = await fetch("/api/auth/me")
+        const data = await res.json()
+        if (data.authenticated) {
           router.push("/workflow")
         }
       } catch (error) {
