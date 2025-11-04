@@ -16,6 +16,14 @@ export default function LandingPage() {
         const res = await fetch("/api/auth/me")
         const data = await res.json()
         if (data.authenticated) {
+          // Don't auto-redirect if user intentionally navigated from app (via logo click)
+          const params = new URLSearchParams(window.location.search)
+          const fromApp = params.get("from") === "app"
+          if (fromApp) {
+            setChecking(false)
+            return
+          }
+
           router.push("/workflow")
           return
         }

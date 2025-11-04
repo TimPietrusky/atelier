@@ -26,6 +26,7 @@ import { workflowEngine } from "@/lib/workflow-engine"
 import { getKV, putKV } from "@/lib/store/db"
 import { useWorkflowStore } from "@/lib/store/workflows-zustand"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 export default function StudioDashboard() {
   const router = useRouter()
@@ -413,7 +414,9 @@ export default function StudioDashboard() {
         {/* Top Header */}
         <header className="sticky top-0 z-[70] border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-1 py-1 gap-4">
           <div className="flex items-center gap-2">
-            <AtelierLogo className="h-8 w-auto text-foreground" />
+            <Link href="/?from=app" className="cursor-pointer">
+              <AtelierLogo className="h-8 w-auto text-foreground" />
+            </Link>
 
             {activeWorkflow ? (
               <WorkflowSwitcher
