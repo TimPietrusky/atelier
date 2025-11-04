@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { IMAGE_MODELS, ImageModelMeta } from "@/lib/config"
 import { getModelDisplayName } from "@/lib/models"
 import { getKV, putKV } from "@/lib/store/db"
-import { Search, Sparkles } from "lucide-react"
+import { Search, Sparkles, AlertCircle } from "lucide-react"
 
 const FAVORITE_MODELS_KEY = "favoriteModels"
 
@@ -81,6 +81,7 @@ export function ModelSettings() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterKind, setFilterKind] = useState<"all" | "txt2img" | "img2img">("all")
+  const [hasProvider, setHasProvider] = useState<boolean | null>(null)
 
   useEffect(() => {
     const loadFavorites = async () => {
@@ -102,6 +103,25 @@ export function ModelSettings() {
       }
     }
     loadFavorites()
+  }, [])
+
+  useEffect(() => {
+    const checkProvider = async () => {
+      try {
+        const res = await fetch("/api/providers")
+        if (res.ok) {
+          const data = await res.json()
+          const hasRunPod = data.credentials?.some(
+            (c: any) => c.providerId === "runpod" && c.status === "active"
+          )
+          setHasProvider(hasRunPod || false)
+        }
+      } catch (error) {
+        console.error("Failed to check credentials:", error)
+        setHasProvider(false)
+      }
+    }
+    checkProvider()
   }, [])
 
   const toggleFavorite = async (modelId: string) => {
@@ -172,13 +192,26 @@ export function ModelSettings() {
   if (loading) {
     return (
       <div>
-        <div className="text-sm text-muted-foreground">Loading...</div>
+        <div className="text-sm text-muted-foreground">loading...</div>
       </div>
     )
   }
 
   return (
     <div>
+      {hasProvider === false && (
+        <Card className="mb-4 p-3 border border-orange-500/50 bg-orange-500/10">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-orange-500 mb-1">Provider Required</p>
+              <p className="text-xs text-muted-foreground">
+                Configure a provider API key to use these models in your workflows.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
       <div className="mb-4">
         <p className="text-sm text-muted-foreground mb-4">
           Choose which models appear in your model selector. This won't affect existing

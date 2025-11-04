@@ -107,16 +107,18 @@ export function ProviderSettings() {
     }
   }
 
-  const runpodCredential = credentials.find((c) => c.providerId === "runpod" && c.status === "active")
+  const runpodCredential = credentials.find(
+    (c) => c.providerId === "runpod" && c.status === "active"
+  )
 
   if (loading) {
-    return <div className="p-4 text-sm text-muted-foreground">Loading...</div>
+    return <div className="p-4 text-sm text-muted-foreground">loading...</div>
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground mb-4">
-        Configure API keys for AI providers. Keys are stored securely in WorkOS Vault.
+        configure api keys for your favorite providers. you're billed directly by providers, not us.
       </p>
 
       {/* RunPod Credential */}
@@ -132,9 +134,7 @@ export function ProviderSettings() {
           </div>
           {runpodCredential ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                ••••{runpodCredential.lastFour}
-              </span>
+              <span className="text-xs text-muted-foreground">••••{runpodCredential.lastFour}</span>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -259,4 +259,3 @@ export function ProviderSettings() {
     </div>
   )
 }
-

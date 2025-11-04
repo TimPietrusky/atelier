@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="font-sans">
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div>loading...</div>}>
           <ResizeObserverErrorSuppressor />
           {children}
           <Analytics />

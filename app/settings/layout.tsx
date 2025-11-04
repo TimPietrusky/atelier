@@ -11,6 +11,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const router = useRouter()
   const pathname = usePathname()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [hasProvider, setHasProvider] = useState<boolean | null>(null)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -29,6 +30,26 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     checkAuth()
   }, [router])
 
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const checkProvider = async () => {
+      try {
+        const res = await fetch("/api/providers")
+        if (res.ok) {
+          const data = await res.json()
+          const hasRunPod = data.credentials?.some(
+            (c: any) => c.providerId === "runpod" && c.status === "active"
+          )
+          setHasProvider(hasRunPod || false)
+        }
+      } catch (error) {
+        console.error("Failed to check credentials:", error)
+        setHasProvider(false)
+      }
+    }
+    checkProvider()
+  }, [isAuthenticated])
+
   const handleSignOut = () => {
     window.location.href = "/api/auth/sign-out"
   }
@@ -42,7 +63,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">loading...</div>
       </div>
     )
   }
@@ -87,17 +108,21 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
               const isActive =
                 pathname === item.href ||
                 (item.href === "/settings/account" && pathname === "/settings")
+              const showIndicator = item.href === "/settings/providers" && hasProvider === false
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors relative ${
                     isActive
                       ? "border-foreground text-foreground"
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {item.label}
+                  {showIndicator && (
+                    <span className="absolute top-1.5 right-1 w-1.5 h-1.5 bg-orange-500 rounded-full" />
+                  )}
                 </Link>
               )
             })}

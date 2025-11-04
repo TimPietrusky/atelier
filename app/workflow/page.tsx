@@ -398,7 +398,7 @@ export default function StudioDashboard() {
   if (isAuthenticated === null) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground">loading...</div>
       </div>
     )
   }
@@ -538,7 +538,7 @@ export default function StudioDashboard() {
             >
               <Settings2 className="w-4 h-4" />
               {hasProvider === false && (
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-background" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full border border-background" />
               )}
             </Button>
           </div>
