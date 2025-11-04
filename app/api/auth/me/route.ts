@@ -16,6 +16,7 @@ export async function GET() {
         email: auth.user.email,
         firstName: auth.user.firstName,
         lastName: auth.user.lastName,
+        profilePictureUrl: (auth.user as any).profilePictureUrl || null,
       },
     })
   } catch (error) {

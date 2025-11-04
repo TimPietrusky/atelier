@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Select,
   SelectContent,
@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { getImageModelMeta } from "@/lib/config"
+import { getSortedModels, getModelDisplayName } from "@/lib/models"
 import { ImageHistoryGrid } from "./image-history-grid"
 
 interface ModelTabProps {
@@ -46,6 +47,16 @@ export function ModelTab({
   const meta = getImageModelMeta(model)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set())
+  const [availableModels, setAvailableModels] = useState<any[]>([])
+
+  useEffect(() => {
+    const loadModels = async () => {
+      // Show favorites first, or all if no favorites
+      const models = await getSortedModels(false)
+      setAvailableModels(models)
+    }
+    loadModels()
+  }, [])
 
   return (
     <div className="flex flex-col gap-2 flex-1 min-h-0">
@@ -54,14 +65,11 @@ export function ModelTab({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="black-forest-labs/flux-1-schnell">FLUX 1 Schnell</SelectItem>
-          <SelectItem value="black-forest-labs/flux-1-dev">FLUX 1 Dev</SelectItem>
-          <SelectItem value="black-forest-labs/flux-1-kontext-dev">FLUX 1 Kontext Dev</SelectItem>
-          <SelectItem value="bytedance/seedream-3.0">Seedream 3.0</SelectItem>
-          <SelectItem value="bytedance/seedream-4.0">Seedream 4.0</SelectItem>
-          <SelectItem value="bytedance/seedream-4.0-edit">Seedream 4.0 Edit</SelectItem>
-          <SelectItem value="qwen/qwen-image">Qwen Image</SelectItem>
-          <SelectItem value="qwen/qwen-image-edit">Qwen Image Edit</SelectItem>
+          {availableModels.map((m) => (
+            <SelectItem key={m.id} value={m.id}>
+              {getModelDisplayName(m.id)}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       {hasImageInput && meta && meta.kind !== "img2img" && (

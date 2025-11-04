@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Trash2, Key, Check, X } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { RunPodLogo } from "@/components/runpod-logo"
 
 interface ProviderCredential {
   id: string
@@ -114,12 +115,9 @@ export function ProviderSettings() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Provider Credentials</h3>
-        <p className="text-xs text-muted-foreground mb-4">
-          Configure API keys for AI providers. Keys are stored securely in WorkOS Vault.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground mb-4">
+        Configure API keys for AI providers. Keys are stored securely in WorkOS Vault.
+      </p>
 
       {/* RunPod Credential */}
       <Card className="p-4 border border-border">
@@ -130,8 +128,7 @@ export function ProviderSettings() {
         )}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Key className="w-4 h-4" />
-            <span className="text-sm font-medium">RunPod</span>
+            <RunPodLogo className="h-5 w-auto text-foreground" />
           </div>
           {runpodCredential ? (
             <div className="flex items-center gap-2">

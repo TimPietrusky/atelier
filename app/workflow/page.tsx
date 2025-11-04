@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { ReactFlowProvider, MiniMap } from "@xyflow/react"
-import { Play, Key, AlertCircle } from "lucide-react"
+import { Play, Key, AlertCircle, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AtelierLogo } from "@/components/atelier-logo"
@@ -20,7 +20,6 @@ import { CanvasControls } from "@/components/canvas-controls"
 import { AddNodeMenu } from "@/components/add-node-menu"
 import { AddNodeMenuItems } from "@/components/add-node-menu-items"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { UserAvatar } from "@/components/user-avatar"
 import { NODE_TYPES } from "@/lib/nodes/config"
 import { workflowStore } from "@/lib/store/workflows"
 import { workflowEngine } from "@/lib/workflow-engine"
@@ -412,7 +411,7 @@ export default function StudioDashboard() {
     <ReactFlowProvider>
       <div className="h-screen bg-background text-foreground flex flex-col">
         {/* Top Header */}
-        <header className="sticky top-0 z-[70] border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-0 py-1 gap-4">
+        <header className="sticky top-0 z-[70] border-b border-border bg-card/50 backdrop-blur-sm flex items-center justify-between px-1 py-1 gap-4">
           <div className="flex items-center gap-2">
             <AtelierLogo className="h-8 w-auto text-foreground" />
 
@@ -458,7 +457,8 @@ export default function StudioDashboard() {
                             <div className="flex-1">
                               <p className="text-xs font-medium mb-1">Provider Required</p>
                               <p className="text-xs text-muted-foreground">
-                                This workflow contains image nodes. Configure a provider API key to run it.
+                                This workflow contains image nodes. Configure a provider API key to
+                                run it.
                               </p>
                             </div>
                           </div>
@@ -514,6 +514,14 @@ export default function StudioDashboard() {
               >
                 <span>media</span>
               </Button>
+
+              <CanvasControls />
+              <MiniMap
+                className="bg-card/90 backdrop-blur-sm rounded-md"
+                nodeColor="var(--border-strong)"
+                maskColor="rgba(0, 0, 0, 0.6)"
+                style={{ position: "static", width: 75, height: 32, margin: 0 }}
+              />
             </div>
           </div>
 
@@ -522,22 +530,14 @@ export default function StudioDashboard() {
               variant="ghost"
               size="sm"
               onClick={() => router.push("/settings")}
-              className="h-8 gap-1.5 px-3 text-sm border font-normal rounded transition-all bg-transparent border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] relative"
+              className="h-8 w-8 p-0 border font-normal rounded transition-all bg-transparent border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] relative"
+              title="Settings"
             >
-              <Key className="w-4 h-4" />
-              <span>Settings</span>
+              <Settings2 className="w-4 h-4" />
               {hasProvider === false && (
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-background" />
               )}
             </Button>
-            <UserAvatar />
-            <CanvasControls />
-            <MiniMap
-              className="bg-card/90 backdrop-blur-sm rounded-md"
-              nodeColor="var(--border-strong)"
-              maskColor="rgba(0, 0, 0, 0.6)"
-              style={{ position: "static", width: 75, height: 32, margin: 0 }}
-            />
           </div>
         </header>
 

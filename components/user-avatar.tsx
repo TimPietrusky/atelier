@@ -18,6 +18,7 @@ interface UserInfo {
   email: string
   firstName?: string | null
   lastName?: string | null
+  profilePictureUrl?: string | null
 }
 
 export function UserAvatar() {
@@ -67,9 +68,17 @@ export function UserAvatar() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 rounded-full p-0 bg-muted hover:bg-muted/80"
+          className="h-8 w-8 rounded-full p-0 bg-muted hover:bg-muted/80 overflow-hidden"
         >
-          <span className="text-xs font-semibold">{initials}</span>
+          {user.profilePictureUrl ? (
+            <img
+              src={user.profilePictureUrl}
+              alt={user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-xs font-semibold">{initials}</span>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
