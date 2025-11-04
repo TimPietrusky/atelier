@@ -27,6 +27,7 @@ export function ProviderSettings() {
   const [name, setName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadCredentials()
@@ -51,6 +52,7 @@ export function ProviderSettings() {
     if (!apiKey.trim()) return
 
     setSubmitting(true)
+    setError(null)
     try {
       const res = await fetch("/api/providers/runpod/credentials", {
         method: "POST",
@@ -62,14 +64,15 @@ export function ProviderSettings() {
         setApiKey("")
         setName("")
         setShowRunPodForm(false)
+        setError(null)
         await loadCredentials()
       } else {
-        const error = await res.json()
-        alert(error.error || "Failed to save credential")
+        const errorData = await res.json()
+        setError(errorData.error || "Failed to save credential")
       }
     } catch (error) {
       console.error("Failed to save credential:", error)
-      alert("Failed to save credential")
+      setError("Failed to save credential")
     } finally {
       setSubmitting(false)
     }
@@ -81,6 +84,7 @@ export function ProviderSettings() {
       return
     }
 
+    setError(null)
     try {
       const res = await fetch(`/api/providers/${providerId}/credentials`, {
         method: "DELETE",
@@ -88,14 +92,17 @@ export function ProviderSettings() {
 
       if (res.ok) {
         setDeleteConfirm(null)
+        setError(null)
         await loadCredentials()
       } else {
-        const error = await res.json()
-        alert(error.error || "Failed to revoke credential")
+        const errorData = await res.json()
+        setError(errorData.error || "Failed to revoke credential")
+        setDeleteConfirm(null)
       }
     } catch (error) {
       console.error("Failed to revoke credential:", error)
-      alert("Failed to revoke credential")
+      setError("Failed to revoke credential")
+      setDeleteConfirm(null)
     }
   }
 
@@ -116,6 +123,11 @@ export function ProviderSettings() {
 
       {/* RunPod Credential */}
       <Card className="p-4 border border-border">
+        {error && !showRunPodForm && (
+          <div className="mb-3 text-xs text-red-500 bg-red-500/10 border border-red-500/20 rounded p-2">
+            {error}
+          </div>
+        )}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Key className="w-4 h-4" />
@@ -175,6 +187,11 @@ export function ProviderSettings() {
 
         {showRunPodForm && (
           <form onSubmit={handleSubmit} className="mt-3 space-y-3 pt-3 border-t border-border">
+            {error && (
+              <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/20 rounded p-2">
+                {error}
+              </div>
+            )}
             <div>
               <Label htmlFor="name" className="text-xs">
                 Label (optional)
@@ -182,7 +199,10 @@ export function ProviderSettings() {
               <Input
                 id="name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setError(null)
+                }}
                 placeholder="My RunPod Key"
                 className="h-8 text-xs mt-1"
               />
@@ -195,7 +215,10 @@ export function ProviderSettings() {
                 id="apiKey"
                 type="password"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e) => {
+                  setApiKey(e.target.value)
+                  setError(null)
+                }}
                 placeholder="Enter your RunPod API key"
                 className="h-8 text-xs mt-1"
                 required
@@ -219,6 +242,7 @@ export function ProviderSettings() {
                   setShowRunPodForm(false)
                   setApiKey("")
                   setName("")
+                  setError(null)
                 }}
               >
                 Cancel

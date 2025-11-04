@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { ReactFlowProvider, MiniMap } from "@xyflow/react"
-import { Play, Key } from "lucide-react"
+import { Play, Key, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AtelierLogo } from "@/components/atelier-logo"
@@ -19,9 +19,7 @@ import { ConnectProvider } from "@/components/connect-provider"
 import { CanvasControls } from "@/components/canvas-controls"
 import { AddNodeMenu } from "@/components/add-node-menu"
 import { AddNodeMenuItems } from "@/components/add-node-menu-items"
-import { ProviderOnboardingBanner } from "@/components/provider-onboarding-banner"
-import { ProviderSettings } from "@/components/provider-settings"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { UserAvatar } from "@/components/user-avatar"
 import { NODE_TYPES } from "@/lib/nodes/config"
 import { workflowStore } from "@/lib/store/workflows"
@@ -39,7 +37,7 @@ export default function StudioDashboard() {
   const [currentPage, setCurrentPage] = useState<"canvas" | "media">("canvas")
   const [isConnectOpen, setIsConnectOpen] = useState(false)
   const [mediaSelectionNodeId, setMediaSelectionNodeId] = useState<string | null>(null)
-  const [isProviderSettingsOpen, setIsProviderSettingsOpen] = useState(false)
+  const [hasProvider, setHasProvider] = useState<boolean | null>(null)
 
   // Panel state: content-based approach for toggle behavior
   // panelContentId format: "node-{nodeId}" or "metadata-{nodeId}-{resultId}"
@@ -76,6 +74,40 @@ export default function StudioDashboard() {
     }
     checkAuth()
   }, [router])
+
+  // Check provider credentials
+  const checkProvider = useCallback(async () => {
+    try {
+      const res = await fetch("/api/providers")
+      if (res.ok) {
+        const data = await res.json()
+        const hasRunPod = data.credentials?.some(
+          (c: any) => c.providerId === "runpod" && c.status === "active"
+        )
+        setHasProvider(hasRunPod || false)
+      }
+    } catch (error) {
+      console.error("Failed to check credentials:", error)
+      setHasProvider(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkProvider()
+    }
+  }, [isAuthenticated, checkProvider])
+
+  // Refresh provider check when window regains focus (e.g., returning from settings)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isAuthenticated) {
+        checkProvider()
+      }
+    }
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
+  }, [isAuthenticated, checkProvider])
 
   const handleAddNode = (nodeType: string, position?: { x: number; y: number }) => {
     if (!activeWorkflow) return
@@ -150,31 +182,15 @@ export default function StudioDashboard() {
   const handleRun = async () => {
     if (!activeWorkflow) return
 
-    // Check for credentials before running
-    try {
-      const res = await fetch("/api/providers")
-      if (res.ok) {
-        const data = await res.json()
-        const hasRunPod = data.credentials?.some(
-          (c: any) => c.providerId === "runpod" && c.status === "active"
-        )
+    // Check if workflow needs RunPod (has image nodes)
+    const wf = workflowStore.get(activeWorkflow)
+    const hasImageNodes = wf?.nodes.some((n) => n.type === "image-gen" || n.type === "image-edit")
 
-        // Check if workflow needs RunPod (has image nodes)
-        const wf = workflowStore.get(activeWorkflow)
-        const hasImageNodes = wf?.nodes.some(
-          (n) => n.type === "imageGenNode" || n.type === "image-edit"
-        )
-
-        if (hasImageNodes && !hasRunPod) {
-          setIsProviderSettingsOpen(true)
-          return
-        }
-      }
-    } catch (error) {
-      console.error("Failed to check credentials:", error)
+    if (hasImageNodes && !hasProvider) {
+      router.push("/settings")
+      return
     }
 
-    const wf = workflowStore.get(activeWorkflow)
     if (wf) {
       workflowEngine.executeWorkflow(wf.id, wf.nodes)
       setQueueCount(workflowEngine.getActiveJobsCount())
@@ -317,13 +333,13 @@ export default function StudioDashboard() {
 
   useEffect(() => {
     const handleOpenProviderSettings = () => {
-      setIsProviderSettingsOpen(true)
+      router.push("/settings")
     }
     window.addEventListener("open-provider-settings", handleOpenProviderSettings)
     return () => {
       window.removeEventListener("open-provider-settings", handleOpenProviderSettings)
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     let cancelled = false
@@ -412,17 +428,67 @@ export default function StudioDashboard() {
             <AddNodeMenu nodeTypes={NODE_TYPES} onAdd={handleAddNode} />
 
             <div className="flex items-center gap-1.5">
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  handleRun()
-                }}
-                className="h-8 px-4 text-sm font-semibold bg-white text-black hover:bg-white/90 rounded border-none"
-              >
-                <Play className="w-4 h-4 mr-1.5" />
-                run
-              </Button>
+              {(() => {
+                const wf = activeWorkflow ? workflowStore.get(activeWorkflow) : null
+                const hasImageNodes = wf?.nodes.some(
+                  (n) => n.type === "image-gen" || n.type === "image-edit"
+                )
+                const needsProvider = hasImageNodes && !hasProvider
+
+                if (needsProvider) {
+                  return (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            router.push("/settings")
+                          }}
+                          className="h-8 px-4 text-sm font-semibold bg-orange-500/10 border border-orange-500/50 text-orange-500 hover:bg-orange-500/20 hover:border-orange-500 rounded"
+                        >
+                          <AlertCircle className="w-4 h-4 mr-1.5" />
+                          run
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs font-medium mb-1">Provider Required</p>
+                              <p className="text-xs text-muted-foreground">
+                                This workflow contains image nodes. Configure a provider API key to run it.
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => router.push("/settings")}
+                            className="w-full h-7 px-3 text-xs font-semibold bg-white text-black hover:bg-white/90"
+                          >
+                            <Key className="w-3 h-3 mr-1.5" />
+                            Go to Settings
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )
+                }
+
+                return (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      handleRun()
+                    }}
+                    className="h-8 px-4 text-sm font-semibold bg-white text-black hover:bg-white/90 rounded border-none"
+                  >
+                    <Play className="w-4 h-4 mr-1.5" />
+                    run
+                  </Button>
+                )
+              })()}
 
               <Button
                 variant="outline"
@@ -455,11 +521,14 @@ export default function StudioDashboard() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsProviderSettingsOpen(true)}
-              className="h-8 gap-1.5 px-3 text-sm border font-normal rounded transition-all bg-transparent border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)]"
+              onClick={() => router.push("/settings")}
+              className="h-8 gap-1.5 px-3 text-sm border font-normal rounded transition-all bg-transparent border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--border-strong)] relative"
             >
               <Key className="w-4 h-4" />
               <span>Settings</span>
+              {hasProvider === false && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-background" />
+              )}
             </Button>
             <UserAvatar />
             <CanvasControls />
@@ -471,9 +540,6 @@ export default function StudioDashboard() {
             />
           </div>
         </header>
-
-        {/* Provider Onboarding Banner */}
-        <ProviderOnboardingBanner />
 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-auto">
@@ -564,16 +630,6 @@ export default function StudioDashboard() {
 
         <ConnectProvider open={isConnectOpen} onOpenChange={setIsConnectOpen} />
 
-        {/* Provider Settings Dialog */}
-        <Dialog open={isProviderSettingsOpen} onOpenChange={setIsProviderSettingsOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Provider Settings</DialogTitle>
-            </DialogHeader>
-            <ProviderSettings />
-          </DialogContent>
-        </Dialog>
-
         {/* Context Menu for Add Node (appears on double-click) */}
         {contextMenuPosition && (
           <>
@@ -603,4 +659,3 @@ export default function StudioDashboard() {
     </ReactFlowProvider>
   )
 }
-

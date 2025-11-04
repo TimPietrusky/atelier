@@ -4,6 +4,49 @@ import { ConvexHttpClient } from "convex/browser"
 import { api } from "@/convex/_generated/api"
 import { NextResponse } from "next/server"
 
+async function validateRunPodApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+    // Use pods endpoint - requires authentication and returns user's pods
+    // This validates the key without making a costly generation request
+    const response = await fetch("https://rest.runpod.io/v1/pods", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (response.ok) {
+      return { valid: true }
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return { valid: false, error: "Invalid API key" }
+    }
+
+    // If it's not an auth error, assume valid (might be rate limit, etc.)
+    // Log for debugging but don't block
+    console.warn(`[validateRunPodApiKey] Unexpected status ${response.status}, assuming valid`)
+    return { valid: true }
+  } catch (error: any) {
+    // Network/timeout errors - log but allow saving (might be temporary)
+    // User can still save and we'll catch it on first use
+    if (error.name === "AbortError" || error.name === "TimeoutError") {
+      console.warn("[validateRunPodApiKey] Validation timeout, allowing save")
+      return { valid: true }
+    }
+    console.warn("[validateRunPodApiKey] Network error during validation:", error.message)
+    // Allow save on network errors - validation is best-effort
+    return { valid: true }
+  }
+}
+
 const getConvexClient = () => {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL
   if (!url) {
@@ -26,6 +69,17 @@ export async function POST(
 
     if (apiKey.length < 8) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 400 })
+    }
+
+    // Validate API key for RunPod
+    if (params.provider === "runpod") {
+      const validation = await validateRunPodApiKey(apiKey)
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: validation.error || "Invalid API key" },
+          { status: 400 }
+        )
+      }
     }
 
     const lastFour = apiKey.slice(-4)
