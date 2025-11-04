@@ -12,6 +12,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 ## Architecture
 
 - **Next.js App Router**: API routes under `app/api/*`, UI in `app/*`.
+- **Authentication**: WorkOS AuthKit (`@workos-inc/authkit-nextjs`) with session cookies. Middleware protects routes; callback at `/callback` handles OAuth flow.
 - **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`) wrapped with `ReactFlowProvider` at app root to enable Controls/MiniMap in header.
 - **State**: Zustand store (`lib/store/workflows-zustand.ts`) for in-memory workflows; compat wrapper (`lib/store/workflows.ts`) maintains old API.
 - **Persistence**: Unified storage architecture via `StorageManager` (`lib/store/storage-manager.ts`):
@@ -21,8 +22,10 @@ This doc orients anyone working in this codebase. It captures the architectural 
   - Current backend: `IndexedDBBackend` wraps Dexie (`lib/store/backends/indexeddb.ts`)
   - Future backends: R2, UploadThing, LocalFile (pluggable)
   - No cross-tab sync (single-tab app pattern); eliminates 90% of race conditions
+- **Server-side data**: Convex database stores user records, org memberships, and provider credential metadata. Credential secrets stored in WorkOS Vault (never in Convex).
 - **Workflow engine**: `lib/workflow-engine.ts` handles queueing, topological sort, per-node execution, status updates, and result propagation.
-- **RunPod provider adapter**: `lib/providers/runpod.ts`—the single place that speaks to `@runpod/ai-sdk-provider`.
+- **Provider credentials**: Stored securely in WorkOS Vault; metadata (vaultSecretId, lastFour, status) in Convex. Credential resolver (`lib/credentials.ts`) fetches secrets server-side with 5min cache. Provider adapters receive API keys at runtime, never from env vars.
+- **RunPod provider adapter**: `lib/providers/runpod.ts`—the single place that speaks to `@runpod/ai-sdk-provider`. Accepts `apiKey` parameter (resolved from Vault via credential resolver).
 
 ## Persistence conventions
 
@@ -382,8 +385,11 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 
 ## API routes
 
-- `POST /api/generate-image`: Validates model, resolves dimensions via `resolveModelDimensions`, calls `generateImageWithRunpod`, and returns `{ success, imageUrl, executionId, applied, used }`.
-- Server-side sanitization: do not log full base64; log only truncated previews and counts.
+- `POST /api/generate-image`: Requires authentication. Validates model, resolves dimensions via `resolveModelDimensions`, loads user's RunPod API key from Vault via credential resolver, calls `generateImageWithRunpod`, and returns `{ success, imageUrl, executionId, applied, used }`. Returns 403 if no RunPod credential configured.
+- `GET /api/providers`: Lists user's provider credentials (metadata only, no secrets).
+- `POST /api/providers/:provider/credentials`: Stores provider API key in WorkOS Vault, creates metadata record in Convex.
+- `DELETE /api/providers/:provider/credentials`: Revokes credential (deletes from Vault, marks revoked in Convex).
+- Server-side sanitization: do not log full base64; log only truncated previews and counts. Never log API keys or Vault secrets.
 
 ## Export / Import / Clone
 
@@ -415,6 +421,9 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - Do preserve position/size during interactions but allow data (result, status) to flow through for real-time updates.
 - Do validate connections by node type and handle compatibility (prevent prompt→image-input, etc).
 - Do trust `StorageManager` to handle write serialization and debouncing automatically.
+- Do require authentication on all provider execution routes (use `requireAuth` from `lib/auth.ts`).
+- Do resolve provider API keys server-side via credential resolver; never pass keys from client.
+- Do check for active credentials before executing workflows with provider nodes; prompt user to configure if missing.
 - Don't auto-switch models in the engine—let users pick (but hint in UI).
 - Don't send unsupported params (e.g., guidance for Seedream; undefined seed).
 - Don't use raw `fetch` to RunPod model endpoints—always go through the provider adapter.
@@ -426,6 +435,8 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - Don't implement cross-tab sync—app is single-tab focused to avoid race conditions.
 - **NEVER use `setTimeout` for timing hacks or event ordering** — these are band-aids that hide real problems. Use proper state management, `queueMicrotask`, or fix the root cause.
 - **NEVER use `alert()` or `confirm()`** — use inline Popover pattern for all confirmations and messages. Native dialogs are ugly, don't match the design system, and interrupt the UX flow.
+- **NEVER store provider API keys in env vars, localStorage, or client state** — always use WorkOS Vault server-side. Metadata (lastFour, status) can be in Convex.
+- **NEVER log API keys or Vault secrets** — log only metadata (providerId, lastFour, status).
 
 ## Quick glossary
 
@@ -437,6 +448,9 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - `AssetRef`: pointer to asset table (`{ kind: "idb", assetId }`); workflows never store full image data.
 - `resultHistory`: contains `AssetRef` + `metadata` (including `executionId` linking to queue snapshot).
 - `ExecutionInspector`: read-only snapshot viewer; reuses left panel pattern; "Copy to Node" for settings.
+- `credentialResolver`: server-side utility (`lib/credentials.ts`) that fetches provider API keys from WorkOS Vault; caches decrypted keys for 5min; invalidates on rotation/revocation.
+- `WorkOS Vault`: stores provider API keys encrypted; secrets never touch client or Convex; accessed via `lib/vault.ts` utilities.
+- `Convex`: server-side database storing user records, org memberships, and provider credential metadata (vaultSecretId, lastFour, status, timestamps). Never stores actual secrets.
 
 ## Keeping this doc fresh
 

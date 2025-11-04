@@ -1,56 +1,44 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { getSession } from "@workos-inc/authkit-nextjs"
 import { AtelierLogo } from "@/components/atelier-logo"
 import { Button } from "@/components/ui/button"
 
 export default function LandingPage() {
   const router = useRouter()
-  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    // Check if user is already logged in via API
+    // Check if user is already logged in
     const checkAuth = async () => {
       try {
-        const res = await fetch("/api/auth/me")
-        const data = await res.json()
-        if (data.authenticated) {
-          router.push("/workflow")
-          return
+        const session = await getSession()
+        if (session?.user) {
+          router.push("/studio")
         }
       } catch (error) {
         // Not authenticated, show landing page
-      } finally {
-        setChecking(false)
       }
     }
     checkAuth()
   }, [router])
 
   const handleLogin = () => {
-    // Get return path from query params or default to /workflow
-    const params = new URLSearchParams(window.location.search)
-    const returnPath = params.get("redirect") || "/workflow"
     // Redirect to WorkOS login
-    window.location.href = `/api/auth/sign-in?return_pathname=${encodeURIComponent(returnPath)}`
-  }
-
-  if (checking) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    )
+    window.location.href = "/api/auth/sign-in"
   }
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
       <div className="max-w-2xl w-full text-center space-y-8">
         <AtelierLogo className="h-16 w-auto mx-auto text-foreground" />
-
+        
         <div className="space-y-4">
-          <p className="text-lg text-muted-foreground">gen media editor</p>
+          <h1 className="text-4xl font-semibold">atelier</h1>
+          <p className="text-lg text-muted-foreground">
+            Node-based AI studio for building and running workflows
+          </p>
         </div>
 
         <div className="pt-8">

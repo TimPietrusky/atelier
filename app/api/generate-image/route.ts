@@ -1,6 +1,8 @@
 // Using Web Fetch API types to avoid depending on Next type declarations in lints
 import { generateImageWithRunpod } from "@/lib/providers/runpod"
 import { getImageModelMeta, resolveModelDimensions } from "@/lib/config"
+import { requireAuth } from "@/lib/auth"
+import { credentialResolver } from "@/lib/credentials"
 
 function json(body: unknown, init?: number | ResponseInit) {
   const responseInit: ResponseInit =
@@ -18,6 +20,9 @@ function json(body: unknown, init?: number | ResponseInit) {
 
 export async function POST(req: Request) {
   try {
+    // Require authentication
+    const user = await requireAuth()
+
     const {
       prompt,
       model = "sdxl",
@@ -58,6 +63,18 @@ export async function POST(req: Request) {
 
     const dims = resolveModelDimensions(meta, { ratio, width, height })
 
+    // Resolve API key from Vault
+    const apiKey = await credentialResolver.getApiKey(user.userId, "runpod")
+    if (!apiKey) {
+      return json(
+        {
+          error: "RunPod API key not configured",
+          details: "Please configure your RunPod API key in settings",
+        },
+        403
+      )
+    }
+
     const result = await generateImageWithRunpod({
       modelId: meta.id,
       prompt,
@@ -68,7 +85,7 @@ export async function POST(req: Request) {
       guidance_scale: guidance,
       seed,
       inputs,
-      apiKey: process.env.RUNPOD_API_KEY,
+      apiKey,
     })
 
     console.log("[api/generate-image] used", {

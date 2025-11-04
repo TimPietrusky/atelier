@@ -1,47 +1,32 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { getSession } from "@workos-inc/authkit-nextjs"
 import { AtelierLogo } from "@/components/atelier-logo"
 import { Button } from "@/components/ui/button"
 
 export default function LandingPage() {
   const router = useRouter()
-  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    // Check if user is already logged in via API
+    // Check if user is already logged in
     const checkAuth = async () => {
       try {
-        const res = await fetch("/api/auth/me")
-        const data = await res.json()
-        if (data.authenticated) {
+        const session = await getSession()
+        if (session?.user) {
           router.push("/workflow")
-          return
         }
       } catch (error) {
         // Not authenticated, show landing page
-      } finally {
-        setChecking(false)
       }
     }
     checkAuth()
   }, [router])
 
   const handleLogin = () => {
-    // Get return path from query params or default to /workflow
-    const params = new URLSearchParams(window.location.search)
-    const returnPath = params.get("redirect") || "/workflow"
     // Redirect to WorkOS login
-    window.location.href = `/api/auth/sign-in?return_pathname=${encodeURIComponent(returnPath)}`
-  }
-
-  if (checking) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    )
+    window.location.href = "/api/auth/sign-in"
   }
 
   return (
@@ -50,7 +35,7 @@ export default function LandingPage() {
         <AtelierLogo className="h-16 w-auto mx-auto text-foreground" />
 
         <div className="space-y-4">
-          <p className="text-lg text-muted-foreground">gen media editor</p>
+          <p className="text-lg text-muted-foreground">open-source gen media editor</p>
         </div>
 
         <div className="pt-8">
