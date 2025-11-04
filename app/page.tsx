@@ -9,8 +9,21 @@ import Link from "next/link"
 export default function LandingPage() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Check for auth error in URL
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("error") === "auth_failed") {
+      setAuthError(
+        "Authentication failed. This may be a temporary network issue. Please try again."
+      )
+      // Clean up URL
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete("error")
+      window.history.replaceState({}, "", newUrl.toString())
+    }
+
     // Check if user is already logged in via API
     const checkAuth = async () => {
       try {
@@ -18,7 +31,6 @@ export default function LandingPage() {
         const data = await res.json()
         if (data.authenticated) {
           // Don't auto-redirect if user intentionally navigated from app (via logo click)
-          const params = new URLSearchParams(window.location.search)
           const fromApp = params.get("from") === "app"
           if (fromApp) {
             setChecking(false)
@@ -62,6 +74,7 @@ export default function LandingPage() {
               <AtelierLogo className="h-16 w-auto text-foreground mx-auto" />
             </div>
             <p className="text-lg text-muted-foreground">gen media editor</p>
+            {authError && <div className="text-sm text-red-500 mx-auto">{authError}</div>}
             <div>
               <Button
                 onClick={handleLogin}
