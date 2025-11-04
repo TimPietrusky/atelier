@@ -5,7 +5,7 @@
 
 :root {
   /* Minimal Studio Design System - Monochrome Foundation */
-  --background: #0a0a0a;
+  --background: #141414;
   --foreground: #ffffff;
   --surface: #1c1c1c;
   --surface-elevated: #252525;
@@ -76,7 +76,7 @@
 
 .dark {
   /* Dark mode uses same minimal monochrome palette */
-  --background: #0a0a0a;
+  --background: #141414;
   --foreground: #ffffff;
   --surface: #1c1c1c;
   --surface-elevated: #252525;
