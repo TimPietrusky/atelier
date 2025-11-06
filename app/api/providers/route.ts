@@ -1,4 +1,5 @@
-import { requireAuth } from "@/lib/auth"
+import { connection, type NextRequest } from "next/server"
+import { requireAuthFromRequest } from "@/lib/auth"
 import { ConvexHttpClient } from "convex/browser"
 import { api } from "@/convex/_generated/api"
 import { NextResponse } from "next/server"
@@ -11,9 +12,10 @@ const getConvexClient = () => {
   return new ConvexHttpClient(url)
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  await connection() // Force request-time execution, prevents build-time analysis
   try {
-    const user = await requireAuth()
+    const user = await requireAuthFromRequest(req)
 
     const convex = getConvexClient()
     const credentials = await convex.query(api.providerCredentials.listByUser, {
@@ -33,12 +35,9 @@ export async function GET() {
         lastUsedAt: c.lastUsedAt,
       })),
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[api/providers] Error listing credentials:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to list credentials" },
-      { status: 500 }
-    )
+    const errorMessage = error instanceof Error ? error.message : "Failed to list credentials"
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
-

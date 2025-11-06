@@ -1,4 +1,5 @@
-import { requireAuth } from "@/lib/auth"
+import { connection, type NextRequest } from "next/server"
+import { requireAuthFromRequest } from "@/lib/auth"
 import { storeSecret } from "@/lib/vault"
 import { ConvexHttpClient } from "convex/browser"
 import { api } from "@/convex/_generated/api"
@@ -57,11 +58,12 @@ const getConvexClient = () => {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { provider: string } }
 ) {
+  await connection() // Force request-time execution, prevents build-time analysis
   try {
-    const user = await requireAuth()
+    const user = await requireAuthFromRequest(request)
     const { apiKey, name } = await request.json()
 
     if (!apiKey || typeof apiKey !== "string") {
@@ -133,11 +135,12 @@ export async function POST(
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { provider: string } }
 ) {
+  await connection() // Force request-time execution, prevents build-time analysis
   try {
-    const user = await requireAuth()
+    const user = await requireAuthFromRequest(request)
 
     // Get active credential
     const convex = getConvexClient()

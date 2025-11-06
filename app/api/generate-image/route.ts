@@ -1,7 +1,8 @@
 // Using Web Fetch API types to avoid depending on Next type declarations in lints
 import { generateImageWithRunpod } from "@/lib/providers/runpod"
 import { getImageModelMeta, resolveModelDimensions } from "@/lib/config"
-import { requireAuth } from "@/lib/auth"
+import { connection, type NextRequest } from "next/server"
+import { requireAuthFromRequest } from "@/lib/auth"
 import { credentialResolver } from "@/lib/credentials"
 
 function json(body: unknown, init?: number | ResponseInit) {
@@ -18,10 +19,11 @@ function json(body: unknown, init?: number | ResponseInit) {
   return new Response(JSON.stringify(body), responseInit)
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  await connection() // Force request-time execution, prevents build-time analysis
   try {
     // Require authentication
-    const user = await requireAuth()
+    const user = await requireAuthFromRequest(req)
 
     const {
       prompt,

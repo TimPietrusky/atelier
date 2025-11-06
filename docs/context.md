@@ -340,6 +340,7 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
   - Per-user caching: Tag with user-specific tags (e.g., `cacheTag(\`provider-credentials-${userId}\`)`) for granular invalidation.
   - Cache invalidation: Use `revalidateTag()` in Route Handlers after mutations; use `updateTag()` in Server Actions for immediate expiration.
   - **When to use**: Any server function that fetches data that doesn't change frequently (credentials, user metadata, static content). Improves UX by eliminating loading states and reducing bundle size.
+  - **Route Handlers (API routes)**: Route handlers (`app/api/**/route.ts`) are NOT cached functions and must use `await connection()` at the start to prevent build-time analysis. See "API routes" section for the complete pattern.
 
 - **Suspense Boundaries**: All dynamic/runtime data (cookies, headers, searchParams, fetch) wrapped in Suspense boundaries for streaming. Pages using `searchParams` must wrap dynamic parts in Suspense.
   - **CRITICAL**: Only use Suspense when there's actual async work happening. Don't wrap client components that have no async data fetching, especially when all async work (auth checks, data fetching) happens server-side before rendering. Unnecessary Suspense boundaries cause "loading..." flashes during React streaming/hydration.
@@ -415,6 +416,22 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 
 ## API routes
 
+- **Route Handlers with Cache Components (CRITICAL)**: All API route handlers (`app/api/**/route.ts`) must use `await connection()` as the first statement to force request-time execution and prevent build-time analysis/prerendering. This prevents errors when auth functions call `headers()` during build.
+  - **Pattern**: Import `connection` and `NextRequest` from `next/server`, call `await connection()` first, then use `requireAuthFromRequest(req)` instead of `requireAuth()`.
+  - **Why**: With `cacheComponents: true`, Next.js analyzes route handlers during build. Calling `headers()` (via `withAuth()`) during analysis causes prerendering errors. `connection()` marks handlers as request-time only.
+  - **Example**:
+    ```typescript
+    import { connection, type NextRequest } from "next/server"
+    import { requireAuthFromRequest } from "@/lib/auth"
+    import { NextResponse } from "next/server"
+    
+    export async function GET(req: NextRequest) {
+      await connection() // Force request-time execution, prevents build-time analysis
+      const user = await requireAuthFromRequest(req)
+      // ... handler body
+    }
+    ```
+  - **Auth helpers**: Use `requireAuthFromRequest(req: NextRequest)` for API routes. The original `requireAuth()` and `getAuthenticatedUser()` remain for server components (they work fine there since components aren't analyzed during build).
 - `POST /api/generate-image`: Requires authentication. Validates model, resolves dimensions via `resolveModelDimensions`, loads user's RunPod API key from Vault via credential resolver, calls `generateImageWithRunpod`, and returns `{ success, imageUrl, executionId, applied, used }`. Returns 403 if no RunPod credential configured.
 - `GET /api/providers`: Lists user's provider credentials (metadata only, no secrets). Cached server function `getProviderCredentials(workosUserId)` in `lib/server/providers.ts` provides cached access with `'use cache'` directive. Call from server components with user ID from auth check.
 - `POST /api/providers/:provider/credentials`: Stores provider API key in WorkOS Vault, creates metadata record in Convex. Invalidates both `provider-credentials-${userId}` and `provider-credentials` cache tags after mutation.
@@ -451,7 +468,7 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - Do preserve position/size during interactions but allow data (result, status) to flow through for real-time updates.
 - Do validate connections by node type and handle compatibility (prevent prompt→image-input, etc).
 - Do trust `StorageManager` to handle write serialization and debouncing automatically.
-- Do require authentication on all provider execution routes (use `requireAuth` from `lib/auth.ts`).
+- Do require authentication on all provider execution routes (use `requireAuthFromRequest(req)` from `lib/auth.ts` for API routes, `requireAuth()` for server components).
 - Do resolve provider API keys server-side via credential resolver; never pass keys from client.
 - Do check for active credentials before executing workflows with provider nodes; prompt user to configure if missing.
 - Do use Cache Components (`'use cache'`) for server functions that fetch cacheable data; pass dynamic values (userId, etc.) as parameters.
@@ -471,7 +488,7 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - **NEVER store provider API keys in env vars, localStorage, or client state** — always use WorkOS Vault server-side. Metadata (lastFour, status) can be in Convex.
 - **NEVER log API keys or Vault secrets** — log only metadata (providerId, lastFour, status).
 - **NEVER access dynamic APIs (`headers()`, `cookies()`, `searchParams`) inside `'use cache'` functions** — pass dynamic data as parameters instead. Example: `getData(userId)` not `getData()` that calls `requireAuth()` inside.
-- **NEVER forget to invalidate cache tags after mutations** — use `revalidateTag()` in Route Handlers or `updateTag()` in Server Actions to ensure UI shows fresh data.
+- **NEVER forget `await connection()` at the start of API route handlers** — required for Next.js 16 Cache Components to prevent build-time analysis errors when using auth functions that call `headers()`.
 
 ## Quick glossary
 
