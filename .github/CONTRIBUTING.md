@@ -5,9 +5,9 @@ Thank you for your interest in contributing to atelier. This document provides g
 ## Getting Started
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/your-username/gen-ai-studio.git`
+2. Clone your fork: `git clone https://github.com/your-username/atelier.git`
 3. Install dependencies: `pnpm i`
-4. Set up environment variables (see README.md)
+4. Set up environment variables: copy `.env.example` to `.env` and fill in your values
 5. Run the development server: `pnpm dev:all`
 
 ## Development Guidelines
@@ -50,4 +50,3 @@ Thank you for your interest in contributing to atelier. This document provides g
 ## Questions?
 
 Refer to [`docs/context.md`](docs/context.md) for detailed architecture and conventions. If you have questions, please open an issue.
-

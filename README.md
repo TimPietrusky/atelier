@@ -9,10 +9,8 @@
 - **workflow engine**: topological execution with queue management
 - **secure credentials**: provider API keys stored in WorkOS Vault
 
-## documentation
+## docs
 
-see [`docs/context.md`](docs/context.md) for detailed architecture, conventions, and development guidelines.
-
-## contributing
-
-see [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution guidelines.
+- [setup](docs/setup.md) - installation and environment configuration
+- [context](docs/context.md) - architecture, conventions, and development guidelines
+- [contributing](.github/CONTRIBUTING.md) - guidelines on how to help out
