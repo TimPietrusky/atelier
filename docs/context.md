@@ -11,8 +11,8 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 ## Architecture
 
-- **Next.js App Router**: API routes under `app/api/*`, UI in `app/*`.
-- **Authentication**: WorkOS AuthKit (`@workos-inc/authkit-nextjs`) with session cookies. Middleware protects routes; callback at `/callback` handles OAuth flow.
+- **Next.js 16 App Router**: API routes under `app/api/*`, UI in `app/*`. Cache Components enabled (`cacheComponents: true`) for Partial Pre-Rendering. React Compiler enabled (`reactCompiler: true`) for automatic optimization. See "Cache Components Best Practices" section below for patterns.
+- **Authentication**: WorkOS AuthKit (`@workos-inc/authkit-nextjs`) with session cookies. Proxy (`proxy.ts`) protects routes; callback at `/callback` handles OAuth flow. Auth checks performed server-side in page components to eliminate client-side redirect delays.
 - **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`) wrapped with `ReactFlowProvider` at app root to enable Controls/MiniMap in header.
 - **State**: Zustand store (`lib/store/workflows-zustand.ts`) for in-memory workflows; compat wrapper (`lib/store/workflows.ts`) maintains old API.
 - **Persistence**: Unified storage architecture via `StorageManager` (`lib/store/storage-manager.ts`):
@@ -316,6 +316,31 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 
 ## React & performance patterns
 
+- **Server Components**: Auth checks, initial data loading, and provider credential fetching use server components with Cache Components (`'use cache'` directive). Eliminates client-side loading states and reduces bundle size.
+- **Cache Components** (`'use cache'` directive):
+  - Use for server functions that fetch cacheable data (e.g., provider credentials, user metadata).
+  - **CRITICAL**: Cannot access dynamic APIs (`headers()`, `cookies()`, `searchParams`) inside cached functions. Pass dynamic data as parameters instead.
+  - **Pattern**: Get auth/user outside cached function, pass userId as parameter.
+
+    ```typescript
+    // ✅ Correct: Auth outside, userId as parameter
+    const user = await getAuthenticatedUser()
+    const credentials = await getProviderCredentials(user.userId)
+
+    // ❌ Wrong: Auth inside cached function
+    export async function getProviderCredentials() {
+      "use cache"
+      const user = await requireAuth() // ERROR: headers() access
+    }
+    ```
+
+  - Use `cacheLife()` to set cache duration (`'minutes'`, `'hours'`, `'days'`, `'weeks'`).
+  - Use `cacheTag()` to tag cached data for targeted invalidation (e.g., `cacheTag('provider-credentials')`).
+  - Per-user caching: Tag with user-specific tags (e.g., `cacheTag(\`provider-credentials-${userId}\`)`) for granular invalidation.
+  - Cache invalidation: Use `revalidateTag()` in Route Handlers after mutations; use `updateTag()` in Server Actions for immediate expiration.
+  - **When to use**: Any server function that fetches data that doesn't change frequently (credentials, user metadata, static content). Improves UX by eliminating loading states and reducing bundle size.
+- **Suspense Boundaries**: All dynamic/runtime data (cookies, headers, searchParams, fetch) wrapped in Suspense boundaries for streaming. Pages using `searchParams` must wrap dynamic parts in Suspense.
+- **React Compiler**: Enabled for automatic memoization; manual `useMemo`/`useCallback` removed where compiler handles it. Keep explicit memoization only for values used as dependencies in other hooks.
 - Hydration:
   - Seed default workflows client-side only.
   - Use deterministic timestamp-rendering and `suppressHydrationWarning` where needed.
@@ -386,9 +411,9 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 ## API routes
 
 - `POST /api/generate-image`: Requires authentication. Validates model, resolves dimensions via `resolveModelDimensions`, loads user's RunPod API key from Vault via credential resolver, calls `generateImageWithRunpod`, and returns `{ success, imageUrl, executionId, applied, used }`. Returns 403 if no RunPod credential configured.
-- `GET /api/providers`: Lists user's provider credentials (metadata only, no secrets).
-- `POST /api/providers/:provider/credentials`: Stores provider API key in WorkOS Vault, creates metadata record in Convex.
-- `DELETE /api/providers/:provider/credentials`: Revokes credential (deletes from Vault, marks revoked in Convex).
+- `GET /api/providers`: Lists user's provider credentials (metadata only, no secrets). Cached server function `getProviderCredentials(workosUserId)` in `lib/server/providers.ts` provides cached access with `'use cache'` directive. Call from server components with user ID from auth check.
+- `POST /api/providers/:provider/credentials`: Stores provider API key in WorkOS Vault, creates metadata record in Convex. Invalidates both `provider-credentials-${userId}` and `provider-credentials` cache tags after mutation.
+- `DELETE /api/providers/:provider/credentials`: Revokes credential (deletes from Vault, marks revoked in Convex). Invalidates both `provider-credentials-${userId}` and `provider-credentials` cache tags after mutation.
 - Server-side sanitization: do not log full base64; log only truncated previews and counts. Never log API keys or Vault secrets.
 
 ## Export / Import / Clone
@@ -424,6 +449,9 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - Do require authentication on all provider execution routes (use `requireAuth` from `lib/auth.ts`).
 - Do resolve provider API keys server-side via credential resolver; never pass keys from client.
 - Do check for active credentials before executing workflows with provider nodes; prompt user to configure if missing.
+- Do use Cache Components (`'use cache'`) for server functions that fetch cacheable data; pass dynamic values (userId, etc.) as parameters.
+- Do wrap pages/components using `searchParams` in Suspense boundaries (Next.js 16 requirement).
+- Do invalidate cache tags (`revalidateTag()`) in Route Handlers after data mutations to ensure UI updates immediately.
 - Don't auto-switch models in the engine—let users pick (but hint in UI).
 - Don't send unsupported params (e.g., guidance for Seedream; undefined seed).
 - Don't use raw `fetch` to RunPod model endpoints—always go through the provider adapter.
@@ -437,6 +465,8 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - **NEVER use `alert()` or `confirm()`** — use inline Popover pattern for all confirmations and messages. Native dialogs are ugly, don't match the design system, and interrupt the UX flow.
 - **NEVER store provider API keys in env vars, localStorage, or client state** — always use WorkOS Vault server-side. Metadata (lastFour, status) can be in Convex.
 - **NEVER log API keys or Vault secrets** — log only metadata (providerId, lastFour, status).
+- **NEVER access dynamic APIs (`headers()`, `cookies()`, `searchParams`) inside `'use cache'` functions** — pass dynamic data as parameters instead. Example: `getData(userId)` not `getData()` that calls `requireAuth()` inside.
+- **NEVER forget to invalidate cache tags after mutations** — use `revalidateTag()` in Route Handlers or `updateTag()` in Server Actions to ensure UI shows fresh data.
 
 ## Quick glossary
 
@@ -449,10 +479,61 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - `resultHistory`: contains `AssetRef` + `metadata` (including `executionId` linking to queue snapshot).
 - `ExecutionInspector`: read-only snapshot viewer; reuses left panel pattern; "Copy to Node" for settings.
 - `credentialResolver`: server-side utility (`lib/credentials.ts`) that fetches provider API keys from WorkOS Vault; caches decrypted keys for 5min; invalidates on rotation/revocation.
+- `getProviderCredentials(workosUserId)`: cached server function (`lib/server/providers.ts`) that fetches provider credential metadata using Cache Components (`'use cache'`). Takes userId as parameter (auth check happens outside). Tagged with `provider-credentials-${userId}` and `provider-credentials` for granular invalidation.
+- `hasActiveProvider(workosUserId, providerId)`: cached helper that checks if user has active provider credential.
 - `WorkOS Vault`: stores provider API keys encrypted; secrets never touch client or Convex; accessed via `lib/vault.ts` utilities.
 - `Convex`: server-side database storing user records, org memberships, and provider credential metadata (vaultSecretId, lastFour, status, timestamps). Never stores actual secrets.
+- `proxy.ts`: Next.js 16 proxy pattern replacing `middleware.ts`; wraps WorkOS AuthKit middleware for route protection. Export `proxy(request: Request)` function.
+- **Cache Components pattern**: Server functions with `'use cache'` directive cache their results. Use `cacheLife()` for duration, `cacheTag()` for invalidation. Dynamic APIs (auth, headers) must be accessed outside cached function and passed as parameters.
+
+## Cache Components Best Practices
+
+**When to create cached server functions:**
+
+- Data that doesn't change frequently (provider credentials, user settings, static metadata)
+- Data accessed on multiple pages (provider credentials used in header and settings)
+- Data that causes loading states when fetched client-side
+
+**Pattern for new cached functions:**
+
+```typescript
+// lib/server/example.ts
+export async function getCachedData(userId: string, otherParam: string) {
+  "use cache"
+  cacheLife("hours") // or "minutes", "days", "weeks"
+  cacheTag(`data-${userId}`) // user-specific tag
+  cacheTag("data") // general tag for bulk invalidation
+
+  // Fetch data using userId and otherParam
+  return data
+}
+
+// In server component/page
+const user = await getAuthenticatedUser()
+const data = await getCachedData(user.userId, someParam)
+
+// In Route Handler after mutation
+revalidateTag(`data-${user.userId}`)
+revalidateTag("data")
+```
+
+**Common mistakes to avoid:**
+
+- ❌ Calling `requireAuth()` or accessing `headers()`/`cookies()` inside cached function
+- ❌ Forgetting to invalidate cache tags after mutations
+- ❌ Using too long cache durations for frequently-changing data
+- ❌ Not using user-specific tags when data is user-scoped
+
+**Benefits:**
+
+- Faster initial page loads (no client-side fetch)
+- Reduced JavaScript bundle size (data fetching on server)
+- Better UX (no loading spinners for cached data)
+- Automatic deduplication (same data fetched multiple times = single request)
 
 ## Keeping this doc fresh
 
 - When you change: engine behavior, provider parameters, supported models, or persistence shapes—update this doc.
 - When you add: new nodes, node inputs/outputs, or major UI affordances—add a brief note and where to look in code.
+- When you add: new cached server functions, document the cache tags and invalidation strategy.
+- When you refactor: client-side data fetching to server components, update this doc with the new pattern.

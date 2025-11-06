@@ -1,52 +1,19 @@
-"use client"
+import { redirect } from "next/navigation"
+import { Suspense } from "react"
+import { getAuthenticatedUser } from "@/lib/auth"
+import LandingPageSimpleClient from "@/components/landing-page-simple-client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { AtelierLogo } from "@/components/atelier-logo"
-import { Button } from "@/components/ui/button"
+export default async function LandingPage() {
+  const user = await getAuthenticatedUser()
 
-export default function LandingPage() {
-  const router = useRouter()
-
-  useEffect(() => {
-    // Check if user is already logged in via API
-    const checkAuth = async () => {
-      try {
-        const res = await fetch("/api/auth/me")
-        const data = await res.json()
-        if (data.authenticated) {
-          router.push("/workflow")
-        }
-      } catch (error) {
-        // Not authenticated, show landing page
-      }
-    }
-    checkAuth()
-  }, [router])
-
-  const handleLogin = () => {
-    // Redirect to WorkOS login
-    window.location.href = "/api/auth/sign-in"
+  // If authenticated, redirect to workflow
+  if (user) {
+    redirect("/workflow")
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8">
-      <div className="max-w-2xl w-full text-center space-y-8">
-        <AtelierLogo className="h-16 w-auto mx-auto text-foreground" />
-
-        <div className="space-y-4">
-          <p className="text-lg text-muted-foreground">open-source gen media editor</p>
-        </div>
-
-        <div className="pt-8">
-          <Button
-            onClick={handleLogin}
-            className="h-12 px-8 text-base font-semibold bg-white text-black hover:bg-white/90"
-          >
-            Sign In
-          </Button>
-        </div>
-      </div>
-    </div>
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="text-muted-foreground">loading...</div></div>}>
+      <LandingPageSimpleClient />
+    </Suspense>
   )
 }

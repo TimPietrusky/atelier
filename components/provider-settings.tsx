@@ -20,9 +20,13 @@ interface ProviderCredential {
   lastUsedAt?: number
 }
 
-export function ProviderSettings() {
-  const [credentials, setCredentials] = useState<ProviderCredential[]>([])
-  const [loading, setLoading] = useState(true)
+export function ProviderSettings({
+  initialCredentials = [],
+}: {
+  initialCredentials?: ProviderCredential[]
+}) {
+  const [credentials, setCredentials] = useState<ProviderCredential[]>(initialCredentials)
+  const [loading, setLoading] = useState(false)
   const [showRunPodForm, setShowRunPodForm] = useState(false)
   const [apiKey, setApiKey] = useState("")
   const [name, setName] = useState("")
@@ -31,7 +35,10 @@ export function ProviderSettings() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadCredentials()
+    // Only load if no initial credentials provided
+    if (initialCredentials.length === 0) {
+      loadCredentials()
+    }
   }, [])
 
   const loadCredentials = async () => {

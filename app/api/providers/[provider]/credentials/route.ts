@@ -3,6 +3,7 @@ import { storeSecret } from "@/lib/vault"
 import { ConvexHttpClient } from "convex/browser"
 import { api } from "@/convex/_generated/api"
 import { NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 
 async function validateRunPodApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
   try {
@@ -113,6 +114,10 @@ export async function POST(
       lastFour,
     })
 
+    // Invalidate provider credentials cache (both user-specific and general tag)
+    revalidateTag(`provider-credentials-${user.userId}`)
+    revalidateTag("provider-credentials")
+
     return NextResponse.json({
       success: true,
       credentialId,
@@ -153,6 +158,10 @@ export async function DELETE(
     await convex.mutation(api.providerCredentials.revoke, {
       credentialId: credential._id,
     })
+
+    // Invalidate provider credentials cache (both user-specific and general tag)
+    revalidateTag(`provider-credentials-${user.userId}`)
+    revalidateTag("provider-credentials")
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

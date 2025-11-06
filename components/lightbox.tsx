@@ -56,16 +56,19 @@ export function Lightbox({
   // Fetch image data on-demand when current image changes
   useEffect(() => {
     async function fetchCurrentImage() {
-      if (!currentImage?.url || currentImage.url.startsWith("data:")) {
-        // URL already loaded or is a data URL
+      if (!currentImage) return
+
+      // If URL is already a data URL, no need to fetch
+      if (currentImage.url && currentImage.url.startsWith("data:")) {
         return
       }
 
+      // If already cached, no need to fetch
       if (imageDataCache.has(currentImage.id)) {
-        // Already cached
         return
       }
 
+      // If URL is empty, we need to fetch the asset data
       setIsLoadingImage(true)
       const data = await assetManager.getAssetData(currentImage.id)
       if (data) {
@@ -75,7 +78,7 @@ export function Lightbox({
     }
 
     fetchCurrentImage()
-  }, [currentImageId, imageDataCache])
+  }, [currentImageId, currentImage, imageDataCache])
 
   // Keyboard controls
   useEffect(() => {
@@ -123,18 +126,20 @@ export function Lightbox({
     return null
   }
 
-  // Use cached data if available, otherwise fall back to url or show loading
-  const displayUrl = imageDataCache.get(currentImage.id) || currentImage.url
+  // Use cached data if available, otherwise fall back to url
+  const displayUrl = imageDataCache.get(currentImage.id) || currentImage.url || null
 
   const handleDownload = async () => {
     const link = document.createElement("a")
     let downloadUrl = displayUrl
 
     // If we don't have cached data, fetch it
-    if (!imageDataCache.has(currentImage.id) && !currentImage.url.startsWith("data:")) {
+    if (!downloadUrl || (!imageDataCache.has(currentImage.id) && !currentImage.url?.startsWith("data:"))) {
       const data = await assetManager.getAssetData(currentImage.id)
       if (data) {
         downloadUrl = data
+      } else {
+        return // Can't download without data
       }
     }
 
@@ -229,7 +234,7 @@ export function Lightbox({
       </div>
 
       {/* Main image or loading state */}
-      {isLoadingImage && !displayUrl.startsWith("data:") ? (
+      {(!displayUrl || isLoadingImage) ? (
         <div className="flex flex-col items-center justify-center gap-4">
           <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin" />
           <p className="text-white text-sm">Loading image...</p>
