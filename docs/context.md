@@ -11,7 +11,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 
 ## Architecture
 
-- **Next.js 16 App Router**: API routes under `app/api/*`, UI in `app/*`. Cache Components enabled (`cacheComponents: true`) for Partial Pre-Rendering. React Compiler enabled (`reactCompiler: true`) for automatic optimization. See "Cache Components Best Practices" section below for patterns.
+- **Next.js 16 App Router**: API routes under `app/api/*`, UI in `app/*`. Cache Components enabled (`cacheComponents: true`) for Partial Pre-Rendering. React Compiler enabled (`reactCompiler: true`) for automatic optimization. ESLint uses flat config (`eslint.config.mjs`) with `eslint-config-next` (Next.js 16 removed `next lint` and ESLint config from `next.config.mjs`). See "Cache Components Best Practices" section below for patterns.
 - **Authentication**: WorkOS AuthKit (`@workos-inc/authkit-nextjs`) with session cookies. Proxy (`proxy.ts`) protects routes; callback at `/callback` handles OAuth flow. Auth checks performed server-side in page components to eliminate client-side redirect delays.
 - **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`) wrapped with `ReactFlowProvider` at app root to enable Controls/MiniMap in header.
 - **State**: Zustand store (`lib/store/workflows-zustand.ts`) for in-memory workflows; compat wrapper (`lib/store/workflows.ts`) maintains old API.
@@ -318,6 +318,7 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 
 - **Server Components**: Auth checks, initial data loading, and provider credential fetching use server components with Cache Components (`'use cache'` directive). Eliminates client-side loading states and reduces bundle size.
 - **Cache Components** (`'use cache'` directive):
+
   - Use for server functions that fetch cacheable data (e.g., provider credentials, user metadata).
   - **CRITICAL**: Cannot access dynamic APIs (`headers()`, `cookies()`, `searchParams`) inside cached functions. Pass dynamic data as parameters instead.
   - **Pattern**: Get auth/user outside cached function, pass userId as parameter.
@@ -339,6 +340,7 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
   - Per-user caching: Tag with user-specific tags (e.g., `cacheTag(\`provider-credentials-${userId}\`)`) for granular invalidation.
   - Cache invalidation: Use `revalidateTag()` in Route Handlers after mutations; use `updateTag()` in Server Actions for immediate expiration.
   - **When to use**: Any server function that fetches data that doesn't change frequently (credentials, user metadata, static content). Improves UX by eliminating loading states and reducing bundle size.
+
 - **Suspense Boundaries**: All dynamic/runtime data (cookies, headers, searchParams, fetch) wrapped in Suspense boundaries for streaming. Pages using `searchParams` must wrap dynamic parts in Suspense.
 - **React Compiler**: Enabled for automatic memoization; manual `useMemo`/`useCallback` removed where compiler handles it. Keep explicit memoization only for values used as dependencies in other hooks.
 - Hydration:
