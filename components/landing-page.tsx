@@ -1,28 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 import { AtelierLogo } from "@/components/atelier-logo"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
-export default function LandingPageClient({
+export default function LandingPage({
   error,
   redirectPath,
 }: {
   error?: string
   redirectPath?: string
 }) {
-  const router = useRouter()
-  const [authError, setAuthError] = useState<string | null>(error || null)
-
   useEffect(() => {
-    // Check for auth error in URL
+    // Clean up URL if there was an error
     if (error === "auth_failed") {
-      setAuthError(
-        "Authentication failed. This may be a temporary network issue. Please try again."
-      )
-      // Clean up URL
       const newUrl = new URL(window.location.href)
       newUrl.searchParams.delete("error")
       window.history.replaceState({}, "", newUrl.toString())
@@ -35,6 +27,11 @@ export default function LandingPageClient({
     // Redirect to custom sign-in page
     window.location.href = `/sign-in?return_pathname=${encodeURIComponent(returnPath)}`
   }
+
+  const authError =
+    error === "auth_failed"
+      ? "Authentication failed. This may be a temporary network issue. Please try again."
+      : null
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -108,4 +105,3 @@ export default function LandingPageClient({
     </div>
   )
 }
-

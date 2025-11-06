@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { getAuthenticatedUser } from "@/lib/auth"
-import LandingPageClient from "@/components/landing-page-client"
+import LandingPage from "@/components/landing-page"
 
-async function LandingPageContent({
+async function AuthAndParams({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; redirect?: string; from?: string }>
@@ -16,17 +16,17 @@ async function LandingPageContent({
     redirect("/workflow")
   }
 
-  return <LandingPageClient error={params.error} redirectPath={params.redirect} />
+  return <LandingPage error={params.error} redirectPath={params.redirect} />
 }
 
-export default function LandingPage({
+export default function LandingPageRoute({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; redirect?: string; from?: string }>
 }) {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="text-muted-foreground">loading...</div></div>}>
-      <LandingPageContent searchParams={searchParams} />
+    <Suspense fallback={<LandingPage />}>
+      <AuthAndParams searchParams={searchParams} />
     </Suspense>
   )
 }

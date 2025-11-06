@@ -342,6 +342,9 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
   - **When to use**: Any server function that fetches data that doesn't change frequently (credentials, user metadata, static content). Improves UX by eliminating loading states and reducing bundle size.
 
 - **Suspense Boundaries**: All dynamic/runtime data (cookies, headers, searchParams, fetch) wrapped in Suspense boundaries for streaming. Pages using `searchParams` must wrap dynamic parts in Suspense.
+  - **CRITICAL**: Only use Suspense when there's actual async work happening. Don't wrap client components that have no async data fetching, especially when all async work (auth checks, data fetching) happens server-side before rendering. Unnecessary Suspense boundaries cause "loading..." flashes during React streaming/hydration.
+  - **Pattern**: If async work happens in server component before rendering client component, remove Suspense wrapper around client component.
+  - **Fallback best practices**: Use content-matched skeletons that mirror the actual page structure instead of generic "loading..." text for better perceived performance.
 - **React Compiler**: Enabled for automatic memoization; manual `useMemo`/`useCallback` removed where compiler handles it. Keep explicit memoization only for values used as dependencies in other hooks.
 - Hydration:
   - Seed default workflows client-side only.
