@@ -55,22 +55,31 @@ export default function LandingPage({
 
           <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
             <div className="border border-border rounded-lg p-6 text-center space-y-3">
-              <h3 className="text-sm font-semibold text-foreground lowercase">
-                bring your own api key
-              </h3>
+              <h3 className="text-sm font-semibold text-foreground lowercase">byok</h3>
               <p className="text-xs text-muted-foreground lowercase">
-                use any of the supported providers from the ai sdk with your own api keys
+                use your own api key(s) for any of the supported providers from the ai sdk
               </p>
             </div>
             <div className="border border-border rounded-lg p-6 text-center space-y-3">
-              <h3 className="text-sm font-semibold text-foreground lowercase">local storage</h3>
+              <h3 className="text-sm font-semibold text-foreground lowercase">storage</h3>
               <p className="text-xs text-muted-foreground lowercase">
                 all assets are stored locally in your browser
               </p>
             </div>
             <div className="border border-border rounded-lg p-6 text-center space-y-3">
-              <h3 className="text-sm font-semibold text-foreground lowercase">open source soon</h3>
-              <p className="text-xs text-muted-foreground lowercase">coming soon</p>
+              <h3 className="text-sm font-semibold text-foreground lowercase">open source</h3>
+              <p className="text-xs text-muted-foreground lowercase">
+                star or contribute on{" "}
+                <Link
+                  href="https://github.com/timpietrusky/atelier"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors underline"
+                >
+                  github
+                </Link>
+              </p>
+              <p className="text-xs text-muted-foreground lowercase">Apache 2.0</p>
             </div>
           </div>
         </div>
