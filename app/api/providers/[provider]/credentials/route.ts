@@ -59,10 +59,11 @@ const getConvexClient = () => {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { provider: string } }
+  { params }: { params: Promise<{ provider: string }> }
 ) {
   await connection() // Force request-time execution, prevents build-time analysis
   try {
+    const { provider } = await params
     const user = await requireAuthFromRequest(request)
     const { apiKey, name } = await request.json()
 
@@ -75,7 +76,7 @@ export async function POST(
     }
 
     // Validate API key for RunPod
-    if (params.provider === "runpod") {
+    if (provider === "runpod") {
       const validation = await validateRunPodApiKey(apiKey)
       if (!validation.valid) {
         return NextResponse.json(
@@ -92,7 +93,7 @@ export async function POST(
       {
         userId: user.userId,
         orgId: user.orgId,
-        providerId: params.provider,
+        providerId: provider,
       },
       apiKey
     )
@@ -110,9 +111,9 @@ export async function POST(
     const credentialId = await convex.mutation(api.providerCredentials.create, {
       userId: convexUserId,
       workosUserId: user.userId,
-      providerId: params.provider,
+      providerId: provider,
       vaultSecretId,
-      name: name || `${params.provider} API Key`,
+      name: name || `${provider} API Key`,
       lastFour,
     })
 
@@ -136,17 +137,18 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { provider: string } }
+  { params }: { params: Promise<{ provider: string }> }
 ) {
   await connection() // Force request-time execution, prevents build-time analysis
   try {
+    const { provider } = await params
     const user = await requireAuthFromRequest(request)
 
     // Get active credential
     const convex = getConvexClient()
     const credential = await convex.query(api.providerCredentials.getByUserAndProvider, {
       workosUserId: user.userId,
-      providerId: params.provider,
+      providerId: provider,
     })
 
     if (!credential) {
