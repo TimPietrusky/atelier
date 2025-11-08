@@ -25,11 +25,12 @@ import { workflowStore } from "@/lib/store/workflows"
 import { workflowEngine } from "@/lib/workflow-engine"
 import { getKV, putKV } from "@/lib/store/db"
 import { useWorkflowStore } from "@/lib/store/workflows-zustand"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 
 export default function StudioDashboardClient() {
   const router = useRouter()
+  const pathname = usePathname()
   const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null)
   const [isExecutionQueueOpen, setIsExecutionQueueOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState<"canvas" | "media">("canvas")
@@ -58,7 +59,7 @@ export default function StudioDashboardClient() {
   // Check provider credentials
   const checkProvider = useCallback(async () => {
     try {
-      const res = await fetch("/api/providers")
+      const res = await fetch("/api/providers", { cache: "no-store" })
       if (res.ok) {
         const data = await res.json()
         const hasRunPod = data.credentials?.some(
@@ -76,13 +77,29 @@ export default function StudioDashboardClient() {
     checkProvider()
   }, [checkProvider])
 
-  // Refresh provider check when window regains focus (e.g., returning from settings)
+  // Refresh provider check when navigating back to dashboard (e.g., returning from settings)
+  useEffect(() => {
+    if (pathname === "/") {
+      checkProvider()
+    }
+  }, [pathname, checkProvider])
+
+  // Refresh provider check when window regains focus or page becomes visible (e.g., returning from settings)
   useEffect(() => {
     const handleFocus = () => {
       checkProvider()
     }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkProvider()
+      }
+    }
     window.addEventListener("focus", handleFocus)
-    return () => window.removeEventListener("focus", handleFocus)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    return () => {
+      window.removeEventListener("focus", handleFocus)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
   }, [checkProvider])
 
   const handleAddNode = (nodeType: string, position?: { x: number; y: number }) => {
