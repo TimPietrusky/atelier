@@ -558,7 +558,9 @@ export class WorkflowEngine {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      // Clone response before reading to avoid "body already consumed" errors
+      const clonedResponse = response.clone()
+      const errorText = await clonedResponse.text()
       console.error("[WorkflowEngine] API error response:", response.status, errorText)
       throw new Error(`Image generation failed: ${response.status} ${response.statusText}`)
     }
@@ -805,7 +807,9 @@ export class WorkflowEngine {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      // Clone response before reading to avoid "body already consumed" errors
+      const clonedResponse = response.clone()
+      const errorText = await clonedResponse.text()
       console.error("[WorkflowEngine] API error response:", response.status, errorText)
       throw new Error(`Image edit failed: ${response.status} ${response.statusText}`)
     }
