@@ -48,6 +48,10 @@ export function Lightbox({
   const [imageDataCache, setImageDataCache] = useState<Map<string, string>>(new Map())
   const [isLoadingImage, setIsLoadingImage] = useState(false)
 
+  // Compute current image early so it's available for all hooks
+  const currentImage = images.find((img) => img.id === currentImageId)
+  const currentIndex = images.findIndex((img) => img.id === currentImageId)
+
   // Keep images ref in sync (for keyboard handler stability)
   useEffect(() => {
     imagesRef.current = images
@@ -87,9 +91,9 @@ export function Lightbox({
         e.preventDefault()
         e.stopPropagation()
         const history = imagesRef.current
-        const currentIndex = history.findIndex((img) => img.id === currentImageId)
-        if (currentIndex > 0) {
-          const newImage = history[currentIndex - 1]
+        const idx = history.findIndex((img) => img.id === currentImageId)
+        if (idx > 0) {
+          const newImage = history[idx - 1]
           if (!newImage.isPending) {
             onNavigate?.(newImage.id)
           }
@@ -98,9 +102,9 @@ export function Lightbox({
         e.preventDefault()
         e.stopPropagation()
         const history = imagesRef.current
-        const currentIndex = history.findIndex((img) => img.id === currentImageId)
-        if (currentIndex >= 0 && currentIndex < history.length - 1) {
-          const newImage = history[currentIndex + 1]
+        const idx = history.findIndex((img) => img.id === currentImageId)
+        if (idx >= 0 && idx < history.length - 1) {
+          const newImage = history[idx + 1]
           if (!newImage.isPending) {
             onNavigate?.(newImage.id)
           }
@@ -117,8 +121,6 @@ export function Lightbox({
     return () => window.removeEventListener("keydown", handleKeyDown, true)
   }, [currentImageId, onClose, onNavigate])
 
-  const currentImage = images.find((img) => img.id === currentImageId)
-  const currentIndex = images.findIndex((img) => img.id === currentImageId)
   const hasPrev = currentIndex > 0
   const hasNext = currentIndex < images.length - 1 && !images[currentIndex + 1]?.isPending
 
