@@ -1,4 +1,5 @@
 import { authkitMiddleware } from "@workos-inc/authkit-nextjs"
+import { NextResponse } from "next/server"
 
 const middleware = authkitMiddleware({
   middlewareAuth: {
@@ -18,7 +19,22 @@ const middleware = authkitMiddleware({
   redirectUri: process.env.WORKOS_REDIRECT_URI || "http://localhost:3000/callback",
 })
 
-export function proxy(request: Request) {
+export async function proxy(request: Request) {
+  const url = new URL(request.url)
+  
+  // If authenticated user tries to access sign-in, redirect to workflow immediately
+  // Check for WorkOS session cookie to determine if user is authenticated
+  if (url.pathname === "/sign-in") {
+    const cookieHeader = request.headers.get("cookie") || ""
+    const hasSession = cookieHeader.includes("wos-session")
+    
+    if (hasSession) {
+      // User is authenticated, redirect to workflow (or return_pathname if present)
+      const returnPathname = url.searchParams.get("return_pathname") || "/workflow"
+      return NextResponse.redirect(new URL(returnPathname, request.url), 307)
+    }
+  }
+  
   return middleware(request)
 }
 

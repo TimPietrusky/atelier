@@ -36,8 +36,9 @@ export default function LandingPage({
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="flex-1 flex items-center justify-center p-8">
-        <div className="max-w-4xl w-full text-center">
-          <div className="space-y-6 mb-20">
+        {/* Fixed-size centered box - same on both pages */}
+        <div className="h-full w-full md:h-[400px] md:max-w-4xl md:w-full text-center flex flex-col">
+          <div className="w-full space-y-6">
             <div>
               <AtelierLogo className="h-16 w-auto text-foreground mx-auto" />
             </div>
@@ -53,7 +54,8 @@ export default function LandingPage({
             </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
+          <div className="mt-auto w-full">
+            <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
             <div className="border border-border rounded-lg p-6 text-center space-y-3">
               <h3 className="text-sm font-semibold text-foreground lowercase">byok</h3>
               <p className="text-xs text-muted-foreground lowercase">
@@ -81,6 +83,7 @@ export default function LandingPage({
               </p>
               <p className="text-xs text-muted-foreground lowercase">Apache 2.0</p>
             </div>
+          </div>
           </div>
         </div>
       </div>

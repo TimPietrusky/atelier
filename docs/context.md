@@ -12,7 +12,7 @@ This doc orients anyone working in this codebase. It captures the architectural 
 ## Architecture
 
 - **Next.js 16 App Router**: API routes under `app/api/*`, UI in `app/*`. Cache Components enabled (`cacheComponents: true`) for Partial Pre-Rendering. React Compiler enabled (`reactCompiler: true`) for automatic optimization. ESLint uses flat config (`eslint.config.mjs`) with `eslint-config-next` (Next.js 16 removed `next lint` and ESLint config from `next.config.mjs`). See "Cache Components Best Practices" section below for patterns.
-- **Authentication**: WorkOS AuthKit (`@workos-inc/authkit-nextjs`) with session cookies. Proxy (`proxy.ts`) protects routes; callback at `/callback` handles OAuth flow. Auth checks performed server-side in page components to eliminate client-side redirect delays.
+- **Authentication**: WorkOS AuthKit (`@workos-inc/authkit-nextjs`) with session cookies. Proxy (`proxy.ts`) protects routes; callback at `/callback` handles OAuth flow. **ALL auth checks MUST be performed server-side in page components** using `getAuthenticatedUser()` or `requireAuth()` to eliminate client-side loading states and redirect delays. Never use client-side auth checks (e.g., `/api/auth/me` fetch) in page components—this causes loading flashes and poor UX.
 - **Canvas**: ReactFlow (`components/node-graph-canvas.tsx`) wrapped with `ReactFlowProvider` at app root to enable Controls/MiniMap in header.
 - **State**: Zustand store (`lib/store/workflows-zustand.ts`) for in-memory workflows; compat wrapper (`lib/store/workflows.ts`) maintains old API.
 - **Persistence**: Unified storage architecture via `StorageManager` (`lib/store/storage-manager.ts`):
@@ -345,6 +345,7 @@ Dropdown/popover components must stack above full-page overlays; lightbox modals
 - **Suspense Boundaries**: All dynamic/runtime data (cookies, headers, searchParams, fetch) wrapped in Suspense boundaries for streaming. Pages using `searchParams` must wrap dynamic parts in Suspense.
   - **CRITICAL**: Only use Suspense when there's actual async work happening. Don't wrap client components that have no async data fetching, especially when all async work (auth checks, data fetching) happens server-side before rendering. Unnecessary Suspense boundaries cause "loading..." flashes during React streaming/hydration.
   - **Pattern**: If async work happens in server component before rendering client component, remove Suspense wrapper around client component.
+  - **Auth pages pattern**: Sign-in and protected pages should be server components that check auth server-side and redirect immediately. No client-side auth checks or loading states needed—server-side redirects are instant and eliminate loading flashes.
   - **Fallback best practices**: Use content-matched skeletons that mirror the actual page structure instead of generic "loading..." text for better perceived performance.
 - **React Compiler**: Enabled for automatic memoization; manual `useMemo`/`useCallback` removed where compiler handles it. Keep explicit memoization only for values used as dependencies in other hooks.
 - Hydration:
